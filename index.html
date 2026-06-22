@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NestKart — Home goods you'll actually love living with.</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F5EFE6;
+      --terracotta: #C4622D;
+      --sand: #E8D5B7;
+      --walnut: #3D2B1F;
+      --walnut-light: #6B4C3B;
+      --white: #FFFFFF;
+      --border: #D4C0A8;
+    }
+
+    body {
+      background-color: var(--cream);
+      color: var(--walnut);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── NAV ── */
+    .nav {
+      background-color: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 5%;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1280px;
+      margin: 0 auto;
+      height: 64px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .nav-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--terracotta);
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 20px;
+      list-style: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--walnut);
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--terracotta); }
+
+    /* ── HERO ── */
+    .hero {
+      background-color: var(--sand);
+      padding: 80px 5% 72px;
+      text-align: center;
+    }
+    .hero-inner { max-width: 820px; margin: 0 auto; }
+    .hero h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--walnut);
+      margin-bottom: 20px;
+    }
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      color: var(--walnut-light);
+      max-width: 640px;
+      margin: 0 auto 32px;
+    }
+    .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background-color: var(--terracotta);
+      color: var(--white);
+      padding: 14px 32px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background-color: #a8511f; }
+    .btn-outline {
+      border: 2px solid var(--terracotta);
+      color: var(--terracotta);
+      padding: 12px 30px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .btn-outline:hover { background-color: var(--terracotta); color: var(--white); }
+
+    /* ── SECTIONS ── */
+    section { padding: 64px 5%; }
+    .section-inner { max-width: 1280px; margin: 0 auto; }
+    .section-title {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      color: var(--walnut);
+      margin-bottom: 8px;
+    }
+    .section-sub {
+      font-size: 0.95rem;
+      color: var(--walnut-light);
+      margin-bottom: 40px;
+      max-width: 640px;
+    }
+
+    /* ── VALUE PROPS ── */
+    .value-props { background-color: var(--white); }
+    .props-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 32px;
+    }
+    .prop-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px 28px;
+      background: var(--cream);
+    }
+    .prop-icon {
+      width: 44px;
+      height: 44px;
+      background-color: var(--terracotta);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .prop-icon svg { width: 22px; height: 22px; fill: var(--white); }
+    .prop-card h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: var(--walnut);
+    }
+    .prop-card p { font-size: 0.92rem; color: var(--walnut-light); }
+
+    /* ── SOCIAL PROOF ── */
+    .social-proof {
+      background-color: var(--terracotta);
+      padding: 32px 5%;
+      text-align: center;
+    }
+    .social-proof p {
+      color: var(--white);
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      font-weight: 600;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* ── CATEGORY CARDS ── */
+    .categories { background-color: var(--cream); }
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .cat-card {
+      background-color: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .cat-card-img {
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+    }
+    .cat-card-img.furniture { background-color: #EAD9C8; }
+    .cat-card-img.decor { background-color: #E2D5C3; }
+    .cat-card-img.kitchen { background-color: #D9CCB9; }
+    .cat-card-body { padding: 24px; }
+    .cat-card-body h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.15rem;
+      margin-bottom: 8px;
+      color: var(--walnut);
+    }
+    .cat-card-body p { font-size: 0.88rem; color: var(--walnut-light); line-height: 1.55; }
+    .cat-link {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--terracotta);
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--terracotta);
+      padding-bottom: 1px;
+      transition: opacity 0.2s;
+    }
+    .cat-link:hover { opacity: 0.75; }
+
+    /* ── SHIPPING TEASER ── */
+    .shipping-teaser {
+      background-color: var(--sand);
+      text-align: center;
+      padding: 48px 5%;
+    }
+    .shipping-teaser p {
+      font-size: 1.05rem;
+      color: var(--walnut);
+      margin-bottom: 16px;
+    }
+    .shipping-teaser a.btn-outline {
+      display: inline-block;
+      border: 2px solid var(--terracotta);
+      color: var(--terracotta);
+      padding: 10px 26px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .shipping-teaser a.btn-outline:hover { background: var(--terracotta); color: var(--white); }
+
+    /* ── FAQ ── */
+    .faq { background-color: var(--white); }
+    .faq-list { max-width: 800px; }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+    }
+    .faq-item:first-child { border-top: 1px solid var(--border); }
+    .faq-q {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--walnut);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      user-select: none;
+    }
+    .faq-q::after {
+      content: '+';
+      font-size: 1.3rem;
+      color: var(--terracotta);
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    .faq-item input[type="checkbox"] { display: none; }
+    .faq-item input:checked ~ .faq-q::after { content: '−'; }
+    .faq-a {
+      font-size: 0.92rem;
+      color: var(--walnut-light);
+      line-height: 1.65;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s;
+    }
+    .faq-item input:checked ~ .faq-a {
+      max-height: 300px;
+      padding-top: 12px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background-color: var(--walnut);
+      color: var(--sand);
+      padding: 48px 5% 32px;
+    }
+    .footer-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    .footer-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 6px;
+    }
+    .footer-tagline {
+      font-size: 0.9rem;
+      color: var(--sand);
+      margin-bottom: 28px;
+      font-style: italic;
+    }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      list-style: none;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+    .footer-links a { color: var(--sand); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
+    .footer-contact { font-size: 0.85rem; margin-bottom: 24px; }
+    .footer-contact a { color: var(--terracotta); }
+    .footer-copyright { font-size: 0.78rem; color: #8A7060; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .nav-links { gap: 4px 14px; font-size: 0.78rem; }
+      section { padding: 48px 4%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ░░ NAVBAR ░░ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">NestKart</a>
+    <ul class="nav-links">
+      <li><a href="index.html" class="active">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="brands.html">Our Brands</a></li>
+      <li><a href="trust.html">Trust &amp; Safety</a></li>
+      <li><a href="help.html">Help Center</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="journal.html">Journal</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ░░ HERO ░░ -->
+<section class="hero">
+  <div class="hero-inner">
+    <h1>Home goods you'll actually love living with.</h1>
+    <p>NestKart curates furniture, décor, and kitchenware from independent makers and trusted brands — delivered to your door in 2–5 business days.</p>
+    <div class="btn-group">
+      <a href="shop.html" class="btn-primary">Shop now</a>
+      <a href="shop.html" class="btn-outline">See what's new</a>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ VALUE PROPS ░░ -->
+<section class="value-props">
+  <div class="section-inner">
+    <h2 class="section-title">Why NestKart</h2>
+    <p class="section-sub">We do the hard work of finding the right things so you don't have to.</p>
+    <div class="props-grid">
+      <div class="prop-card">
+        <div class="prop-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Curated selection</h3>
+        <p>Every product is reviewed by our in-house team before listing. We stock fewer things, chosen more carefully — so you spend less time filtering and more time enjoying.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM1 7l3-4h16l3 4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Fast, tracked delivery</h3>
+        <p>Standard shipping in 2–5 business days. Express in 1–2 business days. Free standard shipping on orders over $75. Every order includes a tracking link sent by email.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h16v16H4z" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9h6M9 13h4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <h3>Hassle-free returns</h3>
+        <p>30-day returns on most items. Free returns on defective or damaged goods. Furniture items over $300 have a 14-day return window due to logistics costs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ SOCIAL PROOF ░░ -->
+<div class="social-proof">
+  <p>50,000+ happy homes across the US. Rated 4.8/5 from 12,000+ verified reviews.</p>
+</div>
+
+<!-- ░░ CATEGORY HIGHLIGHTS ░░ -->
+<section class="categories">
+  <div class="section-inner">
+    <h2 class="section-title">Shop by category</h2>
+    <p class="section-sub">Three categories, each stocked with items that earn their place in your home.</p>
+    <div class="categories-grid">
+      <div class="cat-card">
+        <div class="cat-card-img furniture">🛋️</div>
+        <div class="cat-card-body">
+          <h3>Furniture</h3>
+          <p>Sofas, dining tables, shelving, bed frames — solid wood and metal construction, available in multiple finishes. Ships flat-pack or fully assembled depending on item.</p>
+          <a href="shop.html" class="cat-link">Browse furniture →</a>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-card-img decor">🪴</div>
+        <div class="cat-card-body">
+          <h3>Décor</h3>
+          <p>Cushions, wall art, rugs, candles, vases — refreshed seasonally. Every piece chosen for how well it works alongside other things in a room, not just on its own.</p>
+          <a href="shop.html" class="cat-link">Browse décor →</a>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-card-img kitchen">🍳</div>
+        <div class="cat-card-body">
+          <h3>Kitchenware</h3>
+          <p>Cookware, serving boards, ceramic tableware, storage — functional and designed to be left on the counter. All cookware is dishwasher safe unless stated otherwise.</p>
+          <a href="shop.html" class="cat-link">Browse kitchenware →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ SHIPPING TEASER ░░ -->
+<div class="shipping-teaser">
+  <p><strong>Free standard shipping on orders over $75.</strong> Express delivery available at checkout for $12.99.</p>
+  <a href="shipping.html" class="btn-outline">View full shipping policy</a>
+</div>
+
+<!-- ░░ FAQ ░░ -->
+<section class="faq">
+  <div class="section-inner">
+    <h2 class="section-title">Frequently asked questions</h2>
+    <p class="section-sub">Still have questions? Email us at <a href="mailto:hello@nestkart.com" style="color:var(--terracotta)">hello@nestkart.com</a>.</p>
+    <div class="faq-list">
+
+      <div class="faq-item">
+        <input type="checkbox" id="faq1" />
+        <label class="faq-q" for="faq1">What does NestKart sell?</label>
+        <div class="faq-a">NestKart sells home and living products across three categories: furniture, décor, and kitchenware. Products are sourced from independent makers and established home goods brands. Every item is reviewed by NestKart's in-house team before listing.</div>
+      </div>
+
+      <div class="faq-item">
+        <input type="checkbox" id="faq2" />
+        <label class="faq-q" for="faq2">How long does shipping take?</label>
+        <div class="faq-a">Standard shipping takes 2–5 business days. Express shipping takes 1–2 business days and costs $12.99 at checkout. Free standard shipping is available on orders over $75.</div>
+      </div>
+
+      <div class="faq-item">
+        <input type="checkbox" id="faq3" />
+        <label class="faq-q" for="faq3">What is NestKart's return policy?</label>
+        <div class="faq-a">Most items can be returned within 30 days of delivery for a full refund. Items must be unused and in original packaging. Defective or damaged items are eligible for free return shipping. Furniture items over $300 have a 14-day return window due to logistics costs.</div>
+      </div>
+
+      <div class="faq-item">
+        <input type="checkbox" id="faq4" />
+        <label class="faq-q" for="faq4">Does NestKart ship internationally?</label>
+        <div class="faq-a">NestKart currently ships within the United States only, including Alaska and Hawaii. Additional shipping surcharges apply for orders destined for AK and HI.</div>
+      </div>
+
+      <div class="faq-item">
+        <input type="checkbox" id="faq5" />
+        <label class="faq-q" for="faq5">Are products on NestKart covered by a warranty?</label>
+        <div class="faq-a">Yes. All NestKart products include a minimum 1-year manufacturer warranty covering defects in materials and workmanship. Furniture items include a 2-year warranty. Warranty claims can be submitted at <a href="mailto:support@nestkart.com" style="color:var(--terracotta)">support@nestkart.com</a>.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ░░ FOOTER ░░ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">NestKart</div>
+    <div class="footer-tagline">"Home goods you'll actually love living with."</div>
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="brands.html">Our Brands</a></li>
+      <li><a href="trust.html">Trust &amp; Safety</a></li>
+      <li><a href="help.html">Help Center</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="journal.html">Journal</a></li>
+    </ul>
+    <div class="footer-contact">Contact: <a href="mailto:hello@nestkart.com">hello@nestkart.com</a></div>
+    <div class="footer-copyright">© 2025 NestKart</div>
+  </div>
+</footer>
+
+</body>
+</html>

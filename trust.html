@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trust &amp; Safety — NestKart</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F5EFE6;
+      --terracotta: #C4622D;
+      --sand: #E8D5B7;
+      --walnut: #3D2B1F;
+      --walnut-light: #6B4C3B;
+      --white: #FFFFFF;
+      --border: #D4C0A8;
+    }
+
+    body {
+      background-color: var(--cream);
+      color: var(--walnut);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── NAV ── */
+    .nav {
+      background-color: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 5%;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1280px;
+      margin: 0 auto;
+      height: 64px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .nav-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--terracotta);
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 20px;
+      list-style: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--walnut);
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--terracotta); }
+
+    /* ── PAGE HEADER ── */
+    .page-header {
+      background-color: var(--sand);
+      padding: 56px 5% 48px;
+    }
+    .page-header-inner { max-width: 1280px; margin: 0 auto; }
+    .page-header h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.8rem, 4vw, 2.75rem);
+      color: var(--walnut);
+      margin-bottom: 12px;
+    }
+    .page-header p {
+      font-size: 0.97rem;
+      color: var(--walnut-light);
+      max-width: 700px;
+    }
+
+    /* ── CONTENT LAYOUT ── */
+    .content-wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 56px 5%;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .content-wrap { grid-template-columns: 1fr; }
+      .toc { display: none; }
+    }
+
+    /* ── TABLE OF CONTENTS ── */
+    .toc {
+      position: sticky;
+      top: 80px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .toc h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--walnut-light);
+      margin-bottom: 12px;
+    }
+    .toc ul { list-style: none; }
+    .toc li { margin-bottom: 6px; }
+    .toc a { font-size: 0.82rem; color: var(--walnut-light); transition: color 0.2s; }
+    .toc a:hover { color: var(--terracotta); }
+
+    /* ── POLICY SECTIONS ── */
+    .policy-section { margin-bottom: 52px; }
+    .policy-section h2 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+      color: var(--walnut);
+      border-bottom: 2px solid var(--terracotta);
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .policy-section p {
+      font-size: 0.93rem;
+      color: var(--walnut-light);
+      margin-bottom: 14px;
+    }
+
+    /* ── PAYMENT METHODS GRID ── */
+    .payment-methods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .payment-badge {
+      background-color: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--walnut);
+    }
+
+    /* ── CHECK LIST ── */
+    .check-list { list-style: none; margin-bottom: 16px; }
+    .check-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      color: var(--walnut-light);
+    }
+    .check-list li:last-child { border-bottom: none; }
+    .check-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: var(--terracotta);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .check-icon::after {
+      content: '✓';
+      color: var(--white);
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    /* ── CALLOUT ── */
+    .callout {
+      background-color: #FFF5EF;
+      border-left: 4px solid var(--terracotta);
+      padding: 16px 20px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      color: var(--walnut);
+      line-height: 1.6;
+    }
+
+    /* ── SECURITY CARDS ── */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .security-card {
+      background-color: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .security-card .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--walnut-light);
+      margin-bottom: 6px;
+    }
+    .security-card .value {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--walnut);
+    }
+
+    /* ── GUARANTEE CARDS ── */
+    .guarantee-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .guarantee-card {
+      background-color: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 20px 20px 24px;
+      border-left: 4px solid var(--terracotta);
+    }
+    .guarantee-card h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 0.95rem;
+      color: var(--walnut);
+      margin-bottom: 6px;
+    }
+    .guarantee-card p { font-size: 0.85rem; color: var(--walnut-light); line-height: 1.55; }
+
+    /* ── DATA TABLE ── */
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .data-table th {
+      background-color: var(--sand);
+      color: var(--walnut);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    .data-table td {
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      color: var(--walnut-light);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:nth-child(even) td { background-color: var(--cream); }
+
+    /* ── COMPLIANCE BADGES ── */
+    .compliance-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .compliance-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+    .compliance-badge .badge-icon { font-size: 1.5rem; }
+    .compliance-badge .badge-text {}
+    .compliance-badge .badge-name { font-size: 0.85rem; font-weight: 700; color: var(--walnut); }
+    .compliance-badge .badge-status { font-size: 0.75rem; color: #5A9E6F; font-weight: 600; }
+
+    /* ── REVIEW INTEGRITY ── */
+    .integrity-list { list-style: none; margin-bottom: 16px; }
+    .integrity-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      color: var(--walnut-light);
+      padding-left: 24px;
+      position: relative;
+    }
+    .integrity-list li:last-child { border-bottom: none; }
+    .integrity-list li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: var(--terracotta);
+      font-weight: 700;
+    }
+
+    /* ── FAQ ── */
+    .faq-list { max-width: 800px; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .faq-item:first-child { border-top: 1px solid var(--border); }
+    .faq-q {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--walnut);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      user-select: none;
+    }
+    .faq-q::after { content: '+'; font-size: 1.3rem; color: var(--terracotta); flex-shrink: 0; }
+    .faq-item input[type="checkbox"] { display: none; }
+    .faq-item input:checked ~ .faq-q::after { content: '−'; }
+    .faq-a {
+      font-size: 0.92rem;
+      color: var(--walnut-light);
+      line-height: 1.65;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s;
+    }
+    .faq-item input:checked ~ .faq-a { max-height: 300px; padding-top: 12px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background-color: var(--walnut);
+      color: var(--sand);
+      padding: 48px 5% 32px;
+    }
+    .footer-inner { max-width: 1280px; margin: 0 auto; }
+    .footer-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 6px;
+    }
+    .footer-tagline { font-size: 0.9rem; color: var(--sand); margin-bottom: 28px; font-style: italic; }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      list-style: none;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+    .footer-links a { color: var(--sand); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
+    .footer-contact { font-size: 0.85rem; margin-bottom: 24px; }
+    .footer-contact a { color: var(--terracotta); }
+    .footer-copyright { font-size: 0.78rem; color: #8A7060; }
+
+    @media (max-width: 640px) {
+      .nav-links { gap: 4px 14px; font-size: 0.78rem; }
+      .content-wrap { padding: 40px 4%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ░░ NAVBAR ░░ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">NestKart</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="brands.html">Our Brands</a></li>
+      <li><a href="trust.html" class="active">Trust &amp; Safety</a></li>
+      <li><a href="help.html">Help Center</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="journal.html">Journal</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ░░ PAGE HEADER ░░ -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <h1>NestKart Trust &amp; Safety</h1>
+    <p>NestKart is committed to a safe, transparent, and secure shopping experience. Below is a full overview of our payment security, data practices, buyer protections, and review integrity standards.</p>
+  </div>
+</div>
+
+<!-- ░░ CONTENT ░░ -->
+<div class="content-wrap">
+
+  <!-- Table of contents -->
+  <aside class="toc">
+    <h3>On this page</h3>
+    <ul>
+      <li><a href="#payment-methods">Payment methods</a></li>
+      <li><a href="#payment-security">Payment security</a></li>
+      <li><a href="#buyer-guarantee">Buyer guarantee</a></li>
+      <li><a href="#data-collected">Data we collect</a></li>
+      <li><a href="#data-use">How we use data</a></li>
+      <li><a href="#data-retention">Data retention</a></li>
+      <li><a href="#compliance">Compliance</a></li>
+      <li><a href="#reviews">Review integrity</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+  </aside>
+
+  <!-- Policy body -->
+  <div class="policy-body">
+
+    <!-- PAYMENT METHODS -->
+    <div class="policy-section" id="payment-methods">
+      <h2>Payment methods accepted</h2>
+      <div class="payment-methods">
+        <span class="payment-badge">Visa</span>
+        <span class="payment-badge">Mastercard</span>
+        <span class="payment-badge">American Express</span>
+        <span class="payment-badge">Discover</span>
+        <span class="payment-badge">PayPal</span>
+        <span class="payment-badge">Apple Pay</span>
+        <span class="payment-badge">Google Pay</span>
+        <span class="payment-badge">NestKart Gift Cards</span>
+      </div>
+      <div class="callout">
+        <strong>Buy Now, Pay Later — Klarna:</strong> Available on orders between $50 and $2,000. Select Klarna at checkout to split your purchase into interest-free instalments. Subject to approval and Klarna's terms.
+      </div>
+    </div>
+
+    <!-- PAYMENT SECURITY -->
+    <div class="policy-section" id="payment-security">
+      <h2>Payment data security</h2>
+      <div class="security-grid">
+        <div class="security-card">
+          <div class="label">Payment processor</div>
+          <div class="value">Stripe (PCI DSS Level 1)</div>
+        </div>
+        <div class="security-card">
+          <div class="label">Encryption</div>
+          <div class="value">TLS 1.2 or higher</div>
+        </div>
+        <div class="security-card">
+          <div class="label">Card storage</div>
+          <div class="value">NestKart never stores card numbers</div>
+        </div>
+        <div class="security-card">
+          <div class="label">Large orders</div>
+          <div class="value">3D Secure required on orders over $500</div>
+        </div>
+      </div>
+      <p>All payment processing is handled exclusively by Stripe. PCI DSS Level 1 is the highest level of payment security certification available. NestKart has no access to your full card number at any point during or after a transaction.</p>
+    </div>
+
+    <!-- BUYER GUARANTEE -->
+    <div class="policy-section" id="buyer-guarantee">
+      <h2>NestKart Buyer Guarantee</h2>
+      <p>Every order placed on NestKart is covered by the following three guarantees:</p>
+      <div class="guarantee-grid">
+        <div class="guarantee-card">
+          <h3>Accurate descriptions</h3>
+          <p>If an item significantly differs from its product description, NestKart will offer a full refund or replacement at no cost to you.</p>
+        </div>
+        <div class="guarantee-card">
+          <h3>Safe delivery</h3>
+          <p>If an item is lost in transit, NestKart will reship the item or issue a full refund including original shipping costs.</p>
+        </div>
+        <div class="guarantee-card">
+          <h3>Damaged on arrival</h3>
+          <p>Items damaged in shipping are eligible for free return and full refund or replacement. Report within 48 hours of delivery with photos to <a href="mailto:support@nestkart.com" style="color:var(--terracotta)">support@nestkart.com</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA COLLECTED -->
+    <div class="policy-section" id="data-collected">
+      <h2>What data NestKart collects</h2>
+      <ul class="check-list">
+        <li><span class="check-icon"></span><span>Name, email address, shipping address, and phone number (used for delivery purposes)</span></li>
+        <li><span class="check-icon"></span><span>Payment method details — processed entirely via Stripe; NestKart never stores card numbers</span></li>
+        <li><span class="check-icon"></span><span>Order history and browsing behaviour on nestkart.com</span></li>
+        <li><span class="check-icon"></span><span>Communication history with NestKart support</span></li>
+      </ul>
+    </div>
+
+    <!-- DATA USE -->
+    <div class="policy-section" id="data-use">
+      <h2>How NestKart uses your data</h2>
+      <ul class="check-list">
+        <li><span class="check-icon"></span><span>To fulfil and track your orders</span></li>
+        <li><span class="check-icon"></span><span>To send order confirmation, dispatch, and delivery notification emails</span></li>
+        <li><span class="check-icon"></span><span>To send marketing emails — only with your explicit opt-in; every marketing email includes an unsubscribe link</span></li>
+        <li><span class="check-icon"></span><span>To improve the NestKart website, product range, and customer experience</span></li>
+      </ul>
+    </div>
+
+    <!-- DATA RETENTION -->
+    <div class="policy-section" id="data-retention">
+      <h2>Data retention</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Data type</th>
+            <th>Retention period</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Active account data</td>
+            <td>Retained for the duration of the account</td>
+          </tr>
+          <tr>
+            <td>Order records</td>
+            <td>Retained for 7 years for tax and legal compliance</td>
+          </tr>
+          <tr>
+            <td>After account deletion</td>
+            <td>Personal data deleted within 30 days, except where retention is required by law</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- COMPLIANCE -->
+    <div class="policy-section" id="compliance">
+      <h2>Compliance</h2>
+      <div class="compliance-row">
+        <div class="compliance-badge">
+          <div class="badge-icon">🛡️</div>
+          <div class="badge-text">
+            <div class="badge-name">GDPR</div>
+            <div class="badge-status">Compliant</div>
+          </div>
+        </div>
+        <div class="compliance-badge">
+          <div class="badge-icon">🔒</div>
+          <div class="badge-text">
+            <div class="badge-name">CCPA</div>
+            <div class="badge-status">Compliant</div>
+          </div>
+        </div>
+        <div class="compliance-badge">
+          <div class="badge-icon">💳</div>
+          <div class="badge-text">
+            <div class="badge-name">PCI DSS</div>
+            <div class="badge-status">Compliant via Stripe</div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:0.9rem;color:var(--walnut-light)">GDPR: Data Processing Agreement available on request at <a href="mailto:privacy@nestkart.com" style="color:var(--terracotta)">privacy@nestkart.com</a>. CCPA: California residents can request data deletion at <a href="mailto:privacy@nestkart.com" style="color:var(--terracotta)">privacy@nestkart.com</a>.</p>
+    </div>
+
+    <!-- REVIEW INTEGRITY -->
+    <div class="policy-section" id="reviews">
+      <h2>How NestKart verifies reviews</h2>
+      <ul class="integrity-list">
+        <li>Only verified purchasers can leave a product review — reviews require a confirmed delivery on record</li>
+        <li>Reviews are submitted after confirmed delivery; no pre-purchase reviews are permitted</li>
+        <li>NestKart does not edit or remove negative reviews unless they violate community guidelines (hate speech, spam, or off-topic content)</li>
+        <li>Brands cannot pay to suppress or remove reviews under any circumstances</li>
+        <li>Star ratings are calculated from all verified reviews with no weighting or manipulation</li>
+      </ul>
+    </div>
+
+    <!-- FAQ -->
+    <div class="policy-section" id="faq">
+      <h2>Trust &amp; Safety FAQ</h2>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <input type="checkbox" id="tfaq1" />
+          <label class="faq-q" for="tfaq1">Is it safe to use my credit card on NestKart?</label>
+          <div class="faq-a">Yes. NestKart uses Stripe for all payment processing. Stripe is PCI DSS Level 1 certified — the highest level of payment security certification. NestKart never stores your card number at any point during or after a transaction.</div>
+        </div>
+
+        <div class="faq-item">
+          <input type="checkbox" id="tfaq2" />
+          <label class="faq-q" for="tfaq2">What do I do if I suspect fraud on my NestKart account?</label>
+          <div class="faq-a">Email <a href="mailto:security@nestkart.com" style="color:var(--terracotta)">security@nestkart.com</a> immediately. NestKart will lock the account, investigate, and reverse any unauthorised charges within 3–5 business days pending investigation.</div>
+        </div>
+
+        <div class="faq-item">
+          <input type="checkbox" id="tfaq3" />
+          <label class="faq-q" for="tfaq3">Are reviews on NestKart genuine?</label>
+          <div class="faq-a">Yes. Only customers who have received a confirmed delivery can submit a review. NestKart does not allow brands to remove or edit reviews. All ratings shown are from verified purchases only.</div>
+        </div>
+
+        <div class="faq-item">
+          <input type="checkbox" id="tfaq4" />
+          <label class="faq-q" for="tfaq4">Does NestKart share my data with third parties?</label>
+          <div class="faq-a">NestKart shares data only with service providers required to fulfil your order (shipping carriers, payment processors). NestKart does not sell customer data to advertisers or third-party marketers.</div>
+        </div>
+
+        <div class="faq-item">
+          <input type="checkbox" id="tfaq5" />
+          <label class="faq-q" for="tfaq5">How do I delete my NestKart account?</label>
+          <div class="faq-a">Go to Account Settings → Privacy → Delete Account. Account deletion is permanent. Personal data is deleted within 30 days. Order records are retained for 7 years as required by law.</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /policy-body -->
+</div><!-- /content-wrap -->
+
+<!-- ░░ FOOTER ░░ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">NestKart</div>
+    <div class="footer-tagline">"Home goods you'll actually love living with."</div>
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="brands.html">Our Brands</a></li>
+      <li><a href="trust.html">Trust &amp; Safety</a></li>
+      <li><a href="help.html">Help Center</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="journal.html">Journal</a></li>
+    </ul>
+    <div class="footer-contact">Contact: <a href="mailto:hello@nestkart.com">hello@nestkart.com</a></div>
+    <div class="footer-copyright">© 2025 NestKart</div>
+  </div>
+</footer>
+
+</body>
+</html>
