@@ -126,7 +126,8 @@ VALID_BEARER  = "nk-bearer-dev-token-2025"
 
 # Paths that skip auth entirely
 NO_AUTH_PATHS = {"/api/health", "/api/debug/force-error", "/api/debug/scenarios"}
-
+def is_static_path(path):
+    return not path.startswith("/api")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MOCK DATA — CUSTOMERS
@@ -883,7 +884,9 @@ def _return_eligibility(order_id):
 @app.before_request
 def check_auth():
     if request.path in NO_AUTH_PATHS:
-        return  # exempt paths — no auth check
+        return # exempt paths — no auth check
+    if not request.path.startswith("/api"):
+        return
 
     api_key    = request.headers.get("X-Api-Key", "")
     auth_hdr   = request.headers.get("Authorization", "")
