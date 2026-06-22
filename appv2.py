@@ -106,6 +106,17 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+from flask import send_from_directory
+
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    if '.' in filename and not filename.startswith('api'):
+        return send_from_directory('.', filename)
+    return jsonify({"error": "not_found"}), 404
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AUTH CONFIG
