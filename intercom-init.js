@@ -10,11 +10,11 @@
   // Add/edit customers here; all pages update automatically.
 
   var CUSTOMERS = {
-    cust_001: { name: "Priya Sharma",  email: "priya@example.com",  state: "NY" },
-    cust_002: { name: "James Okafor", email: "james@example.com",  state: "CA" },
-    cust_003: { name: "Lisa Tran",    email: "lisa@example.com",   state: "TX" },
-    cust_004: { name: "Marcus Webb",  email: "marcus@example.com", state: "AK" },
-    cust_005: { name: "Anika Rossi",  email: "anika@example.com",  state: "CA" },
+    cust_001: { name: "Priya Sharma",  email: "taruna2004126@gmail.com",  state: "NY" },
+    cust_002: { name: "James Okafor", email: "11182tarunask@gmail.com",  state: "CA" },
+    cust_003: { name: "Lisa Tran",    email: "tarunask.1806@gmail.com",   state: "TX" },
+    cust_004: { name: "Marcus Webb",  email: "taruna.stockmarket@gmail.com", state: "AK" },
+    cust_005: { name: "Anika Rossi",  email: "taruna2210569@ssn.edu.in",  state: "CA" },
   };
 
   var APP_ID = "u6tskbxz";
