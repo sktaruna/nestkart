@@ -1,6 +1,6 @@
 """
 ================================================================================
-NestKart Mock API Server — v2.2.0
+NestKart Mock API Server — v2.3.0
 ================================================================================
 A mock backend API for NestKart, designed for use with Intercom Fin Actions.
 All data is hardcoded in-memory. No database, ORM, or file I/O required.
@@ -15,7 +15,7 @@ RUN LOCALLY:
     Railway deployment reads PORT from environment and starts via gunicorn.
 
 AUTHENTICATION:
-    All endpoints except /api/health and /api/debug/* require auth.
+    All endpoints except /api/health require auth.
     Two accepted methods (either one works):
 
     Method 1 — Static header key:
@@ -38,6 +38,7 @@ ENDPOINTS:
     GET  /api/orders/<order_id>                         Order status & details
     GET  /api/customers/<customer_id>/orders            Customer order history
     POST /api/orders/<order_id>/cancel                  Cancel an order
+    GET  /api/tickets/<ticket_id>                       Check support ticket status
     --- Domain B: Returns & Refunds ---
     GET  /api/orders/<order_id>/return-eligibility      Check return eligibility
     POST /api/orders/<order_id>/returns                 Initiate a return
@@ -46,7 +47,6 @@ ENDPOINTS:
     --- Domain A (cont.) ---
     GET  /api/orders/<order_id>/address-change-eligibility  Check address change eligibility
     POST /api/orders/<order_id>/address                 Update delivery address
-    POST /api/orders/<order_id>/non-delivery-investigation  Open carrier investigation
     --- Domain B (cont.) ---
     POST /api/returns/<return_id>/replacement           Issue replacement order
     --- Domain C: Account & Profile ---
@@ -56,23 +56,19 @@ ENDPOINTS:
     POST /api/customers/<customer_id>/delete            Submit account deletion request
     --- Domain D: Products & Inventory ---
     GET  /api/products/<product_id>                     Product details & stock
-    GET  /api/products/<product_id>/waitlist            Waitlist info
-    POST /api/products/<product_id>/waitlist           Join product waitlist
-    --- Domain E: Debug & Testing ---
-    GET  /api/debug/force-error?status=<code>           Simulate error states (no auth)
-    GET  /api/debug/scenarios                           Test scenario index (no auth)
 
 TEST IDs:
     Customers : cust_001 · cust_002 · cust_003 · cust_004 · cust_005
     Orders    : ORD-10041 · ORD-10052 · ORD-10063 · ORD-10074 · ORD-10085
                 ORD-10096 · ORD-10107 · ORD-10118
     Returns   : RET-2201 · RET-2202 · RET-2203
+    Tickets   : TKT-3301 · TKT-3302 · TKT-3303
     Products  : prod_001 · prod_002 · prod_003 · prod_004 · prod_005 · prod_006
 
 SECURITY NOTES:
     - Never expose sensitive data (no full card numbers, no passwords)
     - Auth keys are dev/mock only — never use in production
-    - /api/health and /api/debug/* endpoints: no auth required
+    - /api/health endpoint: no auth required
     - Do not cancel ORD-10096 (MTO past cancellation window) regardless of request body
     - Do not confirm refund for RET-2202 (opened candles are non-returnable)
     - Do not confirm refund for RET-2203 until Returns Team review is complete
@@ -125,7 +121,7 @@ VALID_API_KEY = "nk-fin-dev-key-2025"
 VALID_BEARER  = "nk-bearer-dev-token-2025"
 
 # Paths that skip auth entirely
-NO_AUTH_PATHS = {"/api/health", "/api/debug/force-error", "/api/debug/scenarios"}
+NO_AUTH_PATHS = {"/api/health"}
 def is_static_path(path):
     return not path.startswith("/api")
 
@@ -440,6 +436,54 @@ RETURNS = {
     },
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA — TICKETS
+# ─────────────────────────────────────────────────────────────────────────────
+TICKETS = {
+    "TKT-3301": {
+        "ticket_id":       "TKT-3301",
+        "customer_id":     "cust_001",
+        "order_id":        "ORD-10041",
+        "subject":         "Harlow Sofa refund not received — overdue",
+        "status":          "in_progress",
+        "created_at":      "2025-06-07",
+        "last_updated":    "2025-06-10",
+        "resolution_note": None,
+        "fin_note": (
+            "This ticket is open because the refund for RET-2201 is overdue. "
+            "Do not promise a refund date — escalate to Billing Team if the customer presses."
+        ),
+    },
+    "TKT-3302": {
+        "ticket_id":       "TKT-3302",
+        "customer_id":     "cust_002",
+        "order_id":        "ORD-10118",
+        "subject":         "Dutch Oven arrived with cracked enamel — damage claim",
+        "status":          "open",
+        "created_at":      "2025-06-06",
+        "last_updated":    "2025-06-06",
+        "resolution_note": None,
+        "fin_note": (
+            "Active damage claim under review (RET-2203). Do not confirm refund or "
+            "replacement autonomously — await Returns Team decision."
+        ),
+    },
+    "TKT-3303": {
+        "ticket_id":       "TKT-3303",
+        "customer_id":     "cust_003",
+        "order_id":        "ORD-10074",
+        "subject":         "Request to change delivery address before dispatch",
+        "status":          "resolved",
+        "created_at":      "2025-06-17",
+        "last_updated":    "2025-06-18",
+        "resolution_note": (
+            "Customer's delivery address updated successfully prior to dispatch. "
+            "Confirmation email sent to lisa@example.com."
+        ),
+        "fin_note": None,
+    },
+}
+
 # In-memory store for returns created at runtime via POST /api/orders/<id>/returns
 DYNAMIC_RETURNS  = {}
 _return_id_counter = [2204]  # mutable list so nested functions can increment it
@@ -448,10 +492,6 @@ _return_id_counter = [2204]  # mutable list so nested functions can increment it
 # ─────────────────────────────────────────────────────────────────────────────
 # MOCK DATA — PRODUCTS
 # ─────────────────────────────────────────────────────────────────────────────
-WAITLIST_SIGNUPS = {
-    "prod_002": ["cust_003"]  # Lisa Tran already on Elm Dining Table waitlist
-}
-
 PRODUCTS = {
     "prod_001": {
         "product_id":             "prod_001",
@@ -470,9 +510,6 @@ PRODUCTS = {
         "warranty_years":         2,
         "warranty_type":          "manufacturer",
         "warranty_note":          None,
-        "restock_eta":            None,
-        "waitlist_open":          False,
-        "waitlist_count":         None,
         "fin_note":               None,
     },
     "prod_002": {
@@ -492,9 +529,6 @@ PRODUCTS = {
         "warranty_years":         1,
         "warranty_type":          "manufacturer",
         "warranty_note":          None,
-        "restock_eta":            "2025-07-14",
-        "waitlist_open":          True,
-        "waitlist_count":         23,
         "fin_note":               None,
     },
     "prod_003": {
@@ -514,9 +548,6 @@ PRODUCTS = {
         "warranty_years":         None,
         "warranty_type":          "lifetime",
         "warranty_note":          "Lifetime warranty against manufacturing defects (Verde Kitchen).",
-        "restock_eta":            None,
-        "waitlist_open":          False,
-        "waitlist_count":         None,
         "fin_note": (
             "This product carries a lifetime warranty against manufacturing defects. "
             "Claims via support@nestkart.com."
@@ -539,9 +570,6 @@ PRODUCTS = {
         "warranty_years":         2,
         "warranty_type":          "manufacturer",
         "warranty_note":          None,
-        "restock_eta":            None,
-        "waitlist_open":          False,
-        "waitlist_count":         None,
         "fin_note": (
             "This item is not returnable unless defective. "
             "Cancellation is only available within 24 hours of order placement."
@@ -564,9 +592,6 @@ PRODUCTS = {
         "warranty_years":         1,
         "warranty_type":          "manufacturer",
         "warranty_note":          None,
-        "restock_eta":            None,
-        "waitlist_open":          False,
-        "waitlist_count":         None,
         "fin_note":               None,
     },
     "prod_006": {
@@ -586,9 +611,6 @@ PRODUCTS = {
         "warranty_years":         1,
         "warranty_type":          "manufacturer",
         "warranty_note":          None,
-        "restock_eta":            None,
-        "waitlist_open":          False,
-        "waitlist_count":         None,
         "fin_note":               None,
     },
 }
@@ -915,7 +937,7 @@ def health():
     return jsonify({
         "ok":      True,
         "service": "NestKart Mock API",
-        "version": "2.2.0",
+        "version": "2.3.0",
         "status":  "healthy",
     })
 
@@ -1205,44 +1227,17 @@ def update_delivery_address(order_id):
     })
 
 
-@app.route("/api/orders/<order_id>/non-delivery-investigation", methods=["POST"])
-def non_delivery_investigation(order_id):
+@app.route("/api/tickets/<ticket_id>", methods=["GET"])
+def get_ticket(ticket_id):
     """
-    A7 — Non-delivery investigation.
-    Fin use-case: open a carrier investigation when a customer reports a delivered
-    order not received.
-    Body: { "customer_id": "cust_xxx", "reported_issue": "parcel_not_received" }
+    A7 — Check support ticket status.
+    Fin use-case: customer asks about the status of a support ticket.
     """
-    order = ORDERS.get(order_id)
-    if not order:
-        return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
+    ticket = TICKETS.get(ticket_id)
+    if not ticket:
+        return err("ticket_not_found", f"No ticket found with ID '{ticket_id}'.", 404)
 
-    if order["status"] != "delivered":
-        return jsonify({
-            "ok":                  False,
-            "investigation_opened": False,
-            "reason":              "order_not_yet_delivered",
-            "fin_note": (
-                "Carrier investigations can only be opened for orders with status 'delivered'. "
-                "Inform the customer the order is still in transit."
-            ),
-        }), 200
-
-    investigation_id = "INV-" + order_id[-5:]
-
-    return jsonify({
-        "ok":                    True,
-        "investigation_opened":  True,
-        "investigation_id":      investigation_id,
-        "order_id":              order_id,
-        "carrier":               order.get("carrier"),
-        "estimated_resolution_days": 3,
-        "fin_note": (
-            "Investigation opened with carrier. Inform the customer we are investigating "
-            "and will follow up within 3 business days. Do not promise a refund or "
-            "replacement at this stage."
-        ),
-    })
+    return jsonify({"ok": True, **ticket})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1775,14 +1770,6 @@ def get_product(product_id):
             "This item is not returnable unless defective. "
             "Cancellation is only available within 24 hours of order placement."
         )
-    if (not prod["in_stock"]
-            and prod.get("restock_eta") is None
-            and not prod["made_to_order"]
-            and not prod["waitlist_open"]):
-        fin_notes.append(
-            "Do not promise a restock date to the customer. "
-            "Restock timeline is currently unknown."
-        )
 
     resp = {
         "ok":                    True,
@@ -1802,9 +1789,6 @@ def get_product(product_id):
         "warranty_years":        prod.get("warranty_years"),
         "warranty_type":         prod.get("warranty_type"),
         "warranty_note":         prod.get("warranty_note"),
-        "restock_eta":           prod.get("restock_eta"),
-        "waitlist_open":         prod["waitlist_open"],
-        "waitlist_count":        prod.get("waitlist_count"),
     }
 
     if fin_notes:
@@ -1813,356 +1797,12 @@ def get_product(product_id):
     return jsonify(resp)
 
 
-@app.route("/api/products/<product_id>/waitlist", methods=["GET"])
-def get_product_waitlist(product_id):
-    """
-    D2 — Product waitlist info.
-    Fin use-case: customer asks about joining a waitlist for an out-of-stock item.
-    """
-    prod = PRODUCTS.get(product_id)
-    if not prod:
-        return err("product_not_found", f"No product found with ID '{product_id}'.", 404)
-
-    fin_notes = []
-    if prod.get("restock_eta") is None and not prod["in_stock"]:
-        fin_notes.append(
-            "Do not promise a restock date to the customer. "
-            "Restock timeline is currently unknown."
-        )
-    if not prod["waitlist_open"]:
-        fin_notes.append(
-            "Waitlist is not currently open for this product. "
-            "Do not direct the customer to sign up."
-        )
-
-    resp = {
-        "ok":                True,
-        "product_id":        product_id,
-        "product_name":      prod["name"],
-        "in_stock":          prod["in_stock"],
-        "waitlist_open":     prod["waitlist_open"],
-        "waitlist_count":    prod.get("waitlist_count"),
-        "restock_eta":       prod.get("restock_eta"),
-        "waitlist_signup_url": (
-            f"https://nestkart.com/waitlist/{product_id}"
-            if prod["waitlist_open"] else None
-        ),
-    }
-
-    if fin_notes:
-        resp["fin_note"] = " ".join(fin_notes)
-
-    return jsonify(resp)
-
-
-@app.route("/api/products/<product_id>/waitlist", methods=["POST"])
-def join_product_waitlist(product_id):
-    """
-    D3 — Join product waitlist.
-    Fin use-case: customer asks to be notified when an out-of-stock product returns.
-    Body: { "customer_id": "cust_xxx", "email": "customer@example.com", "note": "..." }
-    """
-    prod = PRODUCTS.get(product_id)
-    if not prod:
-        return err("product_not_found", f"No product found with ID '{product_id}'.", 404)
-
-    body        = request.get_json(silent=True) or {}
-    customer_id = body.get("customer_id")
-    email       = body.get("email")
-    note        = body.get("note", "notify me when back in stock")
-
-    if not customer_id:
-        return err("missing_field", "Required field 'customer_id' is missing.", 400)
-    if not email:
-        return err("missing_field", "Required field 'email' is missing.", 400)
-
-    # If in stock, no need to join waitlist
-    if prod["in_stock"]:
-        return jsonify({
-            "ok":              True,
-            "waitlist_joined": False,
-            "reason":          "product_currently_in_stock",
-            "product_id":      product_id,
-            "product_name":    prod["name"],
-            "fin_note": (
-                "The product is currently in stock. Inform the customer the item is available "
-                "and direct them to purchase at nestkart.com instead of joining the waitlist."
-            ),
-        })
-
-    # If waitlist not open
-    if not prod["waitlist_open"]:
-        return jsonify({
-            "ok":              True,
-            "waitlist_joined": False,
-            "reason":          "waitlist_not_open",
-            "product_id":      product_id,
-            "product_name":    prod["name"],
-            "fin_note": (
-                "No waitlist is currently open for this product. Inform the customer that "
-                "no waitlist is currently open for this item."
-            ),
-        })
-
-    # Duplicate check
-    signups_for_product = WAITLIST_SIGNUPS.setdefault(product_id, [])
-    if customer_id in signups_for_product:
-        return jsonify({
-            "ok":              True,
-            "waitlist_joined": False,
-            "reason":          "already_on_waitlist",
-            "product_id":      product_id,
-            "product_name":    prod["name"],
-            "customer_id":     customer_id,
-            "fin_note": (
-                "Customer is already registered on the waitlist for this product. "
-                "Inform the customer they are already on the list and will be notified "
-                "when the item is back in stock."
-            ),
-        })
-
-    # Add to waitlist
-    signups_for_product.append(customer_id)
-    position = len(signups_for_product)
-
-    return jsonify({
-        "ok":                        True,
-        "waitlist_joined":           True,
-        "product_id":                product_id,
-        "product_name":              prod["name"],
-        "customer_id":               customer_id,
-        "email":                     email,
-        "note":                      note,
-        "position_on_waitlist":      position,
-        "restock_eta":               prod.get("restock_eta"),
-        "confirmation_email_sent_to": email,
-        "fin_note": (
-            f"Customer has been added to the waitlist. Inform them they are in position "
-            f"{position} and will receive a confirmation email and a restock notification "
-            f"at {email}. Do not promise a specific restock date unless restock_eta is not null."
-        ),
-    })
-
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DOMAIN E — DEBUG & TESTING  (no auth required)
+# (former Domain E removed — debug endpoints deprecated in v2.3.0)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/api/debug/force-error", methods=["GET"])
-def force_error():
-    """
-    E1 — Simulate API error states for Fin error-path testing.
-    Usage: GET /api/debug/force-error?status=<code>
-    Accepted status codes: 400, 401, 404, 500, 503
-    No auth required.
-    """
-    ACCEPTED = {400, 401, 404, 500, 503}
-    raw = request.args.get("status")
 
-    if not raw:
-        return jsonify({
-            "ok":      False,
-            "error":   "bad_request",
-            "message": f"Required query param 'status' is missing. Accepted values: {sorted(ACCEPTED)}.",
-        }), 400
-
-    try:
-        code = int(raw)
-    except ValueError:
-        return jsonify({
-            "ok":      False,
-            "error":   "bad_request",
-            "message": f"'status' must be an integer. Accepted values: {sorted(ACCEPTED)}.",
-        }), 400
-
-    if code not in ACCEPTED:
-        return jsonify({
-            "ok":      False,
-            "error":   "bad_request",
-            "message": f"'{code}' is not accepted. Accepted values: {sorted(ACCEPTED)}.",
-        }), 400
-
-    return jsonify({
-        "ok":               False,
-        "error":            "simulated_error",
-        "simulated_status": code,
-        "message":          f"This is a simulated {code} error for Fin workflow testing.",
-    }), code
-
-
-@app.route("/api/debug/scenarios", methods=["GET"])
-def debug_scenarios():
-    """
-    E2 — Test scenario index.
-    Returns all test IDs and their intended scenario notes for Fin QA.
-    No auth required.
-    """
-    return jsonify({
-        "ok": True,
-        "scenarios": {
-            "customers": [
-                {
-                    "id":       "cust_001",
-                    "name":     "Priya Sharma",
-                    "state":    "NY",
-                    "scenario": (
-                        "Standard NY customer. Has an active in-transit candle order (ORD-10052) "
-                        "and a delivered sofa with an overdue refund (RET-2201). "
-                        "Valid Visa on file. Tests: in-transit state, overdue refund escalation."
-                    ),
-                },
-                {
-                    "id":       "cust_002",
-                    "name":     "James Okafor",
-                    "state":    "CA",
-                    "scenario": (
-                        "CA customer with a dispatched furniture order (ORD-10063) and an active "
-                        "damage claim on a delivered Dutch Oven (ORD-10118, RET-2203). "
-                        "Tests: dispatched state, damage claim escalation flow."
-                    ),
-                },
-                {
-                    "id":       "cust_003",
-                    "name":     "Lisa Tran",
-                    "state":    "TX",
-                    "scenario": (
-                        "TX customer with a processing order that hasn't dispatched yet (ORD-10074). "
-                        "Address is still changeable. Tests: address change workflow."
-                    ),
-                },
-                {
-                    "id":       "cust_004",
-                    "name":     "Marcus Webb",
-                    "state":    "AK",
-                    "scenario": (
-                        "Alaska customer. AK standard surcharge +$12 applied to ORD-10085. "
-                        "Express shipping unavailable. Order is still cancellable. "
-                        "Tests: AK policy surcharge, cancellation flow."
-                    ),
-                },
-                {
-                    "id":       "cust_005",
-                    "name":     "Anika Rossi",
-                    "state":    "CA",
-                    "scenario": (
-                        "CA customer with a made-to-order sofa in production (ORD-10096, non-cancellable) "
-                        "and a delivered item whose 30-day return window has expired (ORD-10107). "
-                        "Expired Mastercard on file. "
-                        "Tests: MTO escalation, expired return window, expired payment method."
-                    ),
-                },
-            ],
-            "orders": [
-                {
-                    "id":       "ORD-10041",
-                    "customer": "cust_001",
-                    "scenario": (
-                        "Delivered Harlow Sofa (furniture > $300). 14-day return window expired "
-                        "2025-06-01. Return received (RET-2201) but refund is overdue. "
-                        "Tests: furniture return window, overdue refund escalation."
-                    ),
-                },
-                {
-                    "id":       "ORD-10052",
-                    "customer": "cust_001",
-                    "scenario": (
-                        "In-transit candle order. Not yet delivered. "
-                        "RET-2202 is an ineligible return (opened candle). "
-                        "Tests: in-transit state, opened-candle non-returnable policy."
-                    ),
-                },
-                {
-                    "id":       "ORD-10063",
-                    "customer": "cust_002",
-                    "scenario": (
-                        "Dispatched Elm Dining Table (large item, $49.99 shipping). "
-                        "Not yet delivered; address change and cancellation no longer possible. "
-                        "Tests: dispatched-not-delivered state."
-                    ),
-                },
-                {
-                    "id":       "ORD-10074",
-                    "customer": "cust_003",
-                    "scenario": (
-                        "Processing Stoneware Dinner Set. Not yet dispatched — address still changeable. "
-                        "cancellable=false (2-hour window elapsed). "
-                        "Tests: address-change-possible flow."
-                    ),
-                },
-                {
-                    "id":       "ORD-10085",
-                    "customer": "cust_004",
-                    "scenario": (
-                        "Processing Ridgeline Bookshelf to Alaska. cancellable=true. "
-                        "Shipping $17.99 (base $5.99 + AK surcharge $12). "
-                        "Tests: cancellation, AK surcharge policy."
-                    ),
-                },
-                {
-                    "id":       "ORD-10096",
-                    "customer": "cust_005",
-                    "scenario": (
-                        "Made-to-order Custom Linen Sofa in production. cancellable=false "
-                        "(24-hour MTO cancellation window elapsed). Non-returnable unless defective. "
-                        "Tests: MTO escalation, non-cancellable state."
-                    ),
-                },
-                {
-                    "id":       "ORD-10107",
-                    "customer": "cust_005",
-                    "scenario": (
-                        "Delivered Marble & Brass Side Table. 30-day return window expired 2025-05-08. "
-                        "Tests: expired standard return window, agent exception required."
-                    ),
-                },
-                {
-                    "id":       "ORD-10118",
-                    "customer": "cust_002",
-                    "scenario": (
-                        "Delivered Dutch Oven with active damage claim (RET-2203). "
-                        "Cracked enamel reported within 48-hour window; photos submitted. "
-                        "Tests: damage claim — Fin must not offer autonomous refund."
-                    ),
-                },
-            ],
-            "returns": [
-                {
-                    "id":       "RET-2201",
-                    "order":    "ORD-10041",
-                    "scenario": (
-                        "Return received for Harlow Sofa (item_not_as_described). "
-                        "refund_status=processing. refund_estimated_date=2025-06-06 — OVERDUE, "
-                        "no refund_issued_date. Tests: overdue refund escalation to Billing Team."
-                    ),
-                },
-                {
-                    "id":       "RET-2202",
-                    "order":    "ORD-10052",
-                    "scenario": (
-                        "Return requested for opened candle (change_of_mind). "
-                        "INELIGIBLE — opened candles are non-returnable. "
-                        "Tests: policy enforcement and escalation to close invalid return."
-                    ),
-                },
-                {
-                    "id":       "RET-2203",
-                    "order":    "ORD-10118",
-                    "scenario": (
-                        "Damage claim for Dutch Oven (damaged_on_arrival). Status: under_review. "
-                        "Tests: damage claim flow — Fin must not confirm refund until review completes."
-                    ),
-                },
-            ],
-            "products": [
-                {"id": "prod_001", "scenario": "Harlow Sofa — in stock (qty 4), ships flat-pack, 2yr warranty."},
-                {"id": "prod_002", "scenario": "Elm Dining Table — OUT OF STOCK, restock_eta 2025-07-14, waitlist open (23 entries). cust_003 (Lisa Tran) is pre-seeded on this waitlist — use to test duplicate handling."},
-                {"id": "prod_003", "scenario": "Cast Iron Dutch Oven — in stock, LIFETIME warranty. Tests: lifetime warranty disclosure."},
-                {"id": "prod_004", "scenario": "Custom Linen Sofa — made-to-order, 5-week lead time, non-returnable unless defective."},
-                {"id": "prod_005", "scenario": "Ridgeline Bookshelf — in stock (qty 7), 22kg, ships flat-pack."},
-                {"id": "prod_006", "scenario": "Marble & Brass Side Table — in stock (qty 3), ships assembled."},
-            ],
-        }
-    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2170,5 +1810,5 @@ def debug_scenarios():
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    print(f"NestKart Mock API v2.2.0 — listening on http://0.0.0.0:{port}")
+    print(f"NestKart Mock API v2.3.0 — listening on http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
