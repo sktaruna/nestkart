@@ -1,6 +1,6 @@
 """
 ================================================================================
-NestKart Mock API Server — v2.3.0
+NestKart Mock API Server — v3.0.0
 ================================================================================
 A mock backend API for NestKart, designed for use with Intercom Fin Actions.
 All data is hardcoded in-memory. No database, ORM, or file I/O required.
@@ -9,13 +9,13 @@ INSTALL:
     pip install flask flask-cors
 
 RUN LOCALLY:
-    python app.py
+    python app_v3.py
     Server starts on http://0.0.0.0:5050
 
     Railway deployment reads PORT from environment and starts via gunicorn.
 
 AUTHENTICATION:
-    All endpoints except /api/health require auth.
+    All endpoints require auth.
     Two accepted methods (either one works):
 
     Method 1 — Static header key:
@@ -32,8 +32,7 @@ AUTHENTICATION:
         curl -H "Authorization: Bearer nk-bearer-dev-token-2025" \
              http://localhost:5050/api/customers/cust_001
 
-ENDPOINTS:
-    GET  /api/health                                    No auth — health check
+ENDPOINTS (8 total):
     --- Domain A: Orders & Tracking ---
     GET  /api/orders/<order_id>                         Order status & details
     GET  /api/customers/<customer_id>/orders            Customer order history
@@ -43,55 +42,36 @@ ENDPOINTS:
     GET  /api/orders/<order_id>/return-eligibility      Check return eligibility
     POST /api/orders/<order_id>/returns                 Initiate a return
     GET  /api/returns/<return_id>                       Return & refund status
-    GET  /api/customers/<customer_id>/returns           All returns for customer
-    --- Domain A (cont.) ---
-    GET  /api/orders/<order_id>/address-change-eligibility  Check address change eligibility
-    POST /api/orders/<order_id>/address                 Update delivery address
-    --- Domain B (cont.) ---
-    POST /api/returns/<return_id>/replacement           Issue replacement order
     --- Domain C: Account & Profile ---
     GET  /api/customers/<customer_id>                   Customer profile
-    GET  /api/customers/<customer_id>/addresses         Saved delivery addresses
-    GET  /api/customers/<customer_id>/account-deletion-preview  Deletion impact preview
-    POST /api/customers/<customer_id>/delete            Submit account deletion request
-    --- Domain D: Products & Inventory ---
-    GET  /api/products/<product_id>                     Product details & stock
 
 TEST IDs:
     Customers : cust_001 · cust_002 · cust_003 · cust_004 · cust_005
-    Orders    : ORD-10041 · ORD-10052 · ORD-10063 · ORD-10074 · ORD-10085
-                ORD-10096 · ORD-10107 · ORD-10118
+    Orders    : ORD-10041 · ORD-10042 · ORD-10043 · ORD-10044 · ORD-10045  (cust_001)
+                ORD-10051 · ORD-10052 · ORD-10053 · ORD-10054 · ORD-10055  (cust_002)
+                ORD-10061 · ORD-10062 · ORD-10063 · ORD-10064 · ORD-10065  (cust_003)
+                ORD-10071 · ORD-10072 · ORD-10073 · ORD-10074 · ORD-10075  (cust_004)
+                ORD-10081 · ORD-10082 · ORD-10083 · ORD-10084 · ORD-10085  (cust_005)
     Returns   : RET-2201 · RET-2202 · RET-2203
     Tickets   : TKT-3301 · TKT-3302 · TKT-3303
-    Products  : prod_001 · prod_002 · prod_003 · prod_004 · prod_005 · prod_006
 
 SECURITY NOTES:
     - Never expose sensitive data (no full card numbers, no passwords)
     - Auth keys are dev/mock only — never use in production
-    - /api/health endpoint: no auth required
-    - Do not cancel ORD-10096 (MTO past cancellation window) regardless of request body
+    - Do not cancel ORD-10083 (MTO past cancellation window) regardless of request body
     - Do not confirm refund for RET-2202 (opened candles are non-returnable)
     - Do not confirm refund for RET-2203 until Returns Team review is complete
-    - Do not offer autonomous refund for ORD-10118 (active damage claim)
-    - Do not confirm cancellation or return eligibility for ORD-10096 without agent escalation
+    - Do not offer autonomous refund for ORD-10055 (active damage claim)
+    - Do not confirm cancellation or return eligibility for ORD-10083 without agent escalation
 
 GUARDRAILS — ENFORCEMENT LEVEL:
     Hard (server-enforced — Fin cannot bypass by ignoring fin_note):
-        - cancellable / address_changeable flags block cancel & address-change actions
-        - return eligibility (eligible: false) blocks return creation for RET-2202, ORD-10096
-        - replacement blocked while a return's status == "under_review"
-        - replacement blocked autonomously above $300 order value (REPLACEMENT_AUTONOMOUS_LIMIT_USD)
-        - refund_locked: true on RET-2203 / ORD-10118 — damage claim under review, do not confirm refund
-        - requires_agent_escalation: true on RET-2201 — refund is overdue, escalate to Billing
-        - requires_explicit_customer_confirmation: true on account-deletion-preview
-        - account deletion requires exact registered_email match before submitting
-        - ownership_mismatch (403) on cancel / address-update / initiate-return / replacement
-          if the customer_id in the request body does not match the actual order/return owner
-    Soft (prose-only via fin_note — Fin must read and obey, not independently verifiable
-    by response shape alone):
+        - cancellable flag blocks cancel actions
+        - return eligibility (eligible: false) blocks return creation
+        - ownership_mismatch (403) on cancel / initiate-return
+          if the customer_id in the request body does not match the actual order owner
+    Soft (prose-only via fin_note — Fin must read and obey):
         - AK/HI surcharge disclosures, restock-date warnings, expired-payment-method flags
-        - "read deletion impact aloud" instruction (the confirmation requirement is hard;
-          the act of reading it aloud is not machine-checkable)
 ================================================================================
 """
 
@@ -119,11 +99,6 @@ def serve_static(filename):
 # ─────────────────────────────────────────────────────────────────────────────
 VALID_API_KEY = "nk-fin-dev-key-2025"
 VALID_BEARER  = "nk-bearer-dev-token-2025"
-
-# Paths that skip auth entirely
-NO_AUTH_PATHS = {"/api/health"}
-def is_static_path(path):
-    return not path.startswith("/api")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MOCK DATA — CUSTOMERS
@@ -173,9 +148,11 @@ CUSTOMERS = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MOCK DATA — ORDERS
+# MOCK DATA — ORDERS  (5 per customer, mix of statuses)
 # ─────────────────────────────────────────────────────────────────────────────
 ORDERS = {
+
+    # ── cust_001 : Priya Sharma ───────────────────────────────────────────────
     "ORD-10041": {
         "order_id":           "ORD-10041",
         "customer_id":        "cust_001",
@@ -192,32 +169,92 @@ ORDERS = {
         "carrier":            "FedEx Freight",
         "tracking_number":    "1Z999AA10123456784",
         "cancellable":        False,
-        "address_changeable": False,
         "damage_claim_active": False,
         "fin_note":           None,
     },
-    "ORD-10052": {
-        "order_id":           "ORD-10052",
+    "ORD-10042": {
+        "order_id":           "ORD-10042",
         "customer_id":        "cust_001",
-        "item_name":          "Soy Wax Candle — Cedarwood & Amber (300g) × 2",
-        "qty":                2,
-        "price_total":        "$68.00",
+        "item_name":          "Soy Wax Candle Set — Cedarwood & Amber (300g × 3)",
+        "qty":                3,
+        "price_total":        "$89.00",
         "status":             "in_transit",
         "placed_at":          "2025-06-14T10:05:00-05:00",
         "dispatched_at":      "2025-06-14T16:00:00-05:00",
-        "estimated_delivery": "2025-06-19",
+        "estimated_delivery": "2025-06-20",
         "delivered_at":       None,
         "shipping_method":    "standard",
         "shipping_cost":      "$0.00",
         "carrier":            "UPS",
         "tracking_number":    "1Z999AA10123456785",
         "cancellable":        False,
-        "address_changeable": False,
         "damage_claim_active": False,
         "fin_note":           None,
     },
-    "ORD-10063": {
-        "order_id":           "ORD-10063",
+    "ORD-10043": {
+        "order_id":           "ORD-10043",
+        "customer_id":        "cust_001",
+        "item_name":          "Ridgeline Bookshelf, Walnut",
+        "qty":                1,
+        "price_total":        "$215.00",
+        "status":             "processing",
+        "placed_at":          "2025-06-17T08:45:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": "2025-06-24",
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    None,
+        "cancellable":        True,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+    "ORD-10044": {
+        "order_id":           "ORD-10044",
+        "customer_id":        "cust_001",
+        "item_name":          "Marble & Brass Side Table",
+        "qty":                1,
+        "price_total":        "$189.00",
+        "status":             "cancelled",
+        "placed_at":          "2025-04-20T11:30:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": None,
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            None,
+        "tracking_number":    None,
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           "Order was cancelled at customer request before dispatch. Refund issued to original payment method.",
+    },
+    "ORD-10045": {
+        "order_id":           "ORD-10045",
+        "customer_id":        "cust_001",
+        "item_name":          "Stoneware Dinner Set (4-piece), Sage Green",
+        "qty":                1,
+        "price_total":        "$89.00",
+        "status":             "delivered",
+        "placed_at":          "2025-03-05T09:00:00-05:00",
+        "dispatched_at":      "2025-03-06T10:00:00-05:00",
+        "estimated_delivery": "2025-03-10",
+        "delivered_at":       "2025-03-10",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456780",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           (
+            "Return window expired. Standard 30-day return window from delivery (2025-03-10) "
+            "expired on 2025-04-09. Any return request for this order requires agent exception approval."
+        ),
+    },
+
+    # ── cust_002 : James Okafor ───────────────────────────────────────────────
+    "ORD-10051": {
+        "order_id":           "ORD-10051",
         "customer_id":        "cust_002",
         "item_name":          "Elm Dining Table",
         "qty":                1,
@@ -232,108 +269,71 @@ ORDERS = {
         "carrier":            "FedEx Freight",
         "tracking_number":    "1Z999AA10123456786",
         "cancellable":        False,
-        "address_changeable": False,
         "damage_claim_active": False,
         "fin_note":           None,
     },
-    "ORD-10074": {
-        "order_id":           "ORD-10074",
-        "customer_id":        "cust_003",
-        "item_name":          "Stoneware Dinner Set (4-piece), Sage Green × 2",
-        "qty":                2,
-        "price_total":        "$178.00",
+    "ORD-10052": {
+        "order_id":           "ORD-10052",
+        "customer_id":        "cust_002",
+        "item_name":          "Harlow Sofa (2-seater), Slate Grey",
+        "qty":                1,
+        "price_total":        "$699.00",
+        "status":             "delivered",
+        "placed_at":          "2025-05-01T14:00:00-05:00",
+        "dispatched_at":      "2025-05-03T09:00:00-05:00",
+        "estimated_delivery": "2025-05-09",
+        "delivered_at":       "2025-05-09",
+        "shipping_method":    "large_item",
+        "shipping_cost":      "$49.99",
+        "carrier":            "FedEx Freight",
+        "tracking_number":    "1Z999AA10123456787",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           (
+            "Return window expired. Furniture over $300 has a 14-day return window "
+            "which elapsed on 2025-05-23. Agent exception required for any return."
+        ),
+    },
+    "ORD-10053": {
+        "order_id":           "ORD-10053",
+        "customer_id":        "cust_002",
+        "item_name":          "Bamboo Storage Basket Set (3-pack)",
+        "qty":                1,
+        "price_total":        "$55.00",
         "status":             "processing",
-        "placed_at":          "2025-06-17T08:45:00-05:00",
+        "placed_at":          "2025-06-18T11:00:00-05:00",
         "dispatched_at":      None,
-        "estimated_delivery": "2025-06-22",
+        "estimated_delivery": "2025-06-25",
         "delivered_at":       None,
         "shipping_method":    "standard",
         "shipping_cost":      "$0.00",
-        "carrier":            "UPS",
-        "tracking_number":    None,
-        "cancellable":        False,
-        "address_changeable": True,
-        "damage_claim_active": False,
-        "fin_note": (
-            "The shipping address for this order can still be changed as it has not yet "
-            "been dispatched. Direct the customer to email support@nestkart.com with their "
-            "order number to request an address change."
-        ),
-    },
-    "ORD-10085": {
-        "order_id":           "ORD-10085",
-        "customer_id":        "cust_004",
-        "item_name":          "Ridgeline Bookshelf, Walnut",
-        "qty":                1,
-        "price_total":        "$215.00",
-        "status":             "processing",
-        "placed_at":          "2025-06-17T13:55:00-05:00",
-        "dispatched_at":      None,
-        "estimated_delivery": None,
-        "delivered_at":       None,
-        "shipping_method":    "standard",
-        "shipping_cost":      "$17.99",
         "carrier":            "UPS",
         "tracking_number":    None,
         "cancellable":        True,
-        "address_changeable": True,
         "damage_claim_active": False,
-        "fin_note": (
-            "This order is shipping to Alaska. Standard AK surcharge of $12.00 has been "
-            "applied (base $5.99 + $12.00 = $17.99). Express shipping is not available for "
-            "AK/HI. Large item surcharge (+$75) does not apply as this item ships standard freight."
-        ),
+        "fin_note":           None,
     },
-    "ORD-10096": {
-        "order_id":           "ORD-10096",
-        "customer_id":        "cust_005",
-        "item_name":          "Custom Linen Sofa — Sage (made to order)",
-        "qty":                1,
-        "price_total":        "$1299.00",
-        "status":             "in_production",
-        "placed_at":          "2025-05-20T11:00:00-05:00",
-        "dispatched_at":      None,
-        "estimated_delivery": "2025-06-24",
-        "delivered_at":       None,
-        "shipping_method":    "large_item",
-        "shipping_cost":      "$49.99",
-        "carrier":            None,
-        "tracking_number":    None,
-        "cancellable":        False,
-        "address_changeable": True,
-        "damage_claim_active": False,
-        "fin_note": (
-            "This is a made-to-order item. The 24-hour cancellation window has elapsed — "
-            "this order cannot be cancelled. Made-to-order items are not eligible for return "
-            "unless defective. Do not confirm cancellation or return eligibility without "
-            "escalating to an agent."
-        ),
-    },
-    "ORD-10107": {
-        "order_id":           "ORD-10107",
-        "customer_id":        "cust_005",
-        "item_name":          "Marble & Brass Side Table",
-        "qty":                1,
-        "price_total":        "$189.00",
+    "ORD-10054": {
+        "order_id":           "ORD-10054",
+        "customer_id":        "cust_002",
+        "item_name":          "Linen Throw Blanket, Terracotta",
+        "qty":                2,
+        "price_total":        "$98.00",
         "status":             "delivered",
-        "placed_at":          "2025-04-01T10:00:00-05:00",
-        "dispatched_at":      "2025-04-02T09:00:00-05:00",
-        "estimated_delivery": "2025-04-07",
-        "delivered_at":       "2025-04-08",
+        "placed_at":          "2025-04-10T10:00:00-05:00",
+        "dispatched_at":      "2025-04-11T09:00:00-05:00",
+        "estimated_delivery": "2025-04-15",
+        "delivered_at":       "2025-04-15",
         "shipping_method":    "standard",
         "shipping_cost":      "$0.00",
         "carrier":            "UPS",
-        "tracking_number":    "1Z999AA10123456789",
+        "tracking_number":    "1Z999AA10123456788",
         "cancellable":        False,
-        "address_changeable": False,
         "damage_claim_active": False,
-        "fin_note": (
-            "Return window expired. Standard 30-day return window from delivery (2025-04-08) "
-            "expired on 2025-05-08. Any return request for this order requires agent exception approval."
-        ),
+        "fin_note":           None,
     },
-    "ORD-10118": {
-        "order_id":           "ORD-10118",
+    "ORD-10055": {
+        "order_id":           "ORD-10055",
         "customer_id":        "cust_002",
         "item_name":          "Cast Iron Dutch Oven (5.5L) — Verde Kitchen",
         "qty":                1,
@@ -348,13 +348,320 @@ ORDERS = {
         "carrier":            "UPS",
         "tracking_number":    "1Z999AA10123456790",
         "cancellable":        False,
-        "address_changeable": False,
         "damage_claim_active": True,
         "fin_note": (
             "Active damage claim on this order. Customer reported cracked enamel coating "
             "on 2025-06-06 (within 48-hour window) with photos submitted. Claim status: "
             "under_review. Do not offer refund autonomously — escalate to Returns Team."
         ),
+    },
+
+    # ── cust_003 : Lisa Tran ──────────────────────────────────────────────────
+    "ORD-10061": {
+        "order_id":           "ORD-10061",
+        "customer_id":        "cust_003",
+        "item_name":          "Stoneware Dinner Set (4-piece), Sage Green × 2",
+        "qty":                2,
+        "price_total":        "$178.00",
+        "status":             "processing",
+        "placed_at":          "2025-06-17T08:45:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": "2025-06-24",
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    None,
+        "cancellable":        True,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+    "ORD-10062": {
+        "order_id":           "ORD-10062",
+        "customer_id":        "cust_003",
+        "item_name":          "Velvet Accent Chair, Dusty Rose",
+        "qty":                1,
+        "price_total":        "$320.00",
+        "status":             "delivered",
+        "placed_at":          "2025-05-20T13:00:00-05:00",
+        "dispatched_at":      "2025-05-22T09:00:00-05:00",
+        "estimated_delivery": "2025-05-28",
+        "delivered_at":       "2025-05-28",
+        "shipping_method":    "large_item",
+        "shipping_cost":      "$49.99",
+        "carrier":            "FedEx Freight",
+        "tracking_number":    "1Z999AA10123456791",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           (
+            "Return window expired. Furniture over $300 has a 14-day return window "
+            "which elapsed on 2025-06-11. Agent exception required for any return."
+        ),
+    },
+    "ORD-10063": {
+        "order_id":           "ORD-10063",
+        "customer_id":        "cust_003",
+        "item_name":          "Scented Diffuser Set — Eucalyptus",
+        "qty":                1,
+        "price_total":        "$45.00",
+        "status":             "cancelled",
+        "placed_at":          "2025-06-10T09:00:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": None,
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            None,
+        "tracking_number":    None,
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           "Order was cancelled at customer request before dispatch. Refund issued to original payment method.",
+    },
+    "ORD-10064": {
+        "order_id":           "ORD-10064",
+        "customer_id":        "cust_003",
+        "item_name":          "Elm Coffee Table",
+        "qty":                1,
+        "price_total":        "$299.00",
+        "status":             "in_transit",
+        "placed_at":          "2025-06-13T10:30:00-05:00",
+        "dispatched_at":      "2025-06-14T09:00:00-05:00",
+        "estimated_delivery": "2025-06-21",
+        "delivered_at":       None,
+        "shipping_method":    "large_item",
+        "shipping_cost":      "$49.99",
+        "carrier":            "FedEx Freight",
+        "tracking_number":    "1Z999AA10123456792",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+    "ORD-10065": {
+        "order_id":           "ORD-10065",
+        "customer_id":        "cust_003",
+        "item_name":          "Ceramic Vase Set (3-piece), Matte White",
+        "qty":                1,
+        "price_total":        "$72.00",
+        "status":             "delivered",
+        "placed_at":          "2025-06-01T08:00:00-05:00",
+        "dispatched_at":      "2025-06-02T08:00:00-05:00",
+        "estimated_delivery": "2025-06-06",
+        "delivered_at":       "2025-06-06",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456793",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+
+    # ── cust_004 : Marcus Webb (AK) ───────────────────────────────────────────
+    "ORD-10071": {
+        "order_id":           "ORD-10071",
+        "customer_id":        "cust_004",
+        "item_name":          "Ridgeline Bookshelf, Walnut",
+        "qty":                1,
+        "price_total":        "$227.99",
+        "status":             "processing",
+        "placed_at":          "2025-06-17T13:55:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": None,
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$17.99",
+        "carrier":            "UPS",
+        "tracking_number":    None,
+        "cancellable":        True,
+        "damage_claim_active": False,
+        "fin_note": (
+            "This order is shipping to Alaska. Standard AK surcharge of $12.00 has been "
+            "applied (base $5.99 + $12.00 = $17.99). Express shipping is not available for AK/HI."
+        ),
+    },
+    "ORD-10072": {
+        "order_id":           "ORD-10072",
+        "customer_id":        "cust_004",
+        "item_name":          "Linen Throw Blanket, Slate",
+        "qty":                1,
+        "price_total":        "$57.99",
+        "status":             "delivered",
+        "placed_at":          "2025-05-15T09:00:00-05:00",
+        "dispatched_at":      "2025-05-16T10:00:00-05:00",
+        "estimated_delivery": "2025-05-24",
+        "delivered_at":       "2025-05-24",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$17.99",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456794",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           "AK order — standard surcharge applied at time of purchase.",
+    },
+    "ORD-10073": {
+        "order_id":           "ORD-10073",
+        "customer_id":        "cust_004",
+        "item_name":          "Bamboo Storage Basket Set (3-pack)",
+        "qty":                2,
+        "price_total":        "$122.99",
+        "status":             "in_transit",
+        "placed_at":          "2025-06-12T11:00:00-05:00",
+        "dispatched_at":      "2025-06-13T08:00:00-05:00",
+        "estimated_delivery": "2025-06-25",
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$17.99",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456795",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           "AK order — standard surcharge applied. Express shipping not available.",
+    },
+    "ORD-10074": {
+        "order_id":           "ORD-10074",
+        "customer_id":        "cust_004",
+        "item_name":          "Ceramic Serving Bowl, Speckled Clay",
+        "qty":                1,
+        "price_total":        "$61.99",
+        "status":             "cancelled",
+        "placed_at":          "2025-04-05T08:00:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": None,
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            None,
+        "tracking_number":    None,
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           "Order cancelled at customer request before dispatch. Refund issued to original payment method.",
+    },
+    "ORD-10075": {
+        "order_id":           "ORD-10075",
+        "customer_id":        "cust_004",
+        "item_name":          "Scented Candle — Firewood & Pine (400g)",
+        "qty":                3,
+        "price_total":        "$107.97",
+        "status":             "delivered",
+        "placed_at":          "2025-03-20T10:00:00-05:00",
+        "dispatched_at":      "2025-03-21T09:00:00-05:00",
+        "estimated_delivery": "2025-03-31",
+        "delivered_at":       "2025-03-31",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$17.99",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456796",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           (
+            "Return window expired. Standard 30-day return window from delivery (2025-03-31) "
+            "expired on 2025-04-30. AK surcharge applied at time of purchase."
+        ),
+    },
+
+    # ── cust_005 : Anika Rossi ────────────────────────────────────────────────
+    "ORD-10081": {
+        "order_id":           "ORD-10081",
+        "customer_id":        "cust_005",
+        "item_name":          "Marble & Brass Side Table",
+        "qty":                1,
+        "price_total":        "$189.00",
+        "status":             "delivered",
+        "placed_at":          "2025-04-01T10:00:00-05:00",
+        "dispatched_at":      "2025-04-02T09:00:00-05:00",
+        "estimated_delivery": "2025-04-07",
+        "delivered_at":       "2025-04-08",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456789",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note": (
+            "Return window expired. Standard 30-day return window from delivery (2025-04-08) "
+            "expired on 2025-05-08. Any return request requires agent exception approval."
+        ),
+    },
+    "ORD-10082": {
+        "order_id":           "ORD-10082",
+        "customer_id":        "cust_005",
+        "item_name":          "Velvet Accent Chair, Forest Green",
+        "qty":                1,
+        "price_total":        "$320.00",
+        "status":             "in_transit",
+        "placed_at":          "2025-06-13T11:00:00-05:00",
+        "dispatched_at":      "2025-06-14T08:00:00-05:00",
+        "estimated_delivery": "2025-06-21",
+        "delivered_at":       None,
+        "shipping_method":    "large_item",
+        "shipping_cost":      "$49.99",
+        "carrier":            "FedEx Freight",
+        "tracking_number":    "1Z999AA10123456797",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+    "ORD-10083": {
+        "order_id":           "ORD-10083",
+        "customer_id":        "cust_005",
+        "item_name":          "Custom Linen Sofa — Sage (made to order)",
+        "qty":                1,
+        "price_total":        "$1299.00",
+        "status":             "in_production",
+        "placed_at":          "2025-05-20T11:00:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": "2025-06-24",
+        "delivered_at":       None,
+        "shipping_method":    "large_item",
+        "shipping_cost":      "$49.99",
+        "carrier":            None,
+        "tracking_number":    None,
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note": (
+            "This is a made-to-order item. The 24-hour cancellation window has elapsed — "
+            "this order cannot be cancelled. Made-to-order items are not eligible for return "
+            "unless defective. Do not confirm cancellation or return eligibility without "
+            "escalating to an agent."
+        ),
+    },
+    "ORD-10084": {
+        "order_id":           "ORD-10084",
+        "customer_id":        "cust_005",
+        "item_name":          "Ceramic Vase Set (3-piece), Blush",
+        "qty":                1,
+        "price_total":        "$72.00",
+        "status":             "processing",
+        "placed_at":          "2025-06-18T14:00:00-05:00",
+        "dispatched_at":      None,
+        "estimated_delivery": "2025-06-25",
+        "delivered_at":       None,
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    None,
+        "cancellable":        True,
+        "damage_claim_active": False,
+        "fin_note":           None,
+    },
+    "ORD-10085": {
+        "order_id":           "ORD-10085",
+        "customer_id":        "cust_005",
+        "item_name":          "Stoneware Mug Set (4-piece), Charcoal",
+        "qty":                1,
+        "price_total":        "$64.00",
+        "status":             "delivered",
+        "placed_at":          "2025-05-30T09:00:00-05:00",
+        "dispatched_at":      "2025-05-31T08:00:00-05:00",
+        "estimated_delivery": "2025-06-04",
+        "delivered_at":       "2025-06-04",
+        "shipping_method":    "standard",
+        "shipping_cost":      "$0.00",
+        "carrier":            "UPS",
+        "tracking_number":    "1Z999AA10123456798",
+        "cancellable":        False,
+        "damage_claim_active": False,
+        "fin_note":           None,
     },
 }
 
@@ -388,9 +695,9 @@ RETURNS = {
     },
     "RET-2202": {
         "return_id":              "RET-2202",
-        "order_id":               "ORD-10052",
+        "order_id":               "ORD-10042",
         "customer_id":            "cust_001",
-        "item_name":              "Soy Wax Candle — Cedarwood & Amber (one unit)",
+        "item_name":              "Soy Wax Candle — Cedarwood & Amber (one unit, opened)",
         "reason":                 "change_of_mind",
         "status":                 "return_requested",
         "return_initiated":       "2025-06-16",
@@ -411,7 +718,7 @@ RETURNS = {
     },
     "RET-2203": {
         "return_id":              "RET-2203",
-        "order_id":               "ORD-10118",
+        "order_id":               "ORD-10055",
         "customer_id":            "cust_002",
         "item_name":              "Cast Iron Dutch Oven (5.5L) — Verde Kitchen",
         "reason":                 "damaged_on_arrival",
@@ -457,7 +764,7 @@ TICKETS = {
     "TKT-3302": {
         "ticket_id":       "TKT-3302",
         "customer_id":     "cust_002",
-        "order_id":        "ORD-10118",
+        "order_id":        "ORD-10055",
         "subject":         "Dutch Oven arrived with cracked enamel — damage claim",
         "status":          "open",
         "created_at":      "2025-06-06",
@@ -471,14 +778,14 @@ TICKETS = {
     "TKT-3303": {
         "ticket_id":       "TKT-3303",
         "customer_id":     "cust_003",
-        "order_id":        "ORD-10074",
-        "subject":         "Request to change delivery address before dispatch",
+        "order_id":        "ORD-10061",
+        "subject":         "Request to cancel order before dispatch",
         "status":          "resolved",
         "created_at":      "2025-06-17",
         "last_updated":    "2025-06-18",
         "resolution_note": (
-            "Customer's delivery address updated successfully prior to dispatch. "
-            "Confirmation email sent to lisa@example.com."
+            "Customer requested cancellation of ORD-10061. Order was still in processing "
+            "and was successfully cancelled. Refund confirmation email sent."
         ),
         "fin_note": None,
     },
@@ -487,158 +794,6 @@ TICKETS = {
 # In-memory store for returns created at runtime via POST /api/orders/<id>/returns
 DYNAMIC_RETURNS  = {}
 _return_id_counter = [2204]  # mutable list so nested functions can increment it
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# MOCK DATA — PRODUCTS
-# ─────────────────────────────────────────────────────────────────────────────
-PRODUCTS = {
-    "prod_001": {
-        "product_id":             "prod_001",
-        "name":                   "Harlow Sofa (3-seater), Oatmeal",
-        "brand":                  "Haven & Hearth",
-        "price":                  "$849.00",
-        "in_stock":               True,
-        "stock_qty":              4,
-        "made_to_order":          False,
-        "lead_time_weeks":        None,
-        "ships_assembled":        False,
-        "ships_flat_pack":        True,
-        "assembly_time_minutes":  45,
-        "dimensions":             "W 220 cm × D 90 cm × H 85 cm",
-        "weight_kg":              None,
-        "warranty_years":         2,
-        "warranty_type":          "manufacturer",
-        "warranty_note":          None,
-        "fin_note":               None,
-    },
-    "prod_002": {
-        "product_id":             "prod_002",
-        "name":                   "Elm Dining Table",
-        "brand":                  "Forma Naturale",
-        "price":                  "$429.00",
-        "in_stock":               False,
-        "stock_qty":              0,
-        "made_to_order":          False,
-        "lead_time_weeks":        None,
-        "ships_assembled":        False,
-        "ships_flat_pack":        True,
-        "assembly_time_minutes":  60,
-        "dimensions":             "W 160 cm × D 80 cm × H 75 cm",
-        "weight_kg":              None,
-        "warranty_years":         1,
-        "warranty_type":          "manufacturer",
-        "warranty_note":          None,
-        "fin_note":               None,
-    },
-    "prod_003": {
-        "product_id":             "prod_003",
-        "name":                   "Cast Iron Dutch Oven (5.5L)",
-        "brand":                  "Verde Kitchen",
-        "price":                  "$149.00",
-        "in_stock":               True,
-        "stock_qty":              11,
-        "made_to_order":          False,
-        "lead_time_weeks":        None,
-        "ships_assembled":        True,
-        "ships_flat_pack":        False,
-        "assembly_time_minutes":  None,
-        "dimensions":             "diameter 28 cm × H 16 cm",
-        "weight_kg":              5.8,
-        "warranty_years":         None,
-        "warranty_type":          "lifetime",
-        "warranty_note":          "Lifetime warranty against manufacturing defects (Verde Kitchen).",
-        "fin_note": (
-            "This product carries a lifetime warranty against manufacturing defects. "
-            "Claims via support@nestkart.com."
-        ),
-    },
-    "prod_004": {
-        "product_id":             "prod_004",
-        "name":                   "Custom Linen Sofa (made to order)",
-        "brand":                  "Haven & Hearth",
-        "price":                  "$1299.00",
-        "in_stock":               False,
-        "stock_qty":              0,
-        "made_to_order":          True,
-        "lead_time_weeks":        5,
-        "ships_assembled":        False,
-        "ships_flat_pack":        True,
-        "assembly_time_minutes":  60,
-        "dimensions":             "W 240 cm × D 95 cm × H 88 cm",
-        "weight_kg":              None,
-        "warranty_years":         2,
-        "warranty_type":          "manufacturer",
-        "warranty_note":          None,
-        "fin_note": (
-            "This item is not returnable unless defective. "
-            "Cancellation is only available within 24 hours of order placement."
-        ),
-    },
-    "prod_005": {
-        "product_id":             "prod_005",
-        "name":                   "Ridgeline Bookshelf, Walnut",
-        "brand":                  "Forma Naturale",
-        "price":                  "$215.00",
-        "in_stock":               True,
-        "stock_qty":              7,
-        "made_to_order":          False,
-        "lead_time_weeks":        None,
-        "ships_assembled":        False,
-        "ships_flat_pack":        True,
-        "assembly_time_minutes":  30,
-        "dimensions":             "W 90 cm × D 35 cm × H 180 cm",
-        "weight_kg":              22.0,
-        "warranty_years":         1,
-        "warranty_type":          "manufacturer",
-        "warranty_note":          None,
-        "fin_note":               None,
-    },
-    "prod_006": {
-        "product_id":             "prod_006",
-        "name":                   "Marble & Brass Side Table",
-        "brand":                  "Atelier South",
-        "price":                  "$189.00",
-        "in_stock":               True,
-        "stock_qty":              3,
-        "made_to_order":          False,
-        "lead_time_weeks":        None,
-        "ships_assembled":        True,
-        "ships_flat_pack":        False,
-        "assembly_time_minutes":  None,
-        "dimensions":             "W 45 cm × D 45 cm × H 55 cm",
-        "weight_kg":              8.4,
-        "warranty_years":         1,
-        "warranty_type":          "manufacturer",
-        "warranty_note":          None,
-        "fin_note":               None,
-    },
-}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# MOCK DATA — ADDRESSES  (full details — only summary exposed on /customers/<id>)
-# ─────────────────────────────────────────────────────────────────────────────
-ADDRESSES = {
-    "cust_001": [
-        {"address_id": "addr_001", "label": "Home",   "street": "142 Maple Drive",      "city": "Brooklyn",      "state": "NY", "zip": "11201", "is_default": True},
-        {"address_id": "addr_002", "label": "Office", "street": "30 Hudson Yards",       "city": "New York",      "state": "NY", "zip": "10001", "is_default": False},
-    ],
-    "cust_002": [
-        {"address_id": "addr_003", "label": "Home",   "street": "88 Ocean Ave",          "city": "Santa Monica",  "state": "CA", "zip": "90402", "is_default": True},
-    ],
-    "cust_003": [
-        {"address_id": "addr_004", "label": "Home",    "street": "4712 Bluebonnet Blvd", "city": "Austin",        "state": "TX", "zip": "78759", "is_default": True},
-        {"address_id": "addr_005", "label": "Parents", "street": "210 Oak Street",        "city": "Dallas",        "state": "TX", "zip": "75201", "is_default": False},
-    ],
-    "cust_004": [
-        {"address_id": "addr_006", "label": "Home",   "street": "317 Caribou Lane",      "city": "Anchorage",     "state": "AK", "zip": "99501", "is_default": True},
-    ],
-    "cust_005": [
-        {"address_id": "addr_007", "label": "Home",   "street": "520 Valencia Street",   "city": "San Francisco", "state": "CA", "zip": "94110", "is_default": True},
-        {"address_id": "addr_008", "label": "Studio", "street": "1200 Market Street",    "city": "San Francisco", "state": "CA", "zip": "94102", "is_default": False},
-    ],
-}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -667,8 +822,8 @@ def ownership_error(provided_customer_id, actual_customer_id):
     Return a 403 ownership-mismatch error if provided_customer_id does not match
     actual_customer_id (the verified owner of the order/return/account being acted on).
     Returns None if ownership checks out — caller should proceed.
-    Used by all mutating endpoints (cancel, address update, initiate-return, replacement)
-    to stop Fin from actioning one customer's order/return using another customer's ID.
+    Used by all mutating endpoints (cancel, initiate-return) to stop Fin from actioning
+    one customer's order using another customer's ID.
     """
     if provided_customer_id != actual_customer_id:
         return jsonify({
@@ -714,179 +869,124 @@ def parse_price(price_str):
         return None
 
 
-REPLACEMENT_AUTONOMOUS_LIMIT_USD = 300.00
-
-
 def _return_eligibility(order_id):
     """
     Return a dict with eligibility details for each hardcoded order.
     Used by both B1 (GET return-eligibility) and B2 (POST returns).
     """
-    if order_id == "ORD-10041":
-        return {
-            "eligible": False,
-            "reason": (
-                "Return window has expired. The Harlow Sofa is furniture over $300, "
-                "subject to a 14-day return window from delivery (2025-05-18). "
-                "That window expired on 2025-06-01."
-            ),
-            "return_window_days":       14,
-            "return_window_expires_on": "2025-06-01",
-            "days_remaining":           0,
-            "return_shipping_cost":     "free (defect/description-mismatch basis only)",
-            "item_condition_requirements": (
-                "Unused, in original packaging. "
-                "Flat-pack furniture must not have been assembled."
-            ),
-            "fin_note": (
-                "Return window has expired. Furniture over $300 has a 14-day return window "
-                "which elapsed on 2025-06-01. Agent exception required to process any return."
-            ),
-        }
+    order = ORDERS.get(order_id, {})
+    status = order.get("status")
 
-    if order_id == "ORD-10052":
+    # Orders not yet delivered
+    if status in ("processing", "dispatched", "in_transit", "in_production"):
+        # Made-to-order special case
+        if "made to order" in order.get("item_name", "").lower() or not order.get("cancellable") and status == "in_production":
+            return {
+                "eligible": False,
+                "reason": (
+                    "This is a made-to-order item. "
+                    "Made-to-order items are not eligible for return unless defective."
+                ),
+                "return_window_days":       None,
+                "return_window_expires_on": None,
+                "days_remaining":           None,
+                "return_shipping_cost":     "free (defective items only)",
+                "item_condition_requirements": "N/A — made-to-order items are non-returnable unless defective.",
+                "fin_note": (
+                    "Made-to-order items are not returnable unless defective. "
+                    "Do not confirm return eligibility without escalating to an agent. "
+                    "If the customer believes the item is defective, collect details and escalate."
+                ),
+            }
         return {
             "eligible": False,
-            "reason": (
-                "Order has not yet been delivered. Additionally, opened candles are not "
-                "eligible for return under NestKart policy regardless of delivery status."
-            ),
-            "return_window_days":       30,
-            "return_window_expires_on": None,
-            "days_remaining":           None,
-            "return_shipping_cost":     "$8.00 estimated (customer pays — change of mind)",
-            "item_condition_requirements": (
-                "Item must be unused and in original packaging. "
-                "Opened candles are non-returnable."
-            ),
-            "fin_note": (
-                "This order has not yet been delivered — a return cannot be initiated until "
-                "delivery is confirmed. Also note: opened candles are categorically "
-                "non-returnable under NestKart policy. Do not promise a return on this item."
-            ),
-        }
-
-    if order_id == "ORD-10063":
-        return {
-            "eligible": False,
-            "reason": (
-                "Order has not yet been delivered. "
-                "Return can only be initiated after confirmed delivery."
-            ),
-            "return_window_days":       14,
-            "return_window_expires_on": None,
-            "days_remaining":           None,
-            "return_shipping_cost":     "$30.00–$60.00 estimated (customer pays — change of mind); free if defective/damaged",
-            "item_condition_requirements": (
-                "Unused, in original packaging. "
-                "Flat-pack furniture must not have been assembled."
-            ),
-            "fin_note": (
-                "Order has not yet been delivered. Return eligibility cannot be confirmed "
-                "until delivery is complete. Note: Elm Dining Table is furniture over $300, "
-                "so a 14-day return window will apply once delivered."
-            ),
-        }
-
-    if order_id == "ORD-10074":
-        return {
-            "eligible": False,
-            "reason": "Order is still processing and has not yet been delivered.",
+            "reason": "Order has not yet been delivered. Return can only be initiated after confirmed delivery.",
             "return_window_days":       30,
             "return_window_expires_on": None,
             "days_remaining":           None,
             "return_shipping_cost":     "$8.00–$15.00 estimated (customer pays — change of mind); free if defective",
             "item_condition_requirements": "Unused, in original packaging.",
             "fin_note": (
-                "Order is in processing status and has not been dispatched. "
-                "Return eligibility cannot be confirmed until delivery is complete."
+                "Order has not yet been delivered. Return eligibility cannot be confirmed "
+                "until delivery is complete."
             ),
         }
 
-    if order_id == "ORD-10085":
+    # Cancelled orders
+    if status == "cancelled":
         return {
             "eligible": False,
-            "reason": "Order is still processing and has not yet been delivered.",
-            "return_window_days":       30,
-            "return_window_expires_on": None,
-            "days_remaining":           None,
-            "return_shipping_cost":     "$8.00–$15.00 estimated (customer pays — change of mind); free if defective",
-            "item_condition_requirements": (
-                "Unused, in original packaging. "
-                "Flat-pack furniture must not have been assembled."
-            ),
-            "fin_note": (
-                "Order is in processing status and has not been dispatched. "
-                "Return eligibility cannot be confirmed. "
-                "Note: this is an AK order — AK shipping surcharges apply on any reshipping."
-            ),
-        }
-
-    if order_id == "ORD-10096":
-        return {
-            "eligible": False,
-            "reason": (
-                "This is a made-to-order item. "
-                "Made-to-order items are not eligible for return unless defective."
-            ),
+            "reason": "Order was cancelled and cannot be returned.",
             "return_window_days":       None,
             "return_window_expires_on": None,
             "days_remaining":           None,
-            "return_shipping_cost":     "free (defective items only)",
-            "item_condition_requirements": (
-                "N/A — made-to-order items are non-returnable unless defective."
-            ),
-            "fin_note": (
-                "Made-to-order items are not returnable unless defective. "
-                "Do not confirm return eligibility without escalating to an agent. "
-                "If the customer believes the item is defective, collect details and escalate."
-            ),
+            "return_shipping_cost":     None,
+            "item_condition_requirements": None,
+            "fin_note": "Order is cancelled. No return is possible — a refund was issued at cancellation.",
         }
 
-    if order_id == "ORD-10107":
-        return {
-            "eligible": False,
-            "reason": (
-                "Return window has expired. "
-                "The 30-day standard return window from delivery (2025-04-08) expired on 2025-05-08."
-            ),
-            "return_window_days":       30,
-            "return_window_expires_on": "2025-05-08",
-            "days_remaining":           0,
-            "return_shipping_cost":     "$8.00–$15.00 estimated (customer pays)",
-            "item_condition_requirements": "Unused, in original packaging.",
-            "fin_note": (
-                "Return window expired. Standard 30-day return window from delivery "
-                "(2025-04-08) expired on 2025-05-08. "
-                "Any return request for this order requires agent exception approval."
-            ),
-        }
-
-    if order_id == "ORD-10118":
+    # Delivered orders with active damage claim
+    if order.get("damage_claim_active"):
         return {
             "eligible": True,
-            "reason": (
-                "Item was reported damaged on arrival within the 48-hour window. "
-                "Active damage claim under review. Return shipping is covered by NestKart."
-            ),
+            "reason": "Item was reported damaged on arrival. Active damage claim under review.",
             "return_window_days":       30,
-            "return_window_expires_on": "2025-07-05",
+            "return_window_expires_on": None,
             "days_remaining":           None,
             "return_shipping_cost":     "free",
-            "item_condition_requirements": (
-                "Item must be in received condition (damaged state acceptable for damage claims). "
-                "Original packaging preferred where available."
-            ),
+            "item_condition_requirements": "Item must be in received condition. Original packaging preferred.",
             "refund_locked":            True,
             "refund_locked_reason":     "damage_claim_under_review",
             "fin_note": (
-                "Active damage claim under review (Claim ref: RET-2203). Photos received. "
-                "Do not confirm refund amount or final timeline until the Returns Team "
-                "completes their review. Escalate if customer requires immediate resolution."
+                "Active damage claim under review. Do not confirm refund amount or final "
+                "timeline until the Returns Team completes their review. Escalate if customer "
+                "requires immediate resolution."
             ),
         }
 
-    # Fallback for unknown order_id (shouldn't be reached — caller validates first)
+    # Delivered — check return window
+    delivered_at = order.get("delivered_at")
+    price_val = parse_price(order.get("price_total"))
+    # Furniture over $300 gets 14-day window; everything else 30-day
+    window_days = 14 if (price_val and price_val > 300 and order.get("shipping_method") == "large_item") else 30
+
+    if delivered_at:
+        from datetime import datetime
+        delivery_date = datetime.strptime(delivered_at, "%Y-%m-%d").date()
+        expiry_date = delivery_date + timedelta(days=window_days)
+        today = date.today()
+        days_remaining = (expiry_date - today).days
+
+        if days_remaining <= 0:
+            return {
+                "eligible": False,
+                "reason": (
+                    f"Return window has expired. The {window_days}-day return window from "
+                    f"delivery ({delivered_at}) expired on {expiry_date.isoformat()}."
+                ),
+                "return_window_days":       window_days,
+                "return_window_expires_on": expiry_date.isoformat(),
+                "days_remaining":           0,
+                "return_shipping_cost":     "$8.00–$15.00 estimated (customer pays)",
+                "item_condition_requirements": "Unused, in original packaging.",
+                "fin_note": (
+                    f"Return window expired on {expiry_date.isoformat()}. "
+                    "Any return request for this order requires agent exception approval."
+                ),
+            }
+        else:
+            return {
+                "eligible": True,
+                "reason": f"Item is within the {window_days}-day return window.",
+                "return_window_days":       window_days,
+                "return_window_expires_on": expiry_date.isoformat(),
+                "days_remaining":           days_remaining,
+                "return_shipping_cost":     "free (defect/description mismatch); $8.00–$15.00 customer pays (change of mind)",
+                "item_condition_requirements": "Unused, in original packaging.",
+                "fin_note": None,
+            }
+
+    # Fallback
     return {
         "eligible": False,
         "reason": "Return eligibility could not be determined for this order.",
@@ -905,8 +1005,6 @@ def _return_eligibility(order_id):
 
 @app.before_request
 def check_auth():
-    if request.path in NO_AUTH_PATHS:
-        return # exempt paths — no auth check
     if not request.path.startswith("/api"):
         return
 
@@ -922,24 +1020,9 @@ def check_auth():
         "error":   "unauthorized",
         "message": (
             "A valid X-Api-Key header or Authorization Bearer token is required. "
-            "See the README block at the top of app.py for accepted values."
+            "See the README block at the top of app_v3.py for accepted values."
         ),
     }), 401
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HEALTH CHECK
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.route("/api/health", methods=["GET"])
-def health():
-    """No auth required — used by Railway to verify the service is up."""
-    return jsonify({
-        "ok":      True,
-        "service": "NestKart Mock API",
-        "version": "2.3.0",
-        "status":  "healthy",
-    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -978,7 +1061,6 @@ def get_order(order_id):
         "estimated_delivery":order.get("estimated_delivery"),
         "delivered_at":      order.get("delivered_at"),
         "cancellable":       order["cancellable"],
-        "address_changeable":order["address_changeable"],
     }
 
     if order.get("damage_claim_active"):
@@ -1099,138 +1181,10 @@ def cancel_order(order_id):
     })
 
 
-@app.route("/api/orders/<order_id>/address-change-eligibility", methods=["GET"])
-def address_change_eligibility(order_id):
-    """
-    A5 — Address change eligibility.
-    Fin use-case: check before offering or executing an address change.
-    Returns eligibility, masked current address, and AK/HI surcharge warning.
-    """
-    order = ORDERS.get(order_id)
-    if not order:
-        return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
-
-    # Hardcoded masked addresses per eligible order; fallback for all others
-    _masked = {
-        "ORD-10074": {"city": "Austin",       "state": "TX", "zip": "78759"},
-        "ORD-10085": {"city": "Anchorage",    "state": "AK", "zip": "99501"},
-        "ORD-10096": {"city": "San Francisco","state": "CA", "zip": "94110"},
-    }
-    masked = _masked.get(order_id, {"city": "Brooklyn", "state": "NY", "zip": "11201"})
-
-    eligible = order["address_changeable"]
-
-    surcharge_may_apply = masked["state"] in ("AK", "HI")
-    surcharge_note = (
-        "Changing to AK or HI incurs a $12.00 standard or $75.00 large-item surcharge."
-        if surcharge_may_apply else None
-    )
-
-    if eligible:
-        fin_note = (
-            "The shipping address for this order can still be changed — it has not yet been "
-            "picked up by the carrier. Confirm the new address with the customer, then call "
-            "POST /api/orders/<order_id>/address to update it."
-        )
-    else:
-        fin_note = (
-            "The shipping address for this order can no longer be changed — the order has "
-            "already been picked up by the carrier. Inform the customer and advise them to "
-            "contact the carrier directly if they need to redirect the parcel."
-        )
-
-    resp = {
-        "ok":                       True,
-        "order_id":                 order_id,
-        "address_change_eligible":  eligible,
-        "current_shipping_address": masked,
-    }
-
-    if not eligible:
-        resp["reason"] = "Order has already been picked up by the carrier and can no longer be redirected."
-
-    if surcharge_may_apply:
-        resp["surcharge_may_apply"] = True
-        resp["surcharge_note"]      = surcharge_note
-
-    resp["fin_note"] = fin_note
-
-    return jsonify(resp)
-
-
-@app.route("/api/orders/<order_id>/address", methods=["POST"])
-def update_delivery_address(order_id):
-    """
-    A6 — Update delivery address.
-    Fin use-case: execute address change after A5 confirmed eligibility.
-    Requires customer_id to match the order's actual owner (403 ownership_mismatch otherwise).
-    Body: { "customer_id": "cust_xxx", "new_address": { "line1", "city", "state", "zip", ... } }
-    """
-    order = ORDERS.get(order_id)
-    if not order:
-        return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
-
-    body         = request.get_json(silent=True) or {}
-    customer_id  = body.get("customer_id")
-    new_address  = body.get("new_address") or {}
-
-    # Validate required fields
-    if not customer_id:
-        return err("missing_field", "Required field 'customer_id' is missing.", 400)
-    if not new_address.get("line1") or not new_address.get("city") \
-            or not new_address.get("state") or not new_address.get("zip"):
-        return err(
-            "missing_field",
-            "Required fields missing in 'new_address': line1, city, state, zip are all required.",
-            400,
-        )
-
-    ownership_err = ownership_error(customer_id, order["customer_id"])
-    if ownership_err:
-        return ownership_err
-
-    if not order["address_changeable"]:
-        return jsonify({
-            "ok":              False,
-            "address_updated": False,
-            "reason":          "order_already_dispatched",
-            "fin_note": (
-                "The order has already been dispatched and the address can no longer be changed. "
-                "Inform the customer and advise them to contact the carrier to redirect the parcel."
-            ),
-        }), 200
-
-    # Surcharge calculation
-    new_state       = new_address.get("state", "")
-    shipping_method = order.get("shipping_method", "")
-    if new_state in ("AK", "HI"):
-        surcharge = 75.00 if shipping_method == "large_item" else 12.00
-    else:
-        surcharge = 0.00
-
-    # Look up customer email
-    cust = CUSTOMERS.get(customer_id, {})
-    confirmation_email = cust.get("email")
-
-    return jsonify({
-        "ok":                       True,
-        "address_updated":          True,
-        "order_id":                 order_id,
-        "new_shipping_address":     new_address,
-        "surcharge_applied_usd":    surcharge,
-        "confirmation_email_sent_to": confirmation_email,
-        "updated_at":               "2025-06-19T12:00:00Z",
-        "fin_note": (
-            "Address has been updated. Confirmation email sent to customer. "
-            "Read the new address back to the customer to confirm."
-        ),
-    })
-
-
 @app.route("/api/tickets/<ticket_id>", methods=["GET"])
 def get_ticket(ticket_id):
     """
-    A7 — Check support ticket status.
+    A4 — Check support ticket status.
     Fin use-case: customer asks about the status of a support ticket.
     """
     ticket = TICKETS.get(ticket_id)
@@ -1414,124 +1368,6 @@ def get_return(return_id):
     return jsonify(resp)
 
 
-@app.route("/api/customers/<customer_id>/returns", methods=["GET"])
-def get_customer_returns(customer_id):
-    """
-    B4 — All returns for a customer.
-    Fin use-case: customer asks 'do I have any open returns?'
-    """
-    if customer_id not in CUSTOMERS:
-        return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
-
-    all_rets = list(RETURNS.values()) + list(DYNAMIC_RETURNS.values())
-    cust_rets = [r for r in all_rets if r.get("customer_id") == customer_id]
-
-    return jsonify({
-        "ok":            True,
-        "customer_id":   customer_id,
-        "total_returns": len(cust_rets),
-        "returns": [
-            {
-                "return_id":            r["return_id"],
-                "order_id":             r["order_id"],
-                "item_name":            r["item_name"],
-                "status":               r["status"],
-                "refund_status":        r["refund_status"],
-                "return_initiated":     r["return_initiated"],
-                "refund_estimated_date":r.get("refund_estimated_date"),
-            }
-            for r in cust_rets
-        ],
-    })
-
-
-@app.route("/api/returns/<return_id>/replacement", methods=["POST"])
-def issue_replacement(return_id):
-    """
-    B5 — Issue replacement order.
-    Fin use-case: create a replacement for a damaged or incorrect item.
-    Autonomous replacement is server-enforced under $300 order value (see
-    REPLACEMENT_AUTONOMOUS_LIMIT_USD) and blocked while status == "under_review".
-    Requires customer_id to match the return's actual owner (403 ownership_mismatch otherwise).
-    Body: { "customer_id": "cust_xxx", "reason": "<accepted_reason>" }
-    """
-    ret = RETURNS.get(return_id) or DYNAMIC_RETURNS.get(return_id)
-    if not ret:
-        return err("return_not_found", f"No return found with ID '{return_id}'.", 404)
-
-    body        = request.get_json(silent=True) or {}
-    customer_id = body.get("customer_id")
-    reason      = body.get("reason")
-
-    if not customer_id or not reason:
-        missing = [f for f, v in [("customer_id", customer_id), ("reason", reason)] if not v]
-        return err("missing_field", f"Required field(s) missing: {', '.join(missing)}.", 400)
-
-    ACCEPTED_REPLACEMENT_REASONS = [
-        "damaged_on_arrival",
-        "incorrect_item_received",
-        "item_not_as_described",
-    ]
-    if reason not in ACCEPTED_REPLACEMENT_REASONS:
-        return err(
-            "invalid_reason",
-            f"Invalid reason '{reason}'. Accepted values: {', '.join(ACCEPTED_REPLACEMENT_REASONS)}.",
-            400,
-        )
-
-    ownership_err = ownership_error(customer_id, ret["customer_id"])
-    if ownership_err:
-        return ownership_err
-
-    if ret["status"] == "under_review":
-        return jsonify({
-            "ok":                  False,
-            "replacement_issued":  False,
-            "reason":              "claim_under_review",
-            "fin_note": (
-                "This return is currently under review by the Returns Team. A replacement "
-                "cannot be issued until the review is complete. Do not promise a replacement "
-                "— escalate if the customer needs urgent resolution."
-            ),
-        }), 200
-
-    # Autonomous replacement is only permitted under the order value threshold.
-    # Above this, Fin must escalate to an agent rather than self-issue a replacement.
-    original_order = ORDERS.get(ret["order_id"], {})
-    order_value = parse_price(original_order.get("price_total"))
-    if order_value is not None and order_value >= REPLACEMENT_AUTONOMOUS_LIMIT_USD:
-        return jsonify({
-            "ok":                       False,
-            "replacement_issued":       False,
-            "reason":                   "exceeds_autonomous_replacement_limit",
-            "order_value_usd":          order_value,
-            "autonomous_limit_usd":     REPLACEMENT_AUTONOMOUS_LIMIT_USD,
-            "requires_agent_escalation": True,
-            "fin_note": (
-                f"This item's value (${order_value:.2f}) exceeds Fin's autonomous replacement "
-                f"limit of ${REPLACEMENT_AUTONOMOUS_LIMIT_USD:.2f}. Do not issue a replacement "
-                "yourself — escalate to an agent for approval, while keeping the customer "
-                "informed that their claim is being reviewed."
-            ),
-        }), 200
-
-    replacement_order_id = "ORD-REPL-" + return_id
-
-    return jsonify({
-        "ok":                     True,
-        "replacement_issued":     True,
-        "replacement_order_id":   replacement_order_id,
-        "return_id":              return_id,
-        "item_name":              ret["item_name"],
-        "estimated_dispatch_days": 2,
-        "fin_note": (
-            "Replacement order created. Inform the customer their replacement will be "
-            "dispatched within 2 business days and they will receive a shipping "
-            "confirmation email."
-        ),
-    })
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # DOMAIN C — ACCOUNT & PROFILE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1540,14 +1376,12 @@ def issue_replacement(return_id):
 def get_customer(customer_id):
     """
     C1 — Customer profile.
-    Fin use-case: identity confirmation, account enquiries, deletion requests.
-    Returns address summary only (no street detail); use /addresses for full detail.
+    Fin use-case: identity confirmation, account enquiries.
     """
     cust = CUSTOMERS.get(customer_id)
     if not cust:
         return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
 
-    addrs   = ADDRESSES.get(customer_id, [])
     payment = PAYMENT_METHODS.get(customer_id)
     ak_hi   = cust["state"] in ("AK", "HI")
 
@@ -1572,14 +1406,6 @@ def get_customer(customer_id):
         "marketing_opt_in": cust["marketing_opt_in"],
         "state":            cust["state"],
         "ak_hi_customer":   ak_hi,
-        "saved_addresses": [
-            {
-                "address_id": a["address_id"],
-                "label":      a["label"],
-                "is_default": a["is_default"],
-            }
-            for a in addrs
-        ],
         "payment_method": {
             "type":         payment["type"],
             "last_four":    payment["last_four"],
@@ -1587,222 +1413,12 @@ def get_customer(customer_id):
             "expiry_year":  payment["expiry_year"],
             "is_expired":   payment["is_expired"],
         } if payment else None,
-        "account_deletion_policy": (
-            "Your personal data will be permanently deleted within 30 days of your "
-            "deletion request. Order records are retained for 7 years in accordance with "
-            "legal and financial compliance requirements and cannot be deleted."
-        ),
     }
 
     if fin_notes:
         resp["fin_note"] = " ".join(fin_notes)
 
     return jsonify(resp)
-
-
-@app.route("/api/customers/<customer_id>/addresses", methods=["GET"])
-def get_customer_addresses(customer_id):
-    """
-    C2 — Saved delivery addresses (full detail).
-    Fin use-case: customer asks about saved addresses or wants to change delivery address.
-    """
-    if customer_id not in CUSTOMERS:
-        return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
-
-    addrs = ADDRESSES.get(customer_id, [])
-
-    return jsonify({
-        "ok":           True,
-        "customer_id":  customer_id,
-        "total_saved":  len(addrs),
-        "max_allowed":  5,
-        "addresses": [
-            {
-                "address_id":    a["address_id"],
-                "label":         a["label"],
-                "street":        a["street"],
-                "city":          a["city"],
-                "state":         a["state"],
-                "zip":           a["zip"],
-                "full_address":  f"{a['street']}, {a['city']}, {a['state']} {a['zip']}",
-                "is_default":    a["is_default"],
-            }
-            for a in addrs
-        ],
-    })
-
-
-@app.route("/api/customers/<customer_id>/account-deletion-preview", methods=["GET"])
-def account_deletion_preview(customer_id):
-    """
-    C3 — Account deletion preview.
-    Fin use-case: must call this before presenting account deletion to the customer.
-    Returns full impact preview: open orders, pending refunds, data retained/deleted.
-    """
-    cust = CUSTOMERS.get(customer_id)
-    if not cust:
-        return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
-
-    NON_OPEN_STATUSES = {"delivered", "cancelled"}
-    open_orders = [
-        o for o in ORDERS.values()
-        if o["customer_id"] == customer_id and o["status"] not in NON_OPEN_STATUSES
-    ]
-    open_orders_count = len(open_orders)
-
-    all_rets = list(RETURNS.values()) + list(DYNAMIC_RETURNS.values())
-    pending_refunds_count = sum(
-        1 for r in all_rets
-        if r.get("customer_id") == customer_id and r.get("refund_status") == "processing"
-    )
-
-    open_orders_warning = (
-        f"You have {open_orders_count} active order(s). Deleting your account will not cancel "
-        f"them, but you may lose access to order tracking."
-        if open_orders_count > 0 else None
-    )
-
-    return jsonify({
-        "ok":                  True,
-        "customer_id":         customer_id,
-        "deletion_eligible":   True,
-        "ineligibility_reason": None,
-        "open_orders_count":   open_orders_count,
-        "open_orders_warning": open_orders_warning,
-        "pending_refunds_count": pending_refunds_count,
-        "data_to_be_deleted": [
-            "Profile information (name, email, marketing preferences)",
-            "Saved addresses",
-            "Saved payment methods",
-            "Wishlist and product reviews",
-        ],
-        "data_retained_for_legal": [
-            {
-                "data_type":        "Order records and transaction history",
-                "retention_period": "7 years (legal/tax obligation)",
-            }
-        ],
-        "personal_data_deletion_timeline": (
-            "Personal data will be permanently deleted within 30 days of account closure."
-        ),
-        "action_is_irreversible": True,
-        "requires_explicit_customer_confirmation": True,
-        "fin_note": (
-            "Before proceeding, read out the deletion impact to the customer: personal data "
-            "deleted within 30 days, order records retained 7 years. Confirm explicit consent "
-            "before calling C4."
-        ),
-    })
-
-
-@app.route("/api/customers/<customer_id>/delete", methods=["POST"])
-def delete_account(customer_id):
-    """
-    C4 — Delete account.
-    Fin use-case: submit account deletion request to Privacy Team.
-    Fin does not action deletion itself — this creates a deletion ticket.
-    Body: { "confirmed_by_customer": true, "registered_email": "..." }
-    """
-    cust = CUSTOMERS.get(customer_id)
-    if not cust:
-        return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
-
-    body               = request.get_json(silent=True) or {}
-    confirmed          = body.get("confirmed_by_customer")
-    registered_email   = body.get("registered_email")
-
-    if not confirmed or not registered_email:
-        missing = []
-        if not confirmed:
-            missing.append("confirmed_by_customer (must be true)")
-        if not registered_email:
-            missing.append("registered_email")
-        return err("missing_field", f"Required field(s) missing or invalid: {', '.join(missing)}.", 400)
-
-    if registered_email.lower() != cust["email"].lower():
-        return jsonify({
-            "ok":                False,
-            "deletion_submitted": False,
-            "reason":            "email_mismatch",
-            "fin_note": (
-                "The email provided does not match the registered email on this account. "
-                "For security, ask the customer to confirm the exact email address on their "
-                "account before retrying."
-            ),
-        }), 200
-
-    ticket_id = "DEL-" + customer_id.upper()
-
-    return jsonify({
-        "ok":                        True,
-        "deletion_submitted":        True,
-        "ticket_id":                 ticket_id,
-        "personal_data_deletion_by": "2025-07-19",
-        "order_records_retained_until": "2032-06-19",
-        "confirmation_email_sent_to": cust["email"],
-        "fin_note": (
-            "Deletion request submitted to Privacy Team. Inform the customer they will "
-            "receive a confirmation email and their personal data will be deleted within "
-            "30 days. Order records are retained for 7 years per legal obligations."
-        ),
-    })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DOMAIN D — PRODUCTS & INVENTORY
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.route("/api/products/<product_id>", methods=["GET"])
-def get_product(product_id):
-    """
-    D1 — Product details & stock.
-    Fin use-case: customer asks about stock availability, specs, lead time, or warranty.
-    """
-    prod = PRODUCTS.get(product_id)
-    if not prod:
-        return err("product_not_found", f"No product found with ID '{product_id}'.", 404)
-
-    fin_notes = []
-    if prod.get("fin_note"):
-        fin_notes.append(prod["fin_note"])
-    if prod["made_to_order"] and "not returnable" not in (prod.get("fin_note") or ""):
-        fin_notes.append(
-            "This item is not returnable unless defective. "
-            "Cancellation is only available within 24 hours of order placement."
-        )
-
-    resp = {
-        "ok":                    True,
-        "product_id":            prod["product_id"],
-        "name":                  prod["name"],
-        "brand":                 prod["brand"],
-        "price":                 prod["price"],
-        "in_stock":              prod["in_stock"],
-        "stock_qty":             prod["stock_qty"],
-        "made_to_order":         prod["made_to_order"],
-        "lead_time_weeks":       prod.get("lead_time_weeks"),
-        "ships_assembled":       prod["ships_assembled"],
-        "ships_flat_pack":       prod["ships_flat_pack"],
-        "assembly_time_minutes": prod.get("assembly_time_minutes"),
-        "dimensions":            prod.get("dimensions"),
-        "weight_kg":             prod.get("weight_kg"),
-        "warranty_years":        prod.get("warranty_years"),
-        "warranty_type":         prod.get("warranty_type"),
-        "warranty_note":         prod.get("warranty_note"),
-    }
-
-    if fin_notes:
-        resp["fin_note"] = " ".join(fin_notes)
-
-    return jsonify(resp)
-
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# (former Domain E removed — debug endpoints deprecated in v2.3.0)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1810,5 +1426,5 @@ def get_product(product_id):
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    print(f"NestKart Mock API v2.3.0 — listening on http://0.0.0.0:{port}")
+    print(f"NestKart Mock API v3.0.0 — listening on http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
