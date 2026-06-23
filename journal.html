@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Journal — NestKart</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F5EFE6;
+      --terracotta: #C4622D;
+      --sand: #E8D5B7;
+      --walnut: #3D2B1F;
+      --walnut-light: #6B4C3B;
+      --white: #FFFFFF;
+      --border: #D4C0A8;
+    }
+
+    body {
+      background-color: var(--cream);
+      color: var(--walnut);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── NAV ── */
+    .nav {
+      background-color: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 5%;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1280px;
+      margin: 0 auto;
+      height: 64px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .nav-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--terracotta);
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 20px;
+      list-style: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--walnut);
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--terracotta); }
+
+    /* ── PAGE HEADER ── */
+    .page-header {
+      background-color: var(--sand);
+      padding: 56px 5% 48px;
+    }
+    .page-header-inner { max-width: 1280px; margin: 0 auto; }
+    .page-header h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.8rem, 4vw, 2.75rem);
+      color: var(--walnut);
+      margin-bottom: 10px;
+    }
+    .page-header p {
+      font-size: 0.97rem;
+      color: var(--walnut-light);
+    }
+
+    /* ── FILTER BAR ── */
+    .filter-bar {
+      background-color: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 5%;
+    }
+    .filter-bar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+    .filter-tag {
+      padding: 14px 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--walnut-light);
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      cursor: default;
+    }
+    .filter-tag.active {
+      color: var(--terracotta);
+      border-bottom-color: var(--terracotta);
+    }
+
+    /* ── JOURNAL GRID ── */
+    .journal-wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 56px 5%;
+    }
+    .journal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 32px;
+    }
+
+    /* ── POST CARD ── */
+    .post-card {
+      background-color: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s;
+    }
+    .post-card:hover { box-shadow: 0 4px 20px rgba(61, 43, 31, 0.12); }
+
+    .post-thumb {
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+    }
+    .post-card:nth-child(1) .post-thumb { background-color: #E2CDB8; }
+    .post-card:nth-child(2) .post-thumb { background-color: #D9C5A8; }
+    .post-card:nth-child(3) .post-thumb { background-color: #EAD5BC; }
+    .post-card:nth-child(4) .post-thumb { background-color: #D4BFA5; }
+
+    .post-body {
+      padding: 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .post-category {
+      background-color: var(--sand);
+      color: var(--walnut);
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .post-date {
+      font-size: 0.78rem;
+      color: var(--walnut-light);
+    }
+    .post-title {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      font-weight: 700;
+      color: var(--walnut);
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+    .post-summary {
+      font-size: 0.88rem;
+      color: var(--walnut-light);
+      line-height: 1.6;
+      flex: 1;
+      margin-bottom: 16px;
+    }
+    .post-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .post-author { font-size: 0.78rem; color: var(--walnut-light); font-style: italic; }
+    .post-read-more {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--terracotta);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: gap 0.2s;
+    }
+    .post-card:hover .post-read-more { gap: 8px; }
+
+    /* ── FEATURED POST (first card wider) ── */
+    @media (min-width: 900px) {
+      .journal-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .post-card.featured {
+        grid-column: span 2;
+        flex-direction: row;
+      }
+      .post-card.featured .post-thumb {
+        width: 340px;
+        height: auto;
+        flex-shrink: 0;
+        font-size: 5rem;
+      }
+    }
+
+    /* ── SUBSCRIBE STRIP ── */
+    .subscribe-strip {
+      background-color: var(--sand);
+      padding: 48px 5%;
+      text-align: center;
+    }
+    .subscribe-strip-inner { max-width: 560px; margin: 0 auto; }
+    .subscribe-strip h2 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4rem;
+      color: var(--walnut);
+      margin-bottom: 8px;
+    }
+    .subscribe-strip p { font-size: 0.9rem; color: var(--walnut-light); margin-bottom: 20px; }
+    .subscribe-form {
+      display: flex;
+      gap: 0;
+      max-width: 420px;
+      margin: 0 auto;
+      border: 2px solid var(--terracotta);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .subscribe-form input {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      font-size: 0.9rem;
+      background-color: var(--white);
+      color: var(--walnut);
+      outline: none;
+      font-family: inherit;
+    }
+    .subscribe-form input::placeholder { color: #B0927A; }
+    .subscribe-form button {
+      background-color: var(--terracotta);
+      color: var(--white);
+      border: none;
+      padding: 12px 20px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    .subscribe-form button:hover { background-color: #a8511f; }
+    .subscribe-note { font-size: 0.75rem; color: var(--walnut-light); margin-top: 10px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background-color: var(--walnut);
+      color: var(--sand);
+      padding: 48px 5% 32px;
+    }
+    .footer-inner { max-width: 1280px; margin: 0 auto; }
+    .footer-brand {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 6px;
+    }
+    .footer-tagline { font-size: 0.9rem; color: var(--sand); margin-bottom: 28px; font-style: italic; }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      list-style: none;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+    .footer-links a { color: var(--sand); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
+    .footer-contact { font-size: 0.85rem; margin-bottom: 24px; }
+    .footer-contact a { color: var(--terracotta); }
+    .footer-copyright { font-size: 0.78rem; color: #8A7060; }
+
+    @media (max-width: 640px) {
+      .nav-links { gap: 4px 14px; font-size: 0.78rem; }
+      .journal-wrap { padding: 40px 4%; }
+      .subscribe-form { flex-direction: column; border: none; }
+      .subscribe-form input { border: 2px solid var(--terracotta); border-radius: 4px; margin-bottom: 8px; }
+      .subscribe-form button { border-radius: 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ░░ NAVBAR ░░ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">NestKart</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="brands.html">Brands</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="help.html">Help Center</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ░░ PAGE HEADER ░░ -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <h1>The NestKart Journal</h1>
+    <p>Home guides, maker stories, and product updates from the NestKart team.</p>
+  </div>
+</div>
+
+<!-- ░░ FILTER BAR ░░ -->
+<div class="filter-bar">
+  <div class="filter-bar-inner">
+    <div class="filter-tag active">All</div>
+    <div class="filter-tag">Home Guides</div>
+    <div class="filter-tag">Maker Stories</div>
+    <div class="filter-tag">Product Updates</div>
+    <div class="filter-tag">Buying Guides</div>
+  </div>
+</div>
+
+<!-- ░░ JOURNAL POSTS ░░ -->
+<div class="journal-wrap">
+  <div class="journal-grid">
+
+    <!-- POST 1 — Featured -->
+    <div class="post-card featured">
+      <div class="post-thumb">🛋️</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-category">Home Guides</span>
+          <span class="post-date">March 18, 2025</span>
+        </div>
+        <div class="post-title">How to style a small living room without making it feel crowded</div>
+        <div class="post-summary">Small living rooms fail when furniture is too big or placed against every wall. Here's a practical guide to scale, sightlines, and the three pieces worth investing in when space is limited.</div>
+        <div class="post-footer">
+          <span class="post-author">By Lena Vasquez, NestKart Buyer</span>
+          <span class="post-read-more">Read more →</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST 2 -->
+    <div class="post-card">
+      <div class="post-thumb">🏺</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-category">Maker Stories</span>
+          <span class="post-date">February 28, 2025</span>
+        </div>
+        <div class="post-title">Meet the maker: Clay &amp; Co. on hand-thrown ceramics and slow production</div>
+        <div class="post-summary">Clay &amp; Co. founder Jen Park started throwing pots in her Portland garage in 2016 — now her studio produces 400 pieces a month and has a 3-month waitlist. We visited to learn how she thinks about form, function, and what makes a piece worth keeping.</div>
+        <div class="post-footer">
+          <span class="post-author">By Sam Okafor, NestKart Editorial</span>
+          <span class="post-read-more">Read more →</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST 3 -->
+    <div class="post-card">
+      <div class="post-thumb">🌿</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-category">Product Updates</span>
+          <span class="post-date">April 3, 2025</span>
+        </div>
+        <div class="post-title">NestKart Spring 2025: what's new in the shop</div>
+        <div class="post-summary">Spring 2025 brings 60 new products across all three categories, including the Harlow Sofa in the new Terracotta colourway, a full dining collection from Forma Naturale, and Clay &amp; Co.'s first limited-run glaze series. Here's everything that just landed.</div>
+        <div class="post-footer">
+          <span class="post-author">By NestKart Team</span>
+          <span class="post-read-more">Read more →</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST 4 -->
+    <div class="post-card">
+      <div class="post-thumb">📐</div>
+      <div class="post-body">
+        <div class="post-meta">
+          <span class="post-category">Buying Guides</span>
+          <span class="post-date">January 22, 2025</span>
+        </div>
+        <div class="post-title">5 things to check before buying furniture online</div>
+        <div class="post-summary">Buying furniture online goes wrong when buyers skip the dimension check, misread the delivery type, or don't account for doorway clearance. This guide covers the five most common mistakes and how to avoid them before you order.</div>
+        <div class="post-footer">
+          <span class="post-author">By Taryn Hughes, NestKart Customer Experience</span>
+          <span class="post-read-more">Read more →</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ░░ SUBSCRIBE STRIP ░░ -->
+<div class="subscribe-strip">
+  <div class="subscribe-strip-inner">
+    <h2>Get new posts in your inbox</h2>
+    <p>Home guides, maker stories, and product updates — sent when there's something worth reading.</p>
+    <div class="subscribe-form">
+      <input type="email" placeholder="your@email.com" />
+      <button type="button">Subscribe</button>
+    </div>
+    <p class="subscribe-note">No spam. Unsubscribe any time. NestKart will only use your email to send the Journal newsletter.</p>
+  </div>
+</div>
+
+<!-- ░░ FOOTER ░░ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">NestKart</div>
+    <div class="footer-tagline">"Home goods you'll actually love living with."</div>
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="shipping.html">Shipping &amp; Returns</a></li>
+      <li><a href="brands.html">Our Brands</a></li>
+      <li><a href="trust.html">Trust &amp; Safety</a></li>
+      <li><a href="help.html">Help Center</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="journal.html">Journal</a></li>
+    </ul>
+    <div class="footer-contact">Contact: <a href="mailto:hello@nestkart.com">hello@nestkart.com</a></div>
+    <div class="footer-copyright">© 2025 NestKart</div>
+  </div>
+</footer>
+
+</body>
+</html>
