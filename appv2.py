@@ -1228,7 +1228,7 @@ def initiate_return(order_id):
         return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
 
     order = ORDERS[order_id]
-    body  = request.get_json(silent=True) or {}
+    body = request.get_json(silent=True, force=True) or {}
 
     customer_id          = body.get("customer_id")
     reason               = body.get("reason")
