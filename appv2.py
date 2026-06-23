@@ -1234,7 +1234,8 @@ def initiate_return(order_id):
     reason               = body.get("reason")
     condition            = body.get("condition")
     has_original_pkg     = body.get("has_original_packaging")
-
+    if isinstance(has_original_pkg, str):
+        has_original_pkg = has_original_pkg.lower() == "true"
     ACCEPTED_RETURN_REASONS = [
         "change_of_mind",
         "item_not_as_described",
