@@ -132,7 +132,7 @@ CUSTOMERS = {
     "cust_001": {
         "customer_id": "cust_001",
         "name": "Priya Sharma",
-        "email": "priya@example.com",
+        "email": "taruna2004126@gmail.com",
         "account_created": "2024-03-10",
         "marketing_opt_in": True,
         "state": "NY",
@@ -140,7 +140,7 @@ CUSTOMERS = {
     "cust_002": {
         "customer_id": "cust_002",
         "name": "James Okafor",
-        "email": "james@example.com",
+        "email": "11182tarunask@gmail.com",
         "account_created": "2023-11-22",
         "marketing_opt_in": False,
         "state": "CA",
@@ -148,7 +148,7 @@ CUSTOMERS = {
     "cust_003": {
         "customer_id": "cust_003",
         "name": "Lisa Tran",
-        "email": "lisa@example.com",
+        "email": "tarunask.1806@gmail.com",
         "account_created": "2025-01-05",
         "marketing_opt_in": True,
         "state": "TX",
@@ -156,7 +156,7 @@ CUSTOMERS = {
     "cust_004": {
         "customer_id": "cust_004",
         "name": "Marcus Webb",
-        "email": "marcus@example.com",
+        "email": "taruna.stockmarket@gmail.com",
         "account_created": "2024-08-19",
         "marketing_opt_in": False,
         "state": "AK",
@@ -164,7 +164,7 @@ CUSTOMERS = {
     "cust_005": {
         "customer_id": "cust_005",
         "name": "Anika Rossi",
-        "email": "anika@example.com",
+        "email": "taruna2210569@ssn.edu.in",
         "account_created": "2024-12-01",
         "marketing_opt_in": True,
         "state": "CA",
