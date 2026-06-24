@@ -97,38 +97,72 @@ _CANVAS_HOME = {
     "canvas": {
         "content": {
             "components": [
+                # ── Header ──────────────────────────────────────────────────
                 {
                     "type": "text",
                     "id": "header",
-                    "text": "How can we help?",
+                    "text": "Welcome to NestKart Support",
                     "style": "header",
                     "align": "center",
                 },
                 {
                     "type": "text",
                     "id": "subheader",
-                    "text": "Choose a topic and we'll connect you with the right support.",
+                    "text": "Tap a topic below and we'll get you to the right place.",
                     "style": "muted",
                     "align": "center",
                 },
+                {"type": "spacer", "size": "s"},
+                {"type": "divider"},
+                {"type": "spacer", "size": "s"},
+                # ── Topic list — each row submits immediately, no button needed ──
                 {
-                    "type": "single-select",
-                    "id": "topic",
-                    "label": "What do you need help with?",
-                    "options": [
-                        {"type": "option", "id": "order_status", "text": "Track or check an order"},
-                        {"type": "option", "id": "returns",      "text": "Returns & refunds"},
-                        {"type": "option", "id": "product",      "text": "Product question"},
-                        {"type": "option", "id": "account",      "text": "My account"},
-                        {"type": "option", "id": "other",        "text": "Something else"},
+                    "type": "list",
+                    "id": "topic_list",
+                    "items": [
+                        {
+                            "type": "item",
+                            "id": "order_status",
+                            "title": "Track or check an order",
+                            "subtitle": "Delivery status, tracking links, ETAs",
+                            "action": {"type": "submit"},
+                        },
+                        {
+                            "type": "item",
+                            "id": "returns",
+                            "title": "Returns & refunds",
+                            "subtitle": "Start a return or check refund status",
+                            "action": {"type": "submit"},
+                        },
+                        {
+                            "type": "item",
+                            "id": "cancel",
+                            "title": "Cancel an order",
+                            "subtitle": "Cancel before your item ships",
+                            "action": {"type": "submit"},
+                        },
+                        {
+                            "type": "item",
+                            "id": "product",
+                            "title": "Product question",
+                            "subtitle": "Stock, dimensions, materials, care",
+                            "action": {"type": "submit"},
+                        },
+                        {
+                            "type": "item",
+                            "id": "account",
+                            "title": "My account",
+                            "subtitle": "Profile, payment methods, preferences",
+                            "action": {"type": "submit"},
+                        },
+                        {
+                            "type": "item",
+                            "id": "other",
+                            "title": "Something else",
+                            "subtitle": "Any other question or request",
+                            "action": {"type": "submit"},
+                        },
                     ],
-                },
-                {
-                    "type": "button",
-                    "id": "start_btn",
-                    "label": "Get Help",
-                    "style": "primary",
-                    "action": {"type": "submit"},
                 },
             ]
         }
@@ -136,41 +170,75 @@ _CANVAS_HOME = {
 }
 
 
+# Topic metadata — used in the confirmation canvas
+_TOPIC_META = {
+    "order_status": {
+        "label":    "order tracking",
+        "tip":      "Have your order ID ready (e.g. ORD-10041) to speed things up.",
+    },
+    "returns": {
+        "label":    "returns & refunds",
+        "tip":      "Have your order ID or return ID ready.",
+    },
+    "cancel": {
+        "label":    "order cancellation",
+        "tip":      "Orders can only be cancelled before they are dispatched.",
+    },
+    "product": {
+        "label":    "product questions",
+        "tip":      "Let us know the product name or SKU if you have it.",
+    },
+    "account": {
+        "label":    "account support",
+        "tip":      "We may ask you to verify your email address.",
+    },
+    "other": {
+        "label":    "general support",
+        "tip":      "Describe your question and we'll find the right person.",
+    },
+}
+
+
 def _canvas_confirmation(topic_id):
-    labels = {
-        "order_status": "order tracking",
-        "returns":      "returns & refunds",
-        "product":      "product questions",
-        "account":      "account support",
-        "other":        "general support",
-    }
-    label = labels.get(topic_id, "general support")
+    meta  = _TOPIC_META.get(topic_id, _TOPIC_META["other"])
+    label = meta["label"]
+    tip   = meta["tip"]
     return {
         "canvas": {
             "content": {
                 "components": [
+                    # ── Confirmation header ──────────────────────────────────
                     {
                         "type": "text",
                         "id": "confirm_header",
-                        "text": "You're all set.",
+                        "text": "Got it — " + label,
                         "style": "header",
                         "align": "center",
                     },
+                    {"type": "spacer", "size": "s"},
                     {
                         "type": "text",
                         "id": "confirm_body",
-                        "text": (
-                            "We've noted you need help with " + label + ". "
-                            "Start a message below and our team (or Fin) will assist you right away."
-                        ),
+                        "text": "Start a message below and Fin will assist you right away.",
                         "style": "paragraph",
                         "align": "center",
                     },
+                    {"type": "divider"},
+                    # ── Contextual tip ───────────────────────────────────────
+                    {
+                        "type": "text",
+                        "id": "confirm_tip",
+                        "text": "💡 " + tip,
+                        "style": "muted",
+                        "align": "left",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    # ── Back link ────────────────────────────────────────────
                     {
                         "type": "button",
                         "id": "restart_btn",
-                        "label": "Start over",
-                        "style": "secondary",
+                        "label": "← Choose a different topic",
+                        "style": "link",
                         "action": {"type": "submit"},
                     },
                 ]
@@ -186,12 +254,18 @@ def messenger_initialize():
 
 @app.route("/messenger/submit", methods=["POST"])
 def messenger_submit():
-    body = request.get_json(silent=True) or {}
+    body         = request.get_json(silent=True) or {}
     component_id = body.get("component_id", "")
-    input_values = body.get("input_values", {})
-    if component_id == "start_btn":
-        topic_id = input_values.get("topic", "other")
-        return jsonify(_canvas_confirmation(topic_id))
+
+    # List item tapped — component_id IS the topic id
+    if component_id in _TOPIC_META:
+        return jsonify(_canvas_confirmation(component_id))
+
+    # "Choose a different topic" back-link tapped
+    if component_id == "restart_btn":
+        return jsonify(_CANVAS_HOME)
+
+    # Fallback — return home canvas for any unrecognised submit
     return jsonify(_CANVAS_HOME)
 
 
