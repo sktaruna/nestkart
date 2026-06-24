@@ -1,9 +1,26 @@
 """
 ================================================================================
-NestKart Mock API Server — v3.0.0
+NestKart Mock API Server — v4.0.0
 ================================================================================
 A mock backend API for NestKart, designed for use with Intercom Fin Actions.
 All data is hardcoded in-memory. No database, ORM, or file I/O required.
+
+WHAT'S NEW IN v4.0.0:
+    - Canvas Kit section fully rewritten with two self-contained home screen cards:
+        Card 1 — Order Tracker   (/messenger/tracker/initialize + /submit)
+        Card 2 — Cancel an Order (/messenger/cancel/initialize  + /submit)
+    - Each card completes its job inside the Messenger without opening a chat.
+    - Cancel card calls internal cancel logic directly (no HTTP round-trip).
+    - Old single-card topic-picker (v3) removed entirely.
+
+CANVAS KIT ENDPOINTS:
+    Card 1 — Order Tracker
+        Initialize : https://nestkart.up.railway.app/messenger/tracker/initialize
+        Submit     : https://nestkart.up.railway.app/messenger/tracker/submit
+
+    Card 2 — Cancel an Order
+        Initialize : https://nestkart.up.railway.app/messenger/cancel/initialize
+        Submit     : https://nestkart.up.railway.app/messenger/cancel/submit
 
 INSTALL:
     pip install flask flask-cors
@@ -15,7 +32,8 @@ RUN LOCALLY:
     Railway deployment reads PORT from environment and starts via gunicorn.
 
 AUTHENTICATION:
-    All endpoints require auth.
+    All /api/* endpoints require auth.
+    Canvas Kit /messenger/* endpoints do NOT require auth (Intercom signs them).
     Two accepted methods (either one works):
 
     Method 1 — Static header key:
@@ -86,151 +104,234 @@ CORS(app)
 def serve_index():
     return send_from_directory('.', 'index.html')
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CANVAS KIT — MESSENGER HOME SCREEN CARD
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CANVAS KIT — TWO HOME SCREEN CARDS
+#
+# Card 1 — Order Tracker
+#   Initialize : /messenger/tracker/initialize
+#   Submit     : /messenger/tracker/submit
+#
+# Card 2 — Cancel an Order
+#   Initialize : /messenger/cancel/initialize
+#   Submit     : /messenger/cancel/submit
+#
 # These routes MUST stay above the catch-all /<path:filename> route below.
-# Initialize URL : https://nestkart.up.railway.app/messenger/initialize
-# Submit URL     : https://nestkart.up.railway.app/messenger/submit
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SHARED CANVAS HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-_CANVAS_HOME = {
-    "canvas": {
-        "content": {
-            "components": [
-                {
-                    "type": "text",
-                    "id": "header",
-                    "text": "Welcome to NestKart Support",
-                    "style": "header",
-                    "align": "center",
-                },
-                {
-                    "type": "text",
-                    "id": "subheader",
-                    "text": "Tap a topic below and we'll get you to the right place.",
-                    "style": "muted",
-                    "align": "center",
-                },
-                {"type": "spacer", "size": "s"},
-                {"type": "divider"},
-                {"type": "spacer", "size": "s"},
-                {
-                    "type": "list",
-                    "id": "topic_list",
-                    "items": [
-                        {
-                            "type": "item",
-                            "id": "order_status",
-                            "title": "Track or check an order",
-                            "subtitle": "Delivery status, tracking links, ETAs",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "returns",
-                            "title": "Returns & refunds",
-                            "subtitle": "Start a return or check refund status",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "cancel",
-                            "title": "Cancel an order",
-                            "subtitle": "Cancel before your item ships",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "product",
-                            "title": "Product question",
-                            "subtitle": "Stock, dimensions, materials, care",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "account",
-                            "title": "My account",
-                            "subtitle": "Profile, payment methods, preferences",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "other",
-                            "title": "Something else",
-                            "subtitle": "Any other question or request",
-                            "action": {"type": "submit"},
-                        },
-                    ],
-                },
-            ]
-        }
-    }
+_STATUS_LABEL = {
+    "processing":   "⏳ Processing",
+    "dispatched":   "📦 Dispatched",
+    "in_transit":   "🚚 In transit",
+    "delivered":    "✅ Delivered",
+    "cancelled":    "❌ Cancelled",
+    "in_production":"🔨 In production",
 }
 
-_TOPIC_META = {
-    "order_status": {
-        "label": "order tracking",
-        "tip":   "Have your order ID ready (e.g. ORD-10041) to speed things up.",
-    },
-    "returns": {
-        "label": "returns & refunds",
-        "tip":   "Have your order ID or return ID ready.",
-    },
-    "cancel": {
-        "label": "order cancellation",
-        "tip":   "Orders can only be cancelled before they are dispatched.",
-    },
-    "product": {
-        "label": "product questions",
-        "tip":   "Let us know the product name or SKU if you have it.",
-    },
-    "account": {
-        "label": "account support",
-        "tip":   "We may ask you to verify your email address.",
-    },
-    "other": {
-        "label": "general support",
-        "tip":   "Describe your question and we'll find the right person.",
-    },
-}
+def _status_label(status):
+    return _STATUS_LABEL.get(status, status.replace("_", " ").title())
 
 
-def _canvas_confirmation(topic_id):
-    meta  = _TOPIC_META.get(topic_id, _TOPIC_META["other"])
-    label = meta["label"]
-    tip   = meta["tip"]
+def _fmt_date(iso):
+    """'2025-06-20' → 'Jun 20, 2025'. Returns None if input is None."""
+    if not iso:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.strptime(str(iso)[:10], "%Y-%m-%d").strftime("%b %-d, %Y")
+    except Exception:
+        return iso
+
+
+def _normalize_order_id(raw):
+    """Accept 'ord-10041', '10041', 'ORD10041', 'ORD-10041' — all → 'ORD-10041'."""
+    if not raw:
+        return None
+    normalized = raw.strip().upper()
+    if normalized.startswith("ORD-"):
+        return normalized
+    digits = normalized.replace("ORD", "").replace("-", "").strip()
+    if digits.isdigit():
+        return f"ORD-{digits}"
+    return normalized
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD 1 — ORDER TRACKER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _tracker_home():
+    """Order Tracker — initial input screen."""
     return {
         "canvas": {
             "content": {
                 "components": [
                     {
-                        "type": "text",
-                        "id": "confirm_header",
-                        "text": "Got it — " + label,
-                        "style": "header",
-                        "align": "center",
+                        "type": "text", "id": "t_hd",
+                        "text": "Track your order",
+                        "style": "header", "align": "center",
+                    },
+                    {
+                        "type": "text", "id": "t_sub",
+                        "text": "Enter your order ID to see live status, carrier, and estimated delivery.",
+                        "style": "muted", "align": "center",
                     },
                     {"type": "spacer", "size": "s"},
                     {
-                        "type": "text",
-                        "id": "confirm_body",
-                        "text": "Start a message below and Fin will assist you right away.",
-                        "style": "paragraph",
-                        "align": "center",
+                        "type": "input", "id": "tracker_order_id",
+                        "label": "Order ID",
+                        "placeholder": "e.g. ORD-10041",
+                        "action": {"type": "submit"},
                     },
-                    {"type": "divider"},
+                    {"type": "spacer", "size": "xs"},
                     {
-                        "type": "text",
-                        "id": "confirm_tip",
-                        "text": "💡 " + tip,
-                        "style": "muted",
-                        "align": "left",
+                        "type": "button", "id": "tracker_lookup_btn",
+                        "label": "Check order status",
+                        "style": "primary",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _tracker_result(order):
+    """Order Tracker — result screen built from an order dict."""
+    order_id  = order["order_id"]
+    status    = order["status"]
+    item_name = order["item_name"]
+    qty       = order["qty"]
+    price     = order["price_total"]
+    carrier   = order.get("carrier")
+    tracking  = order.get("tracking_url") or (
+        f"https://track.nestkart.com/{order['tracking_number']}"
+        if order.get("tracking_number") else None
+    )
+    est_del   = _fmt_date(order.get("estimated_delivery"))
+    delivered = _fmt_date(order.get("delivered_at"))
+    damage    = order.get("damage_claim_active", False)
+    cancellable = order.get("cancellable", False)
+
+    components = [
+        {
+            "type": "text", "id": "tr_order_id",
+            "text": order_id, "style": "header", "align": "center",
+        },
+        {
+            "type": "text", "id": "tr_status",
+            "text": _status_label(status),
+            "style": "paragraph", "align": "center",
+        },
+        {"type": "divider"},
+        {
+            "type": "text", "id": "tr_item_lbl",
+            "text": "Item", "style": "muted",
+        },
+        {
+            "type": "text", "id": "tr_item_val",
+            "text": f"{item_name} × {qty}  ·  {price}",
+            "style": "paragraph",
+        },
+        {"type": "spacer", "size": "xs"},
+    ]
+
+    # Delivery date or ETA
+    if delivered:
+        components += [
+            {"type": "text", "id": "tr_del_lbl", "text": "Delivered", "style": "muted"},
+            {"type": "text", "id": "tr_del_val", "text": delivered, "style": "paragraph"},
+            {"type": "spacer", "size": "xs"},
+        ]
+    elif est_del and status not in ("cancelled", "processing"):
+        components += [
+            {"type": "text", "id": "tr_eta_lbl", "text": "Estimated delivery", "style": "muted"},
+            {"type": "text", "id": "tr_eta_val", "text": est_del, "style": "paragraph"},
+            {"type": "spacer", "size": "xs"},
+        ]
+
+    # Carrier
+    if carrier and status not in ("cancelled", "processing"):
+        components += [
+            {"type": "text", "id": "tr_carrier_lbl", "text": "Carrier", "style": "muted"},
+            {"type": "text", "id": "tr_carrier_val", "text": carrier, "style": "paragraph"},
+            {"type": "spacer", "size": "xs"},
+        ]
+
+    # Live tracking link — URL action opens in new tab
+    if tracking and status in ("dispatched", "in_transit"):
+        components += [
+            {
+                "type": "button", "id": "tr_track_btn",
+                "label": "Track shipment →",
+                "style": "link",
+                "action": {"type": "url", "url": tracking},
+            },
+            {"type": "spacer", "size": "xs"},
+        ]
+
+    # Contextual hint
+    hint = None
+    if damage:
+        hint = "⚠️ A damage claim is active on this order. Chat with us to check on its progress."
+    elif cancellable:
+        hint = "This order can still be cancelled. Use the Cancel an Order card to cancel it."
+    elif status in ("dispatched", "in_transit") and tracking:
+        hint = "Your order is on its way. Use the tracking link above to follow it in real time."
+    elif status == "delivered":
+        hint = "Order delivered. Need to start a return? Chat with us and have your order ID ready."
+    elif status == "cancelled":
+        hint = "This order was cancelled. If a refund is pending, allow 5–7 business days."
+
+    if hint:
+        components += [
+            {"type": "divider"},
+            {"type": "text", "id": "tr_hint", "text": hint, "style": "muted"},
+            {"type": "spacer", "size": "xs"},
+        ]
+
+    components += [
+        {"type": "divider"},
+        {
+            "type": "button", "id": "tracker_restart_btn",
+            "label": "← Check another order",
+            "style": "link",
+            "action": {"type": "submit"},
+        },
+    ]
+
+    return {"canvas": {"content": {"components": components}}}
+
+
+def _tracker_not_found(raw):
+    """Order Tracker — order ID not found screen."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "tnf_hd",
+                        "text": "Order not found",
+                        "style": "header", "align": "center",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "text", "id": "tnf_body",
+                        "text": (
+                            f"We couldn't find an order matching \"{raw.strip().upper()}\".\n\n"
+                            "Order IDs look like ORD-10041 — check your confirmation email and try again."
+                        ),
+                        "style": "paragraph", "align": "center",
                     },
                     {"type": "spacer", "size": "s"},
                     {
-                        "type": "button",
-                        "id": "restart_btn",
-                        "label": "← Choose a different topic",
+                        "type": "button", "id": "tracker_restart_btn",
+                        "label": "← Try again",
                         "style": "link",
                         "action": {"type": "submit"},
                     },
@@ -240,23 +341,480 @@ def _canvas_confirmation(topic_id):
     }
 
 
-@app.route("/messenger/initialize", methods=["POST"])
-def messenger_initialize():
-    return jsonify(_CANVAS_HOME)
+def _tracker_empty():
+    """Order Tracker — user submitted without entering an ID."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "te_hd",
+                        "text": "Please enter an order ID",
+                        "style": "header", "align": "center",
+                    },
+                    {
+                        "type": "text", "id": "te_body",
+                        "text": "Type your order ID in the field below — it looks like ORD-10041.",
+                        "style": "muted", "align": "center",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "input", "id": "tracker_order_id",
+                        "label": "Order ID",
+                        "placeholder": "e.g. ORD-10041",
+                        "action": {"type": "submit"},
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "button", "id": "tracker_lookup_btn",
+                        "label": "Check order status",
+                        "style": "primary",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
 
 
-@app.route("/messenger/submit", methods=["POST"])
-def messenger_submit():
+# ── Card 1 routes ─────────────────────────────────────────────────────────────
+
+@app.route("/messenger/tracker/initialize", methods=["POST"])
+def tracker_initialize():
+    return jsonify(_tracker_home())
+
+
+@app.route("/messenger/tracker/submit", methods=["POST"])
+def tracker_submit():
     body         = request.get_json(silent=True) or {}
     component_id = body.get("component_id", "")
+    input_values = body.get("input_values", {})
 
-    if component_id in _TOPIC_META:
-        return jsonify(_canvas_confirmation(component_id))
+    # Back to home
+    if component_id == "tracker_restart_btn":
+        return jsonify(_tracker_home())
 
-    if component_id == "restart_btn":
-        return jsonify(_CANVAS_HOME)
+    # Get the order ID the user typed
+    raw = (
+        input_values.get("tracker_order_id", "")
+        or input_values.get(component_id, "")
+    ).strip()
 
-    return jsonify(_CANVAS_HOME)
+    if not raw:
+        return jsonify(_tracker_empty())
+
+    normalized = _normalize_order_id(raw)
+    order = ORDERS.get(normalized)
+
+    if not order:
+        return jsonify(_tracker_not_found(raw))
+
+    return jsonify(_tracker_result(order))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD 2 — CANCEL AN ORDER
+# ─────────────────────────────────────────────────────────────────────────────
+
+# The five cancellation reasons the API accepts, paired with human-readable labels
+_CANCEL_REASONS = [
+    ("changed_my_mind",      "I changed my mind"),
+    ("ordered_by_mistake",   "I ordered by mistake"),
+    ("found_better_price",   "I found a better price"),
+    ("delivery_too_slow",    "Delivery is too slow"),
+    ("other",                "Other reason"),
+]
+
+
+def _cancel_home():
+    """Cancel card — Step 1: enter order ID."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "c_hd",
+                        "text": "Cancel an order",
+                        "style": "header", "align": "center",
+                    },
+                    {
+                        "type": "text", "id": "c_sub",
+                        "text": "Orders can only be cancelled before they are dispatched.",
+                        "style": "muted", "align": "center",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "input", "id": "cancel_order_id",
+                        "label": "Order ID",
+                        "placeholder": "e.g. ORD-10041",
+                        "action": {"type": "submit"},
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "button", "id": "cancel_lookup_btn",
+                        "label": "Look up order",
+                        "style": "primary",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _cancel_confirm_screen(order):
+    """
+    Cancel card — Step 2: show order details + reason picker + confirm button.
+    Only shown when the order is actually cancellable.
+    """
+    order_id  = order["order_id"]
+    item_name = order["item_name"]
+    qty       = order["qty"]
+    price     = order["price_total"]
+    est_del   = _fmt_date(order.get("estimated_delivery"))
+
+    components = [
+        {
+            "type": "text", "id": "cc_hd",
+            "text": "Confirm cancellation",
+            "style": "header", "align": "center",
+        },
+        {"type": "divider"},
+        {"type": "text", "id": "cc_oid_lbl", "text": "Order", "style": "muted"},
+        {"type": "text", "id": "cc_oid_val", "text": order_id, "style": "paragraph"},
+        {"type": "spacer", "size": "xs"},
+        {"type": "text", "id": "cc_item_lbl", "text": "Item", "style": "muted"},
+        {
+            "type": "text", "id": "cc_item_val",
+            "text": f"{item_name} × {qty}  ·  {price}",
+            "style": "paragraph",
+        },
+        {"type": "spacer", "size": "xs"},
+    ]
+
+    if est_del:
+        components += [
+            {"type": "text", "id": "cc_eta_lbl", "text": "Estimated delivery", "style": "muted"},
+            {"type": "text", "id": "cc_eta_val", "text": est_del, "style": "paragraph"},
+            {"type": "spacer", "size": "xs"},
+        ]
+
+    components += [
+        {"type": "divider"},
+        # Reason picker — single-select dropdown
+        {
+            "type": "single-select",
+            "id": "cancel_reason",
+            "label": "Why are you cancelling?",
+            "options": [
+                {"type": "option", "id": reason_id, "text": label}
+                for reason_id, label in _CANCEL_REASONS
+            ],
+        },
+        {"type": "spacer", "size": "xs"},
+        # Confirm button
+        {
+            "type": "button", "id": "cancel_confirm_btn",
+            "label": "Cancel this order",
+            "style": "primary",
+            "action": {"type": "submit"},
+        },
+        {"type": "spacer", "size": "xs"},
+        # Back link — passes order_id in component id so we can re-render
+        {
+            "type": "button", "id": "cancel_restart_btn",
+            "label": "← Back",
+            "style": "link",
+            "action": {"type": "submit"},
+        },
+    ]
+
+    return {"canvas": {"content": {"components": components}}}
+
+
+def _cancel_success(order_id):
+    """Cancel card — Step 3a: cancellation confirmed."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "cs_hd",
+                        "text": "✅ Order cancelled",
+                        "style": "header", "align": "center",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "text", "id": "cs_oid",
+                        "text": order_id,
+                        "style": "paragraph", "align": "center",
+                    },
+                    {"type": "divider"},
+                    {
+                        "type": "text", "id": "cs_refund",
+                        "text": "Your refund will be returned to your original payment method within 5–7 business days. Your bank may take a further 2–5 business days to post the funds.",
+                        "style": "paragraph",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "text", "id": "cs_help",
+                        "text": "Need more help? Start a chat below and our team will assist you.",
+                        "style": "muted",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "button", "id": "cancel_restart_btn",
+                        "label": "← Cancel another order",
+                        "style": "link",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _cancel_not_cancellable(order):
+    """Cancel card — Step 3b: order cannot be cancelled, with specific reason."""
+    status    = order["status"]
+    order_id  = order["order_id"]
+    item_name = order["item_name"]
+
+    reason_map = {
+        "delivered":    (
+            "This order has already been delivered.",
+            "If you'd like to return it, chat with us and have your order ID ready."
+        ),
+        "dispatched":   (
+            "This order has already been dispatched and is on its way to you.",
+            "You won't be able to cancel it now, but you can return it once it arrives."
+        ),
+        "in_transit":   (
+            "This order is currently in transit.",
+            "You won't be able to cancel it now, but you can return it once it arrives."
+        ),
+        "in_production": (
+            "This is a made-to-order item and the 24-hour cancellation window has passed.",
+            "Made-to-order cancellations after this window require agent review. Chat with us for help."
+        ),
+        "cancelled":    (
+            "This order has already been cancelled.",
+            "If you haven't received your refund, chat with us and we'll look into it."
+        ),
+    }
+
+    heading, detail = reason_map.get(
+        status,
+        ("This order cannot be cancelled.", "Chat with us for more information.")
+    )
+
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "cnc_hd",
+                        "text": "Cannot cancel this order",
+                        "style": "header", "align": "center",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {"type": "text", "id": "cnc_oid_lbl", "text": "Order", "style": "muted"},
+                    {"type": "text", "id": "cnc_oid_val", "text": order_id, "style": "paragraph"},
+                    {"type": "spacer", "size": "xs"},
+                    {"type": "text", "id": "cnc_item_lbl", "text": "Item", "style": "muted"},
+                    {"type": "text", "id": "cnc_item_val", "text": item_name, "style": "paragraph"},
+                    {"type": "divider"},
+                    {
+                        "type": "text", "id": "cnc_reason",
+                        "text": heading,
+                        "style": "paragraph",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "text", "id": "cnc_detail",
+                        "text": detail,
+                        "style": "muted",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "button", "id": "cancel_restart_btn",
+                        "label": "← Try a different order",
+                        "style": "link",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _cancel_not_found(raw):
+    """Cancel card — order ID not found screen."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "cnf_hd",
+                        "text": "Order not found",
+                        "style": "header", "align": "center",
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "text", "id": "cnf_body",
+                        "text": (
+                            f"We couldn't find an order matching \"{raw.strip().upper()}\".\n\n"
+                            "Order IDs look like ORD-10041 — check your confirmation email and try again."
+                        ),
+                        "style": "paragraph", "align": "center",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "button", "id": "cancel_restart_btn",
+                        "label": "← Try again",
+                        "style": "link",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _cancel_empty():
+    """Cancel card — user submitted without entering an ID."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "cem_hd",
+                        "text": "Please enter an order ID",
+                        "style": "header", "align": "center",
+                    },
+                    {
+                        "type": "text", "id": "cem_body",
+                        "text": "Type your order ID in the field below — it looks like ORD-10041.",
+                        "style": "muted", "align": "center",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "input", "id": "cancel_order_id",
+                        "label": "Order ID",
+                        "placeholder": "e.g. ORD-10041",
+                        "action": {"type": "submit"},
+                    },
+                    {"type": "spacer", "size": "xs"},
+                    {
+                        "type": "button", "id": "cancel_lookup_btn",
+                        "label": "Look up order",
+                        "style": "primary",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+def _cancel_no_reason():
+    """Cancel card — confirm button pressed without selecting a reason."""
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text", "id": "cnr_hd",
+                        "text": "Please select a reason",
+                        "style": "header", "align": "center",
+                    },
+                    {
+                        "type": "text", "id": "cnr_body",
+                        "text": "Go back and choose a cancellation reason before confirming.",
+                        "style": "muted", "align": "center",
+                    },
+                    {"type": "spacer", "size": "s"},
+                    {
+                        "type": "button", "id": "cancel_restart_btn",
+                        "label": "← Go back",
+                        "style": "link",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+# ── Card 2 routes ─────────────────────────────────────────────────────────────
+
+@app.route("/messenger/cancel/initialize", methods=["POST"])
+def cancel_initialize():
+    return jsonify(_cancel_home())
+
+
+@app.route("/messenger/cancel/submit", methods=["POST"])
+def cancel_submit():
+    body         = request.get_json(silent=True) or {}
+    component_id = body.get("component_id", "")
+    input_values = body.get("input_values", {})
+
+    # ── Back to home / restart ────────────────────────────────────────────
+    if component_id == "cancel_restart_btn":
+        return jsonify(_cancel_home())
+
+    # ── Step 1 → Step 2: look up the order ───────────────────────────────
+    if component_id in ("cancel_lookup_btn", "cancel_order_id"):
+        raw = input_values.get("cancel_order_id", "").strip()
+        if not raw:
+            return jsonify(_cancel_empty())
+
+        normalized = _normalize_order_id(raw)
+        order = ORDERS.get(normalized)
+
+        if not order:
+            return jsonify(_cancel_not_found(raw))
+
+        # Show confirm screen (with reason picker) if cancellable,
+        # or the "cannot cancel" screen immediately if not.
+        if order["cancellable"]:
+            return jsonify(_cancel_confirm_screen(order))
+        else:
+            return jsonify(_cancel_not_cancellable(order))
+
+    # ── Step 2 → Step 3: perform the cancellation ────────────────────────
+    if component_id == "cancel_confirm_btn":
+        # The order ID was on the previous canvas — retrieve it from
+        # current_canvas stored_data or re-derive from input_values.
+        # Because we don't use stored_data here, the safest approach is
+        # to re-read the order ID from input_values (it persists across
+        # canvases in the same session).
+        raw_order_id = input_values.get("cancel_order_id", "").strip()
+        reason       = input_values.get("cancel_reason", "").strip()
+
+        if not raw_order_id:
+            return jsonify(_cancel_home())
+
+        if not reason or reason not in [r[0] for r in _CANCEL_REASONS]:
+            return jsonify(_cancel_no_reason())
+
+        normalized = _normalize_order_id(raw_order_id)
+        order = ORDERS.get(normalized)
+
+        if not order:
+            return jsonify(_cancel_not_found(raw_order_id))
+
+        if not order["cancellable"]:
+            return jsonify(_cancel_not_cancellable(order))
+
+        # Perform the cancellation directly on the in-memory data
+        order["cancellable"] = False
+        order["status"]      = "cancelled"
+
+        return jsonify(_cancel_success(normalized))
+
+    # ── Fallback: return to home ──────────────────────────────────────────
+    return jsonify(_cancel_home())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -837,7 +1395,6 @@ def _return_eligibility(order_id):
 # ─────────────────────────────────────────────────────────────────────────────
 # BEFORE_REQUEST — AUTHENTICATION
 # ─────────────────────────────────────────────────────────────────────────────
-
 @app.before_request
 def check_auth():
     if not request.path.startswith("/api"):
@@ -1080,5 +1637,5 @@ def get_customer(customer_id):
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    print(f"NestKart Mock API v3.0.0 — listening on http://0.0.0.0:{port}")
+    print(f"NestKart Mock API v4.0.0 — listening on http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
