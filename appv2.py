@@ -32,12 +32,11 @@ AUTHENTICATION:
         curl -H "Authorization: Bearer nk-bearer-dev-token-2025" \
              http://localhost:5050/api/customers/cust_001
 
-ENDPOINTS (8 total):
+ENDPOINTS (7 total):
     --- Domain A: Orders & Tracking ---
     GET  /api/orders/<order_id>                         Order status & details
     GET  /api/customers/<customer_id>/orders            Customer order history
     POST /api/orders/<order_id>/cancel                  Cancel an order
-    GET  /api/tickets/<ticket_id>                       Check support ticket status
     --- Domain B: Returns & Refunds ---
     GET  /api/orders/<order_id>/return-eligibility      Check return eligibility
     POST /api/orders/<order_id>/returns                 Initiate a return
@@ -53,7 +52,6 @@ TEST IDs:
                 ORD-10071 · ORD-10072 · ORD-10073 · ORD-10074 · ORD-10075  (cust_004)
                 ORD-10081 · ORD-10082 · ORD-10083 · ORD-10084 · ORD-10085  (cust_005)
     Returns   : RET-2201 · RET-2202 · RET-2203
-    Tickets   : TKT-3301 · TKT-3302 · TKT-3303
 
 SECURITY NOTES:
     - Never expose sensitive data (no full card numbers, no passwords)
@@ -89,20 +87,10 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CANVAS KIT — MESSENGER APP (Home Screen Card)
-# ─────────────────────────────────────────────────────────────────────────────
-# Powers the "How can we help?" topic-picker card on the Intercom Messenger
-# home screen. Intercom calls these server-to-server — no auth header needed.
-#
-# INTERCOM SETUP (Developer Hub → Tweety App → Canvas Kit):
-#   Audience  : For users, leads and visitors
-#   Placement : Place on the Messenger home screen
-#   Initialize URL : https://nestkart.up.railway.app/messenger/initialize
-#   Submit URL     : https://nestkart.up.railway.app/messenger/submit
-#
-# After saving, go to:
-#   Settings → Messenger & Omnichannel → Messenger → Customize Home with apps
-#   → Add an app → select Tweety App
+# CANVAS KIT — MESSENGER HOME SCREEN CARD
+# These routes MUST stay above the catch-all /<path:filename> route below.
+# Initialize URL : https://nestkart.up.railway.app/messenger/initialize
+# Submit URL     : https://nestkart.up.railway.app/messenger/submit
 # ─────────────────────────────────────────────────────────────────────────────
 
 _CANVAS_HOME = {
@@ -149,14 +137,14 @@ _CANVAS_HOME = {
 
 
 def _canvas_confirmation(topic_id):
-    topic_labels = {
+    labels = {
         "order_status": "order tracking",
         "returns":      "returns & refunds",
         "product":      "product questions",
         "account":      "account support",
         "other":        "general support",
     }
-    label = topic_labels.get(topic_id, "general support")
+    label = labels.get(topic_id, "general support")
     return {
         "canvas": {
             "content": {
@@ -201,16 +189,14 @@ def messenger_submit():
     body = request.get_json(silent=True) or {}
     component_id = body.get("component_id", "")
     input_values = body.get("input_values", {})
-
     if component_id == "start_btn":
         topic_id = input_values.get("topic", "other")
         return jsonify(_canvas_confirmation(topic_id))
-
     return jsonify(_CANVAS_HOME)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STATIC FILE SERVING (catch-all — must stay AFTER all named routes)
+# STATIC FILE SERVING — catch-all, must stay AFTER all named routes above
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/<path:filename>')
 def serve_static(filename):
@@ -867,54 +853,6 @@ RETURNS = {
     },
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MOCK DATA — TICKETS
-# ─────────────────────────────────────────────────────────────────────────────
-TICKETS = {
-    "TKT-3301": {
-        "ticket_id":       "TKT-3301",
-        "customer_id":     "cust_001",
-        "order_id":        "ORD-10041",
-        "subject":         "Harlow Sofa refund not received — overdue",
-        "status":          "in_progress",
-        "created_at":      "2025-06-07",
-        "last_updated":    "2025-06-10",
-        "resolution_note": None,
-        "fin_note": (
-            "This ticket is open because the refund for RET-2201 is overdue. "
-            "Do not promise a refund date — escalate to Billing Team if the customer presses."
-        ),
-    },
-    "TKT-3302": {
-        "ticket_id":       "TKT-3302",
-        "customer_id":     "cust_002",
-        "order_id":        "ORD-10055",
-        "subject":         "Dutch Oven arrived with cracked enamel — damage claim",
-        "status":          "open",
-        "created_at":      "2025-06-06",
-        "last_updated":    "2025-06-06",
-        "resolution_note": None,
-        "fin_note": (
-            "Active damage claim under review (RET-2203). Do not confirm refund or "
-            "replacement autonomously — await Returns Team decision."
-        ),
-    },
-    "TKT-3303": {
-        "ticket_id":       "TKT-3303",
-        "customer_id":     "cust_003",
-        "order_id":        "ORD-10061",
-        "subject":         "Request to cancel order before dispatch",
-        "status":          "resolved",
-        "created_at":      "2025-06-17",
-        "last_updated":    "2025-06-18",
-        "resolution_note": (
-            "Customer requested cancellation of ORD-10061. Order was still in processing "
-            "and was successfully cancelled. Refund confirmation email sent."
-        ),
-        "fin_note": None,
-    },
-}
-
 # In-memory store for returns created at runtime via POST /api/orders/<id>/returns
 DYNAMIC_RETURNS  = {}
 _return_id_counter = [2204]  # mutable list so nested functions can increment it
@@ -1303,19 +1241,6 @@ def cancel_order(order_id):
             "plus 2–5 business days for your bank to process."
         ),
     })
-
-
-@app.route("/api/tickets/<ticket_id>", methods=["GET"])
-def get_ticket(ticket_id):
-    """
-    A4 — Check support ticket status.
-    Fin use-case: customer asks about the status of a support ticket.
-    """
-    ticket = TICKETS.get(ticket_id)
-    if not ticket:
-        return err("ticket_not_found", f"No ticket found with ID '{ticket_id}'.", 404)
-
-    return jsonify({"ok": True, **ticket})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
