@@ -32,12 +32,11 @@ AUTHENTICATION:
         curl -H "Authorization: Bearer nk-bearer-dev-token-2025" \
              http://localhost:5050/api/customers/cust_001
 
-ENDPOINTS (8 total):
+ENDPOINTS (7 total):
     --- Domain A: Orders & Tracking ---
     GET  /api/orders/<order_id>                         Order status & details
     GET  /api/customers/<customer_id>/orders            Customer order history
     POST /api/orders/<order_id>/cancel                  Cancel an order
-    GET  /api/tickets/<ticket_id>                       Check support ticket status
     --- Domain B: Returns & Refunds ---
     GET  /api/orders/<order_id>/return-eligibility      Check return eligibility
     POST /api/orders/<order_id>/returns                 Initiate a return
@@ -53,7 +52,6 @@ TEST IDs:
                 ORD-10071 · ORD-10072 · ORD-10073 · ORD-10074 · ORD-10075  (cust_004)
                 ORD-10081 · ORD-10082 · ORD-10083 · ORD-10084 · ORD-10085  (cust_005)
     Returns   : RET-2201 · RET-2202 · RET-2203
-    Tickets   : TKT-3301 · TKT-3302 · TKT-3303
 
 SECURITY NOTES:
     - Never expose sensitive data (no full card numbers, no passwords)
@@ -743,54 +741,6 @@ RETURNS = {
     },
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MOCK DATA — TICKETS
-# ─────────────────────────────────────────────────────────────────────────────
-TICKETS = {
-    "TKT-3301": {
-        "ticket_id":       "TKT-3301",
-        "customer_id":     "cust_001",
-        "order_id":        "ORD-10041",
-        "subject":         "Harlow Sofa refund not received — overdue",
-        "status":          "in_progress",
-        "created_at":      "2025-06-07",
-        "last_updated":    "2025-06-10",
-        "resolution_note": None,
-        "fin_note": (
-            "This ticket is open because the refund for RET-2201 is overdue. "
-            "Do not promise a refund date — escalate to Billing Team if the customer presses."
-        ),
-    },
-    "TKT-3302": {
-        "ticket_id":       "TKT-3302",
-        "customer_id":     "cust_002",
-        "order_id":        "ORD-10055",
-        "subject":         "Dutch Oven arrived with cracked enamel — damage claim",
-        "status":          "open",
-        "created_at":      "2025-06-06",
-        "last_updated":    "2025-06-06",
-        "resolution_note": None,
-        "fin_note": (
-            "Active damage claim under review (RET-2203). Do not confirm refund or "
-            "replacement autonomously — await Returns Team decision."
-        ),
-    },
-    "TKT-3303": {
-        "ticket_id":       "TKT-3303",
-        "customer_id":     "cust_003",
-        "order_id":        "ORD-10061",
-        "subject":         "Request to cancel order before dispatch",
-        "status":          "resolved",
-        "created_at":      "2025-06-17",
-        "last_updated":    "2025-06-18",
-        "resolution_note": (
-            "Customer requested cancellation of ORD-10061. Order was still in processing "
-            "and was successfully cancelled. Refund confirmation email sent."
-        ),
-        "fin_note": None,
-    },
-}
-
 # In-memory store for returns created at runtime via POST /api/orders/<id>/returns
 DYNAMIC_RETURNS  = {}
 _return_id_counter = [2204]  # mutable list so nested functions can increment it
@@ -1181,19 +1131,6 @@ def cancel_order(order_id):
     })
 
 
-@app.route("/api/tickets/<ticket_id>", methods=["GET"])
-def get_ticket(ticket_id):
-    """
-    A4 — Check support ticket status.
-    Fin use-case: customer asks about the status of a support ticket.
-    """
-    ticket = TICKETS.get(ticket_id)
-    if not ticket:
-        return err("ticket_not_found", f"No ticket found with ID '{ticket_id}'.", 404)
-
-    return jsonify({"ok": True, **ticket})
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # DOMAIN B — RETURNS & REFUNDS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1228,14 +1165,13 @@ def initiate_return(order_id):
         return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
 
     order = ORDERS[order_id]
-    body = request.get_json(silent=True, force=True) or {}
+    body  = request.get_json(silent=True) or {}
 
     customer_id          = body.get("customer_id")
     reason               = body.get("reason")
     condition            = body.get("condition")
     has_original_pkg     = body.get("has_original_packaging")
-    if isinstance(has_original_pkg, str):
-        has_original_pkg = has_original_pkg.lower() == "true"
+
     ACCEPTED_RETURN_REASONS = [
         "change_of_mind",
         "item_not_as_described",
