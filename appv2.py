@@ -86,6 +86,118 @@ from flask import send_from_directory
 def serve_index():
     return send_from_directory('.', 'index.html')
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CANVAS KIT — MESSENGER HOME SCREEN CARD
+# These routes MUST stay above the catch-all /<path:filename> route below.
+# Initialize URL : https://nestkart.up.railway.app/messenger/initialize
+# Submit URL     : https://nestkart.up.railway.app/messenger/submit
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CANVAS_HOME = {
+    "canvas": {
+        "content": {
+            "components": [
+                {
+                    "type": "text",
+                    "id": "header",
+                    "text": "How can we help?",
+                    "style": "header",
+                    "align": "center",
+                },
+                {
+                    "type": "text",
+                    "id": "subheader",
+                    "text": "Choose a topic and we'll connect you with the right support.",
+                    "style": "muted",
+                    "align": "center",
+                },
+                {
+                    "type": "single-select",
+                    "id": "topic",
+                    "label": "What do you need help with?",
+                    "options": [
+                        {"type": "option", "id": "order_status", "text": "Track or check an order"},
+                        {"type": "option", "id": "returns",      "text": "Returns & refunds"},
+                        {"type": "option", "id": "product",      "text": "Product question"},
+                        {"type": "option", "id": "account",      "text": "My account"},
+                        {"type": "option", "id": "other",        "text": "Something else"},
+                    ],
+                },
+                {
+                    "type": "button",
+                    "id": "start_btn",
+                    "label": "Get Help",
+                    "style": "primary",
+                    "action": {"type": "submit"},
+                },
+            ]
+        }
+    }
+}
+
+
+def _canvas_confirmation(topic_id):
+    labels = {
+        "order_status": "order tracking",
+        "returns":      "returns & refunds",
+        "product":      "product questions",
+        "account":      "account support",
+        "other":        "general support",
+    }
+    label = labels.get(topic_id, "general support")
+    return {
+        "canvas": {
+            "content": {
+                "components": [
+                    {
+                        "type": "text",
+                        "id": "confirm_header",
+                        "text": "You're all set.",
+                        "style": "header",
+                        "align": "center",
+                    },
+                    {
+                        "type": "text",
+                        "id": "confirm_body",
+                        "text": (
+                            "We've noted you need help with " + label + ". "
+                            "Start a message below and our team (or Fin) will assist you right away."
+                        ),
+                        "style": "paragraph",
+                        "align": "center",
+                    },
+                    {
+                        "type": "button",
+                        "id": "restart_btn",
+                        "label": "Start over",
+                        "style": "secondary",
+                        "action": {"type": "submit"},
+                    },
+                ]
+            }
+        }
+    }
+
+
+@app.route("/messenger/initialize", methods=["POST"])
+def messenger_initialize():
+    return jsonify(_CANVAS_HOME)
+
+
+@app.route("/messenger/submit", methods=["POST"])
+def messenger_submit():
+    body = request.get_json(silent=True) or {}
+    component_id = body.get("component_id", "")
+    input_values = body.get("input_values", {})
+    if component_id == "start_btn":
+        topic_id = input_values.get("topic", "other")
+        return jsonify(_canvas_confirmation(topic_id))
+    return jsonify(_CANVAS_HOME)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STATIC FILE SERVING — catch-all, must stay AFTER all named routes above
+# ─────────────────────────────────────────────────────────────────────────────
 @app.route('/<path:filename>')
 def serve_static(filename):
     if '.' in filename and not filename.startswith('api'):
