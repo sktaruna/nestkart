@@ -173,28 +173,28 @@ _CANVAS_HOME = {
 # Topic metadata — used in the confirmation canvas
 _TOPIC_META = {
     "order_status": {
-        "label":    "order tracking",
-        "tip":      "Have your order ID ready (e.g. ORD-10041) to speed things up.",
+        "label": "order tracking",
+        "tip":   "Have your order ID ready (e.g. ORD-10041) to speed things up.",
     },
     "returns": {
-        "label":    "returns & refunds",
-        "tip":      "Have your order ID or return ID ready.",
+        "label": "returns & refunds",
+        "tip":   "Have your order ID or return ID ready.",
     },
     "cancel": {
-        "label":    "order cancellation",
-        "tip":      "Orders can only be cancelled before they are dispatched.",
+        "label": "order cancellation",
+        "tip":   "Orders can only be cancelled before they are dispatched.",
     },
     "product": {
-        "label":    "product questions",
-        "tip":      "Let us know the product name or SKU if you have it.",
+        "label": "product questions",
+        "tip":   "Let us know the product name or SKU if you have it.",
     },
     "account": {
-        "label":    "account support",
-        "tip":      "We may ask you to verify your email address.",
+        "label": "account support",
+        "tip":   "We may ask you to verify your email address.",
     },
     "other": {
-        "label":    "general support",
-        "tip":      "Describe your question and we'll find the right person.",
+        "label": "general support",
+        "tip":   "Describe your question and we'll find the right person.",
     },
 }
 
@@ -207,7 +207,6 @@ def _canvas_confirmation(topic_id):
         "canvas": {
             "content": {
                 "components": [
-                    # ── Confirmation header ──────────────────────────────────
                     {
                         "type": "text",
                         "id": "confirm_header",
@@ -224,7 +223,6 @@ def _canvas_confirmation(topic_id):
                         "align": "center",
                     },
                     {"type": "divider"},
-                    # ── Contextual tip ───────────────────────────────────────
                     {
                         "type": "text",
                         "id": "confirm_tip",
@@ -233,7 +231,6 @@ def _canvas_confirmation(topic_id):
                         "align": "left",
                     },
                     {"type": "spacer", "size": "s"},
-                    # ── Back link ────────────────────────────────────────────
                     {
                         "type": "button",
                         "id": "restart_btn",
@@ -251,6 +248,22 @@ def _canvas_confirmation(topic_id):
 def messenger_initialize():
     return jsonify(_CANVAS_HOME)
 
+
+@app.route("/messenger/submit", methods=["POST"])
+def messenger_submit():
+    body         = request.get_json(silent=True) or {}
+    component_id = body.get("component_id", "")
+
+    # List item tapped — component_id IS the topic id
+    if component_id in _TOPIC_META:
+        return jsonify(_canvas_confirmation(component_id))
+
+    # "Choose a different topic" back-link tapped
+    if component_id == "restart_btn":
+        return jsonify(_CANVAS_HOME)
+
+    # Fallback — return home canvas for any unrecognised submit
+    return jsonify(_CANVAS_HOME)
 
 @app.route("/messenger/submit", methods=["POST"])
 def messenger_submit():
