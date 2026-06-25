@@ -496,7 +496,7 @@ def messenger_initialize():
     Reads customer_id from the contact's custom attributes and renders the order list.
     """
     body = request.get_json(silent=True) or {}
-
+    app.logger.info("INIT PAYLOAD: %s", body)
     # Intercom passes custom attributes here:
     # payload → contact → custom_attributes → customer_id
     contact = body.get("contact") or {}
