@@ -47,6 +47,9 @@
       user_id: userId,
       name:    customer.name,
       email:   customer.email,
+      custom_attributes: {        // ← add this
+        customer_id: userId,
+      },
     };
 
     // Load the Intercom widget script if not already present
