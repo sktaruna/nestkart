@@ -87,176 +87,466 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CANVAS KIT — MESSENGER HOME SCREEN CARD
-# These routes MUST stay above the catch-all /<path:filename> route below.
+# CANVAS KIT — MESSENGER HOME + CONVERSATION (Live Order Data)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# HOW IT WORKS
+# ─────────────────────────────────────────────────────────────────────────────
 # Initialize URL : https://nestkart.up.railway.app/messenger/initialize
 # Submit URL     : https://nestkart.up.railway.app/messenger/submit
+#
+# FLOW
+#   1. Customer opens Messenger → Intercom POSTs to /messenger/initialize
+#   2. Backend reads contact.custom_attributes.customer_id from the payload
+#   3. Looks up their last 3 orders from ORDERS data
+#   4. Returns a canvas showing live order list with status badges
+#   5. Customer taps an order row → Intercom POSTs to /messenger/submit
+#   6. Backend reads order_id from stored_data, fetches order detail
+#   7. Returns a detail canvas with tracking info + contextual action buttons
+#      (Cancel / Start Return shown only when the order actually allows it)
+#   8. Customer taps "← Back" → returns to order list
+#
+# CUSTOMER ID
+#   Intercom passes your custom attribute as:
+#   payload["contact"]["custom_attributes"]["customer_id"]
+#   Make sure your init.js sets: customAttributes: { customer_id: "cust_001" }
+#
+# PASTE INSTRUCTIONS
+#   Replace the entire "CANVAS KIT" block in appv2.py with this file's contents.
+#   The route paths (/messenger/initialize, /messenger/submit) stay the same,
+#   so no changes needed in your Intercom Developer Hub settings.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_CANVAS_HOME = {
-    "canvas": {
-        "content": {
-            "components": [
-                {
-                    "type": "text",
-                    "id": "header",
-                    "text": "Welcome to NestKart Support",
-                    "style": "header",
-                    "align": "center",
-                },
-                {
-                    "type": "text",
-                    "id": "subheader",
-                    "text": "Tap a topic below and we'll get you to the right place.",
-                    "style": "muted",
-                    "align": "center",
-                },
-                {"type": "spacer", "size": "s"},
-                {"type": "divider"},
-                {"type": "spacer", "size": "s"},
-                {
-                    "type": "list",
-                    "id": "topic_list",
-                    "items": [
+
+# ── STATUS DISPLAY HELPERS ───────────────────────────────────────────────────
+
+# Maps internal status strings to human-readable labels + emoji
+STATUS_LABEL = {
+    "processing":    "⏳ Processing",
+    "dispatched":    "📦 Dispatched",
+    "in_transit":    "🚚 In Transit",
+    "delivered":     "✅ Delivered",
+    "cancelled":     "❌ Cancelled",
+    "in_production": "🔨 In Production",
+}
+
+
+def _status_label(status):
+    return STATUS_LABEL.get(status, status.replace("_", " ").title())
+
+
+# ── CANVAS BUILDERS ──────────────────────────────────────────────────────────
+
+def _build_order_list_canvas(customer_id):
+    """
+    Home screen canvas: shows the customer's 3 most recent orders.
+    Each order row is tappable — tapping stores the order_id and loads detail.
+    Falls back gracefully if customer_id is missing or unknown.
+    """
+
+    # --- Resolve customer --------------------------------------------------
+    customer = CUSTOMERS.get(customer_id)
+    if not customer:
+        # Unknown or missing customer_id — show a friendly fallback
+        return {
+            "canvas": {
+                "content": {
+                    "components": [
                         {
-                            "type": "item",
-                            "id": "order_status",
-                            "title": "Track or check an order",
-                            "subtitle": "Delivery status, tracking links, ETAs",
-                            "action": {"type": "submit"},
+                            "type": "text",
+                            "id": "err_header",
+                            "text": "Welcome to NestKart Support",
+                            "style": "header",
+                            "align": "center",
                         },
+                        {"type": "spacer", "size": "s"},
                         {
-                            "type": "item",
-                            "id": "returns",
-                            "title": "Returns & refunds",
-                            "subtitle": "Start a return or check refund status",
-                            "action": {"type": "submit"},
+                            "type": "text",
+                            "id": "err_body",
+                            "text": (
+                                "We couldn't find your account details automatically. "
+                                "Start a message below and our team will help you right away."
+                            ),
+                            "style": "paragraph",
+                            "align": "center",
                         },
-                        {
-                            "type": "item",
-                            "id": "cancel",
-                            "title": "Cancel an order",
-                            "subtitle": "Cancel before your item ships",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "product",
-                            "title": "Product question",
-                            "subtitle": "Stock, dimensions, materials, care",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "account",
-                            "title": "My account",
-                            "subtitle": "Profile, payment methods, preferences",
-                            "action": {"type": "submit"},
-                        },
-                        {
-                            "type": "item",
-                            "id": "other",
-                            "title": "Something else",
-                            "subtitle": "Any other question or request",
-                            "action": {"type": "submit"},
-                        },
-                    ],
-                },
-            ]
+                    ]
+                }
+            }
+        }
+
+    # --- Get last 3 orders ------------------------------------------------
+    customer_orders = sorted(
+        [o for o in ORDERS.values() if o["customer_id"] == customer_id],
+        key=lambda o: o["placed_at"],
+        reverse=True,
+    )[:3]
+
+    # --- Build components -------------------------------------------------
+    components = [
+        {
+            "type": "text",
+            "id": "greeting",
+            "text": f"Hi {customer['name'].split()[0]}, here are your recent orders",
+            "style": "header",
+            "align": "center",
+        },
+        {"type": "spacer", "size": "s"},
+        {"type": "divider"},
+        {"type": "spacer", "size": "xs"},
+    ]
+
+    if not customer_orders:
+        components.append({
+            "type": "text",
+            "id": "no_orders",
+            "text": "You don't have any orders yet.",
+            "style": "muted",
+            "align": "center",
+        })
+    else:
+        list_items = []
+        for order in customer_orders:
+            # Subtitle line: status + price
+            subtitle = f"{_status_label(order['status'])}  ·  {order['price_total']}"
+
+            # Add delivery date or ETA if available
+            if order.get("delivered_at"):
+                subtitle += f"  ·  Delivered {order['delivered_at']}"
+            elif order.get("estimated_delivery") and order["status"] not in ("cancelled", "in_production"):
+                subtitle += f"  ·  Est. {order['estimated_delivery']}"
+
+            list_items.append({
+                "type": "item",
+                "id": f"order_{order['order_id']}",
+                "title": order["item_name"],
+                "subtitle": subtitle,
+                "action": {"type": "submit"},
+            })
+
+        components.append({
+            "type": "list",
+            "id": "order_list",
+            "items": list_items,
+        })
+
+    # Footer hint
+    components += [
+        {"type": "spacer", "size": "s"},
+        {"type": "divider"},
+        {
+            "type": "text",
+            "id": "footer_hint",
+            "text": "💬 Need help with something else? Start a message below.",
+            "style": "muted",
+            "align": "center",
+        },
+    ]
+
+    return {
+        "canvas": {
+            "content": {"components": components},
+            # stored_data carries customer_id so the submit handler always has it
+            "stored_data": {"customer_id": customer_id},
         }
     }
-}
-
-_TOPIC_META = {
-    "order_status": {
-        "label": "order tracking",
-        "tip":   "Have your order ID ready (e.g. ORD-10041) to speed things up.",
-    },
-    "returns": {
-        "label": "returns & refunds",
-        "tip":   "Have your order ID or return ID ready.",
-    },
-    "cancel": {
-        "label": "order cancellation",
-        "tip":   "Orders can only be cancelled before they are dispatched.",
-    },
-    "product": {
-        "label": "product questions",
-        "tip":   "Let us know the product name or SKU if you have it.",
-    },
-    "account": {
-        "label": "account support",
-        "tip":   "We may ask you to verify your email address.",
-    },
-    "other": {
-        "label": "general support",
-        "tip":   "Describe your question and we'll find the right person.",
-    },
-}
 
 
-def _canvas_confirmation(topic_id):
-    meta  = _TOPIC_META.get(topic_id, _TOPIC_META["other"])
-    label = meta["label"]
-    tip   = meta["tip"]
+def _build_order_detail_canvas(order_id, customer_id):
+    """
+    Detail screen canvas: shows full order info for a single order.
+    Includes tracking link, estimated delivery, and contextual action buttons.
+
+    Action buttons are shown only when the order actually supports them:
+      - Cancel button  →  only when order["cancellable"] is True
+      - Return button  →  only when order is delivered and return window is open
+    """
+    order = ORDERS.get(order_id)
+    if not order:
+        return _build_order_list_canvas(customer_id)  # safe fallback
+
+    components = [
+        # ── Header ────────────────────────────────────────────────────────
+        {
+            "type": "text",
+            "id": "detail_header",
+            "text": order["item_name"],
+            "style": "header",
+            "align": "left",
+        },
+        {
+            "type": "text",
+            "id": "detail_order_id",
+            "text": f"Order {order['order_id']}",
+            "style": "muted",
+            "align": "left",
+        },
+        {"type": "spacer", "size": "s"},
+        {"type": "divider"},
+        {"type": "spacer", "size": "xs"},
+
+        # ── Status row ────────────────────────────────────────────────────
+        {
+            "type": "text",
+            "id": "detail_status",
+            "text": f"Status:  {_status_label(order['status'])}",
+            "style": "paragraph",
+            "align": "left",
+        },
+    ]
+
+    # ── Delivery info ─────────────────────────────────────────────────────
+    if order.get("delivered_at"):
+        components.append({
+            "type": "text",
+            "id": "detail_delivered",
+            "text": f"Delivered:  {order['delivered_at']}",
+            "style": "paragraph",
+            "align": "left",
+        })
+    elif order.get("estimated_delivery") and order["status"] not in ("cancelled", "in_production"):
+        components.append({
+            "type": "text",
+            "id": "detail_eta",
+            "text": f"Estimated delivery:  {order['estimated_delivery']}",
+            "style": "paragraph",
+            "align": "left",
+        })
+
+    # ── Carrier + tracking ────────────────────────────────────────────────
+    if order.get("carrier"):
+        carrier_text = f"Carrier:  {order['carrier']}"
+        if order.get("tracking_number"):
+            carrier_text += f"  ·  {order['tracking_number']}"
+        components.append({
+            "type": "text",
+            "id": "detail_carrier",
+            "text": carrier_text,
+            "style": "paragraph",
+            "align": "left",
+        })
+
+    # Tracking link as a tappable anchor (if available)
+    if order.get("tracking_number"):
+        components.append({
+            "type": "anchor",
+            "id": "detail_tracking_link",
+            "text": "Track this shipment →",
+            "url": f"https://track.nestkart.com/{order['tracking_number']}",
+        })
+
+    # ── Price ─────────────────────────────────────────────────────────────
+    components += [
+        {"type": "spacer", "size": "xs"},
+        {
+            "type": "text",
+            "id": "detail_price",
+            "text": f"Order total:  {order['price_total']}",
+            "style": "paragraph",
+            "align": "left",
+        },
+        {"type": "spacer", "size": "s"},
+        {"type": "divider"},
+        {"type": "spacer", "size": "s"},
+    ]
+
+    # ── Contextual action buttons ─────────────────────────────────────────
+    #
+    # We check the SAME eligibility logic the API uses so buttons only appear
+    # when the action is genuinely available — no dead-end taps.
+
+    action_buttons = []
+
+    # Cancel button — only if cancellable flag is True
+    if order.get("cancellable"):
+        action_buttons.append({
+            "type": "button",
+            "id": "btn_cancel",
+            "label": "Cancel this order",
+            "style": "secondary",
+            "action": {"type": "submit"},
+        })
+
+    # Return button — only for delivered orders within the return window
+    if order.get("status") == "delivered" and not order.get("damage_claim_active"):
+        elig = _return_eligibility(order_id)
+        if elig.get("eligible"):
+            action_buttons.append({
+                "type": "button",
+                "id": "btn_return",
+                "label": "Start a return",
+                "style": "secondary",
+                "action": {"type": "submit"},
+            })
+
+    if action_buttons:
+        components.extend(action_buttons)
+        components.append({"type": "spacer", "size": "xs"})
+
+    # ── Damage claim notice ───────────────────────────────────────────────
+    if order.get("damage_claim_active"):
+        components.append({
+            "type": "text",
+            "id": "detail_damage_note",
+            "text": "⚠️ There is an active damage claim on this order. Our team will be in touch.",
+            "style": "error",
+            "align": "left",
+        })
+        components.append({"type": "spacer", "size": "xs"})
+
+    # ── Back button ───────────────────────────────────────────────────────
+    components.append({
+        "type": "button",
+        "id": "btn_back",
+        "label": "← Back to my orders",
+        "style": "link",
+        "action": {"type": "submit"},
+    })
+
+    return {
+        "canvas": {
+            "content": {"components": components},
+            # Pass both IDs forward so submit always has context
+            "stored_data": {
+                "customer_id": customer_id,
+                "current_order_id": order_id,
+            },
+        }
+    }
+
+
+def _build_action_redirect_canvas(action, order_id, customer_id):
+    """
+    Shown when the customer taps Cancel or Start Return.
+    We don't process the action in Canvas Kit — that requires auth and
+    confirmation steps better handled by Fin in chat.
+    The card tells them what to do and drops them into the conversation.
+    """
+    order = ORDERS.get(order_id, {})
+    item_name = order.get("item_name", "your item")
+
+    if action == "cancel":
+        header = "Cancel your order"
+        body = (
+            f"To cancel **{item_name}** (order {order_id}), "
+            "start a message below and type \"I want to cancel my order\". "
+            "Fin will verify your identity and process the cancellation right away."
+        )
+        tip = "💡 Cancellations are only possible before dispatch — your order is still in processing."
+    else:  # return
+        header = "Start a return"
+        body = (
+            f"To return **{item_name}** (order {order_id}), "
+            "start a message below and type \"I want to return my order\". "
+            "Fin will check your eligibility and generate a return label."
+        )
+        tip = "💡 Have your order ID ready: " + order_id
+
     return {
         "canvas": {
             "content": {
                 "components": [
                     {
                         "type": "text",
-                        "id": "confirm_header",
-                        "text": "Got it — " + label,
+                        "id": "action_header",
+                        "text": header,
                         "style": "header",
                         "align": "center",
                     },
                     {"type": "spacer", "size": "s"},
                     {
                         "type": "text",
-                        "id": "confirm_body",
-                        "text": "Start a message below and Fin will assist you right away.",
+                        "id": "action_body",
+                        "text": body,
                         "style": "paragraph",
                         "align": "center",
                     },
                     {"type": "divider"},
                     {
                         "type": "text",
-                        "id": "confirm_tip",
-                        "text": "💡 " + tip,
+                        "id": "action_tip",
+                        "text": tip,
                         "style": "muted",
                         "align": "left",
                     },
                     {"type": "spacer", "size": "s"},
                     {
                         "type": "button",
-                        "id": "restart_btn",
-                        "label": "← Choose a different topic",
+                        "id": "btn_back",
+                        "label": "← Back to order details",
                         "style": "link",
                         "action": {"type": "submit"},
                     },
                 ]
-            }
+            },
+            "stored_data": {
+                "customer_id": customer_id,
+                "current_order_id": order_id,
+            },
         }
     }
 
 
+# ── ROUTE HANDLERS ────────────────────────────────────────────────────────────
+
 @app.route("/messenger/initialize", methods=["POST"])
 def messenger_initialize():
-    return jsonify(_CANVAS_HOME)
+    """
+    Called by Intercom when the customer opens the Messenger (Home or conversation).
+    Reads customer_id from the contact's custom attributes and renders the order list.
+    """
+    body = request.get_json(silent=True) or {}
+
+    # Intercom passes custom attributes here:
+    # payload → contact → custom_attributes → customer_id
+    contact = body.get("contact") or {}
+    custom_attrs = contact.get("custom_attributes") or {}
+    customer_id = custom_attrs.get("customer_id", "")
+
+    return jsonify(_build_order_list_canvas(customer_id))
 
 
 @app.route("/messenger/submit", methods=["POST"])
 def messenger_submit():
-    body         = request.get_json(silent=True) or {}
+    """
+    Called when the customer taps any interactive component.
+    component_id tells us what was tapped; stored_data carries context forward.
+
+    Component ID routing:
+      order_<ORDER_ID>   → load order detail canvas
+      btn_back           → back to order list (or order detail if on action screen)
+      btn_cancel         → show cancel redirect canvas
+      btn_return         → show return redirect canvas
+    """
+    body = request.get_json(silent=True) or {}
     component_id = body.get("component_id", "")
+    stored = (body.get("current_canvas") or {}).get("stored_data") or {}
 
-    if component_id in _TOPIC_META:
-        return jsonify(_canvas_confirmation(component_id))
+    # Recover context from stored_data
+    customer_id = stored.get("customer_id", "")
+    current_order_id = stored.get("current_order_id", "")
 
-    if component_id == "restart_btn":
-        return jsonify(_CANVAS_HOME)
+    # ── Order row tapped: load detail ─────────────────────────────────────
+    if component_id.startswith("order_"):
+        order_id = component_id[len("order_"):]  # e.g. "order_ORD-10041" → "ORD-10041"
+        return jsonify(_build_order_detail_canvas(order_id, customer_id))
 
-    return jsonify(_CANVAS_HOME)
+    # ── Cancel button tapped ──────────────────────────────────────────────
+    if component_id == "btn_cancel":
+        return jsonify(_build_action_redirect_canvas("cancel", current_order_id, customer_id))
+
+    # ── Return button tapped ──────────────────────────────────────────────
+    if component_id == "btn_return":
+        return jsonify(_build_action_redirect_canvas("return", current_order_id, customer_id))
+
+    # ── Back button: go to detail if we have an order, else home ─────────
+    if component_id == "btn_back":
+        if current_order_id:
+            return jsonify(_build_order_detail_canvas(current_order_id, customer_id))
+        return jsonify(_build_order_list_canvas(customer_id))
+
+    # ── Fallback: anything unexpected → home ─────────────────────────────
+    return jsonify(_build_order_list_canvas(customer_id))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
