@@ -10,14 +10,14 @@
   // Add/edit customers here; all pages update automatically.
 
   var CUSTOMERS = {
-    cust_001: { name: "Priya Sharma",  email: "taruna2004126@gmail.com",  state: "NY" },
-    cust_002: { name: "James Okafor", email: "11182tarunask@gmail.com",  state: "CA" },
-    cust_003: { name: "Lisa Tran",    email: "tarunask.1806@gmail.com",   state: "TX" },
+    cust_001: { name: "Priya Sharma",  email: "taruna2004126@gmail.com",     state: "NY" },
+    cust_002: { name: "James Okafor", email: "11182tarunask@gmail.com",     state: "CA" },
+    cust_003: { name: "Lisa Tran",    email: "tarunask.1806@gmail.com",      state: "TX" },
     cust_004: { name: "Marcus Webb",  email: "taruna.stockmarket@gmail.com", state: "AK" },
-    cust_005: { name: "Anika Rossi",  email: "taruna2210569@ssn.edu.in",  state: "CA" },
+    cust_005: { name: "Anika Rossi",  email: "taruna2210569@ssn.edu.in",     state: "CA" },
   };
 
-  var APP_ID = "u6tskbxz";
+  var APP_ID      = "u6tskbxz";
   var STORAGE_KEY = "nk_active_user";
 
   // ── 2. RESOLVE ACTIVE USER ─────────────────────────────────────────────────
@@ -37,28 +37,38 @@
     var customer = CUSTOMERS[userId];
     if (!customer) return;
 
-    // Shut down any existing session first (important when switching users)
+    // Shut down any existing Intercom session first
     if (window.Intercom) {
       window.Intercom("shutdown");
     }
+
+    // Clear Intercom's cached session state so it picks up
+    // the new custom_attributes on the next boot
+    try {
+      localStorage.removeItem("intercom.intercom-state");
+    } catch (e) {}
 
     window.intercomSettings = {
       app_id:  APP_ID,
       user_id: userId,
       name:    customer.name,
       email:   customer.email,
-      custom_attributes: {        // ← add this
+      // ── custom_attributes carries customer_id into Canvas Kit ──────────
+      // Intercom passes this as:
+      //   payload → contact → custom_attributes → customer_id
+      // This is what /messenger/initialize reads to fetch the order list.
+      custom_attributes: {
         customer_id: userId,
       },
     };
 
     // Load the Intercom widget script if not already present
     if (!document.getElementById("intercom-script")) {
-      var s = document.createElement("script");
-      s.id   = "intercom-script";
-      s.type = "text/javascript";
-      s.async = true;
-      s.src  = "https://widget.intercom.io/widget/" + APP_ID;
+      var s    = document.createElement("script");
+      s.id     = "intercom-script";
+      s.type   = "text/javascript";
+      s.async  = true;
+      s.src    = "https://widget.intercom.io/widget/" + APP_ID;
       document.body.appendChild(s);
 
       s.onload = function () {
@@ -76,14 +86,13 @@
   function buildSwitcher() {
     var activeId = getActiveUserId();
 
-    // Wrapper
     var panel = document.createElement("div");
-    panel.id = "nk-user-switcher";
+    panel.id  = "nk-user-switcher";
     panel.innerHTML = [
       '<div id="nk-switcher-label">🧪 Test user</div>',
       '<select id="nk-user-select">',
         Object.keys(CUSTOMERS).map(function (id) {
-          var c = CUSTOMERS[id];
+          var c   = CUSTOMERS[id];
           var sel = id === activeId ? " selected" : "";
           return '<option value="' + id + '"' + sel + '>' + c.name + ' (' + id + ')</option>';
         }).join(""),
@@ -120,7 +129,7 @@
 
     updateInfoPanel(activeId);
 
-    // Handle user change
+    // Handle user change — shut down cleanly and reboot as new user
     document.getElementById("nk-user-select").addEventListener("change", function (e) {
       var newId = e.target.value;
       setActiveUser(newId);
@@ -130,7 +139,7 @@
   }
 
   function updateInfoPanel(userId) {
-    var c = CUSTOMERS[userId];
+    var c  = CUSTOMERS[userId];
     var el = document.getElementById("nk-user-info");
     if (el && c) {
       el.innerHTML = c.email + "<br>" + c.state;
