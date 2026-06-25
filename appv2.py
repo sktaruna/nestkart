@@ -501,7 +501,7 @@ def messenger_initialize():
     # payload → contact → custom_attributes → customer_id
     contact = body.get("contact") or {}
     custom_attrs = contact.get("custom_attributes") or {}
-    customer_id = custom_attrs.get("customer_id", "")
+    customer_id = custom_attrs.get("external_id", "")
 
     return jsonify(_build_order_list_canvas(customer_id))
 
