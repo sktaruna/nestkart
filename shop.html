@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shop — NestKart</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .page-banner {
+      position: relative;
+      height: 340px;
+      overflow: hidden;
+    }
+    .page-banner img { position: absolute; inset: 0; }
+    .page-banner__overlay {
+      position: absolute; inset: 0;
+      background: rgba(15, 8, 2, 0.46);
+    }
+    .page-banner__content {
+      position: relative; z-index: 2;
+      height: 100%; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; color: #fff; padding: 24px;
+    }
+    .page-banner__kicker {
+      font-size: 0.68rem; letter-spacing: 0.22em;
+      text-transform: uppercase; opacity: 0.78; margin-bottom: 12px;
+    }
+    .page-banner__title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      font-weight: 400; line-height: 1.1;
+    }
+
+    .filter-bar {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 48px;
+      position: sticky; top: var(--nav-h); z-index: 100;
+    }
+    .filter-bar__inner {
+      max-width: 1380px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    }
+    .filter-tabs {
+      display: flex; align-items: center;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .filter-tabs::-webkit-scrollbar { display: none; }
+    .filter-tab {
+      padding: 18px 22px;
+      font-size: 0.76rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); background: none; border: none;
+      border-bottom: 2px solid transparent; white-space: nowrap;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .filter-tab:hover { color: var(--dark); }
+    .filter-tab.active { color: var(--dark); border-bottom-color: var(--accent); }
+
+    .filter-sort { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .filter-sort label { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+    .filter-sort select {
+      font-family: inherit; font-size: 0.8rem; color: var(--dark);
+      background: none; border: none; border-bottom: 1px solid var(--border);
+      padding: 4px 8px 4px 0; cursor: pointer; outline: none;
+    }
+
+    .shop-section { padding: 64px 48px 96px; }
+    .shop-section__inner { max-width: 1380px; margin: 0 auto; }
+    .shop-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px 20px; }
+    .shop-count { font-size: 0.8rem; color: var(--muted); margin-bottom: 36px; letter-spacing: 0.04em; }
+    .load-more { display: flex; justify-content: center; padding-top: 56px; }
+
+    .product-card__badge {
+      position: absolute; top: 14px; left: 14px;
+      background: var(--accent); color: #fff;
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 10px; z-index: 2;
+    }
+
+    @media (max-width: 1100px) { .shop-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 768px) {
+      .filter-bar { padding: 0 24px; }
+      .shop-section { padding: 48px 24px 72px; }
+      .shop-grid { grid-template-columns: repeat(2, 1fr); gap: 28px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <div class="nav__inner">
+      <a href="index.html" class="nav__brand">NestKart</a>
+      <ul class="nav__links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="shop.html" class="active">Shop</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="journal.html">Journal</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="admin.html">Admin</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="nav__icon" aria-label="Search">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7.5"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+          </svg>
+        </button>
+        <a href="account.html" class="nav__icon" aria-label="Account">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </a>
+        <a href="cart.html" class="nav__icon nav__cart-count" id="nav-cart-btn" aria-label="Cart" data-count="0">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-banner">
+    <img src="https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=1600&q=80" alt="Shop all" loading="eager"/>
+    <div class="page-banner__overlay"></div>
+    <div class="page-banner__content">
+      <p class="page-banner__kicker">Curated for you</p>
+      <h1 class="page-banner__title">Shop All</h1>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-bar__inner">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterProducts('all', this)">All</button>
+        <button class="filter-tab" onclick="filterProducts('living', this)">Living Room</button>
+        <button class="filter-tab" onclick="filterProducts('bedroom', this)">Bedroom</button>
+        <button class="filter-tab" onclick="filterProducts('dining', this)">Dining</button>
+        <button class="filter-tab" onclick="filterProducts('lighting', this)">Lighting</button>
+        <button class="filter-tab" onclick="filterProducts('decor', this)">Décor</button>
+      </div>
+      <div class="filter-sort">
+        <label for="sort">Sort:</label>
+        <select id="sort">
+          <option>Featured</option>
+          <option>Price: Low to High</option>
+          <option>Price: High to Low</option>
+          <option>Newest</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <section class="shop-section">
+    <div class="shop-section__inner">
+      <p class="shop-count">Showing <span id="count">0</span> products</p>
+      <div class="shop-grid" id="shop-grid">
+        <!-- dynamically loaded -->
+      </div>
+    </div>
+  </section>
+
+  <section class="newsletter">
+    <div class="newsletter__inner">
+      <p class="newsletter__kicker">Stay Connected</p>
+      <h2 class="newsletter__title">Beautiful spaces,<br>in your inbox.</h2>
+      <p class="newsletter__sub">New arrivals, styling ideas, and exclusive offers — delivered thoughtfully.</p>
+      <form class="newsletter__form" onsubmit="return false;">
+        <input type="email" class="newsletter__input" placeholder="Your email address" />
+        <button class="newsletter__btn" type="submit">Subscribe</button>
+      </form>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__top">
+        <div>
+          <div class="footer__brand">NestKart</div>
+          <p class="footer__tagline">Home goods curated for how you actually live — crafted with care, sourced with intention.</p>
+          <div class="footer__socials">
+            <a href="#" class="footer__social" aria-label="Instagram">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/>
+                <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/>
+              </svg>
+            </a>
+            <a href="#" class="footer__social" aria-label="Pinterest">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.87 6.39 9.29-.09-.78-.17-1.98.03-2.83.18-.77 1.22-5.16 1.22-5.16s-.31-.63-.31-1.55c0-1.45.84-2.54 1.89-2.54.89 0 1.32.67 1.32 1.48 0 .9-.57 2.25-.87 3.5-.25 1.04.52 1.89 1.55 1.89 1.86 0 3.1-2.39 3.1-5.21 0-2.15-1.45-3.77-4.09-3.77-2.98 0-4.83 2.23-4.83 4.71 0 .85.25 1.45.64 1.92.17.21.2.29.13.53-.05.17-.15.57-.2.73-.07.24-.28.33-.52.24-1.48-.6-2.16-2.22-2.16-4.04 0-3.05 2.59-6.75 7.74-6.75 4.13 0 6.86 3 6.86 6.22 0 4.27-2.37 7.47-5.85 7.47-1.17 0-2.27-.63-2.65-1.34l-.77 2.96c-.23.87-.83 1.96-1.27 2.62.96.29 1.97.45 3.02.45 5.52 0 10-4.48 10-10S17.52 2 12 2z"/>
+              </svg>
+            </a>
+            <a href="#" class="footer__social" aria-label="Facebook">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+        <div>
+          <h4 class="footer__col-title">Shop</h4>
+          <ul class="footer__links">
+            <li><a href="shop.html">All Products</a></li>
+            <li><a href="shop.html">Living Room</a></li>
+            <li><a href="shop.html">Bedroom</a></li>
+            <li><a href="shop.html">Dining</a></li>
+            <li><a href="shop.html">Accessories</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer__col-title">Company</h4>
+          <ul class="footer__links">
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="journal.html">Journal</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="#">Careers</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer__col-title">Help</h4>
+          <ul class="footer__links">
+            <li><a href="#">Shipping &amp; Returns</a></li>
+            <li><a href="#">FAQs</a></li>
+            <li><a href="#">Care Guide</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p>&copy; 2025 NestKart. All rights reserved.</p>
+        <p>Made with care in India.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="intercom-init.js"></script>
+  <script>
+    const API_KEY = 'nk-fin-dev-key-2025';
+    const API_HEADERS = { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY };
+    function getCustomerId() { return localStorage.getItem('nk_active_user') || 'cust_001'; }
+
+    function formatINR(n) {
+      const s = String(Math.round(n));
+      if (s.length <= 3) return '₹' + s;
+      let result = s.slice(-3), rest = s.slice(0, -3);
+      while (rest.length > 0) { result = rest.slice(-2) + ',' + result; rest = rest.slice(0, -2); }
+      return '₹' + result;
+    }
+
+    async function updateCartCount() {
+      try {
+        const r = await fetch(`/api/cart/${getCustomerId()}`, { headers: API_HEADERS });
+        const d = await r.json();
+        const btn = document.getElementById('nav-cart-btn');
+        if (btn) btn.dataset.count = d.item_count || 0;
+      } catch(e) {}
+    }
+
+    async function addToCart(productId, btnEl) {
+      if (btnEl) { btnEl.textContent = 'Adding...'; btnEl.disabled = true; }
+      try {
+        const r = await fetch(`/api/cart/${getCustomerId()}/add`, {
+          method: 'POST', headers: API_HEADERS,
+          body: JSON.stringify({ product_id: productId, quantity: 1 })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          if (btnEl) { btnEl.textContent = 'Added!'; setTimeout(() => { btnEl.textContent = 'Add to Bag'; btnEl.disabled = false; }, 1200); }
+          updateCartCount();
+        } else {
+          if (btnEl) { btnEl.textContent = 'Add to Bag'; btnEl.disabled = false; }
+        }
+      } catch(e) {
+        if (btnEl) { btnEl.textContent = 'Add to Bag'; btnEl.disabled = false; }
+      }
+    }
+
+    let currentCategory = 'all';
+    let currentSort = '';
+
+    function renderProducts(products) {
+      const grid = document.getElementById('shop-grid');
+      document.getElementById('count').textContent = products.length;
+      if (!products.length) {
+        grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:48px 0;">No products found.</p>';
+        return;
+      }
+      grid.innerHTML = products.map(p => {
+        const stockBadge = p.stock_status === 'low_stock' ? '<span class="product-card__badge" style="background:#B08450;">Low Stock</span>'
+          : p.stock_status === 'out_of_stock' ? '<span class="product-card__badge" style="background:#8A7968;">Out of Stock</span>'
+          : p.badge ? `<span class="product-card__badge">${p.badge}</span>` : '';
+        const oos = p.stock_status === 'out_of_stock';
+        return `
+          <div class="product-card" data-cat="${p.category}">
+            <div class="product-card__img-wrap">
+              ${stockBadge}
+              <img src="${p.image_url}" alt="${p.name}" loading="lazy"/>
+              <button class="product-card__quick" onclick="addToCart('${p.product_id}', this)"
+                ${oos ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
+                ${oos ? 'Out of Stock' : 'Add to Bag'}
+              </button>
+            </div>
+            <p class="product-card__category">${p.category.charAt(0).toUpperCase() + p.category.slice(1)}</p>
+            <h3 class="product-card__name">${p.name}</h3>
+            <p class="product-card__price">
+              ${p.original_price ? `<s>${formatINR(p.original_price)}</s> ` : ''}${formatINR(p.price)}
+            </p>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadProducts(category, sort) {
+      try {
+        let url = '/api/products?';
+        if (category && category !== 'all') url += `category=${category}&`;
+        if (sort) url += `sort=${sort}`;
+        const r = await fetch(url, { headers: API_HEADERS });
+        const d = await r.json();
+        if (d.ok) renderProducts(d.products);
+      } catch(e) {}
+    }
+
+    function filterProducts(cat, btn) {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      currentCategory = cat;
+      loadProducts(currentCategory, currentSort);
+    }
+
+    document.getElementById('sort').addEventListener('change', function() {
+      const map = { 'Price: Low to High': 'price_asc', 'Price: High to Low': 'price_desc', 'Newest': 'newest' };
+      currentSort = map[this.value] || '';
+      loadProducts(currentCategory, currentSort);
+    });
+
+    updateCartCount();
+    loadProducts('all', '');
+  </script>
+
+</body>
+</html>

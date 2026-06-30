@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart — NestKart</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .cart-page { padding: 56px 48px 96px; }
+    .cart-page__inner { max-width: 1200px; margin: 0 auto; }
+    .cart-page__heading {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 400; color: var(--dark);
+      margin-bottom: 40px;
+    }
+    .cart-layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 48px;
+      align-items: start;
+    }
+
+    /* ── LINE ITEMS ── */
+    .cart-items { display: flex; flex-direction: column; gap: 0; }
+    .cart-item {
+      display: grid;
+      grid-template-columns: 80px 1fr auto;
+      gap: 20px;
+      align-items: center;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cart-item:first-child { border-top: 1px solid var(--border); }
+    .cart-item__img {
+      width: 80px; height: 80px; overflow: hidden;
+      background: var(--surface); flex-shrink: 0;
+    }
+    .cart-item__img img { object-fit: cover; width: 100%; height: 100%; }
+    .cart-item__info { min-width: 0; }
+    .cart-item__category {
+      font-size: 0.65rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+    }
+    .cart-item__name {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.1rem; font-weight: 500;
+      color: var(--dark); margin-bottom: 8px; line-height: 1.2;
+    }
+    .cart-item__price { font-size: 0.88rem; color: var(--body); margin-bottom: 12px; }
+    .cart-item__stepper {
+      display: flex; align-items: center; gap: 0;
+    }
+    .stepper-btn {
+      width: 30px; height: 30px;
+      background: none; border: 1px solid var(--border);
+      color: var(--dark); font-size: 1rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .stepper-btn:hover { border-color: var(--dark); background: var(--surface); }
+    .stepper-qty {
+      width: 36px; height: 30px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      border-left: none; border-right: none;
+      text-align: center; font-family: inherit;
+      font-size: 0.85rem; color: var(--dark);
+      background: none; outline: none;
+    }
+    .cart-item__remove {
+      font-size: 0.72rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      background: none; border: none;
+      margin-top: 10px; padding: 0;
+      transition: color 0.2s;
+    }
+    .cart-item__remove:hover { color: var(--dark); }
+    .cart-item__right { text-align: right; flex-shrink: 0; }
+    .cart-item__total {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.15rem; font-weight: 500; color: var(--dark);
+    }
+
+    /* ── ORDER SUMMARY ── */
+    .order-summary {
+      background: var(--surface);
+      padding: 32px;
+      position: sticky;
+      top: calc(var(--nav-h) + 24px);
+    }
+    .order-summary__title {
+      font-size: 0.72rem; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--dark);
+      margin-bottom: 24px; font-weight: 500;
+    }
+    .summary-row {
+      display: flex; justify-content: space-between;
+      align-items: center; padding: 10px 0;
+      font-size: 0.9rem; color: var(--body);
+    }
+    .summary-row--total {
+      border-top: 1px solid var(--border);
+      margin-top: 8px; padding-top: 16px;
+      font-size: 1rem; font-weight: 500; color: var(--dark);
+    }
+    .summary-row .free { color: var(--accent); font-size: 0.82rem; }
+    .summary-row--total .summary-amount {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.3rem; font-weight: 600;
+    }
+    .checkout-btn {
+      display: block; width: 100%;
+      margin-top: 24px;
+      background: var(--dark); color: #fff;
+      border: 1px solid var(--dark);
+      padding: 15px; font-family: inherit;
+      font-size: 0.76rem; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      transition: background 0.25s, border-color 0.25s;
+      cursor: pointer;
+    }
+    .checkout-btn:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+    .checkout-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .checkout-error {
+      margin-top: 12px; font-size: 0.82rem;
+      color: #c0392b; text-align: center; display: none;
+    }
+
+    /* ── EMPTY STATE ── */
+    .cart-empty {
+      text-align: center; padding: 96px 24px;
+      display: none;
+    }
+    .cart-empty__title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2rem; font-weight: 400;
+      color: var(--dark); margin-bottom: 16px;
+    }
+    .cart-empty__sub {
+      font-size: 0.9rem; color: var(--muted); margin-bottom: 32px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .cart-page { padding: 40px 24px 72px; }
+      .cart-layout { grid-template-columns: 1fr; }
+      .order-summary { position: static; }
+    }
+    @media (max-width: 500px) {
+      .cart-item { grid-template-columns: 64px 1fr; }
+      .cart-item__right { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ NAV ══ -->
+  <header class="nav">
+    <div class="nav__inner">
+      <a href="index.html" class="nav__brand">NestKart</a>
+      <ul class="nav__links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="shop.html">Shop</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="journal.html">Journal</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="admin.html">Admin</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="nav__icon" aria-label="Search">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7.5"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+          </svg>
+        </button>
+        <a href="account.html" class="nav__icon" aria-label="Account">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </a>
+        <a href="cart.html" class="nav__icon nav__cart-count" id="nav-cart-btn" aria-label="Cart" data-count="0">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 01-8 0"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ CART PAGE ══ -->
+  <main class="cart-page">
+    <div class="cart-page__inner">
+      <h1 class="cart-page__heading">Your Bag</h1>
+
+      <!-- Empty state -->
+      <div class="cart-empty" id="cart-empty">
+        <p class="cart-empty__title">Your bag is empty.</p>
+        <p class="cart-empty__sub">Looks like you haven't added anything yet.</p>
+        <a href="shop.html" class="btn btn--dark">Continue Shopping</a>
+      </div>
+
+      <!-- Cart layout -->
+      <div class="cart-layout" id="cart-layout">
+        <!-- Left: items -->
+        <div class="cart-items" id="cart-items"></div>
+
+        <!-- Right: summary -->
+        <div class="order-summary" id="order-summary">
+          <p class="order-summary__title">Order Summary</p>
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span id="summary-subtotal">₹0</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping</span>
+            <span id="summary-shipping"><span class="free">Free</span></span>
+          </div>
+          <div class="summary-row summary-row--total">
+            <span>Total</span>
+            <span class="summary-amount" id="summary-total">₹0</span>
+          </div>
+          <button class="checkout-btn" id="checkout-btn" onclick="placeOrder()">Place Order</button>
+          <p class="checkout-error" id="checkout-error"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="intercom-init.js"></script>
+  <script>
+    const API_KEY = 'nk-fin-dev-key-2025';
+    const H = { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY };
+    function cid() { return localStorage.getItem('nk_active_user') || 'cust_001'; }
+
+    function fmt(n) {
+      const s = String(Math.round(n));
+      if (s.length <= 3) return '₹' + s;
+      let res = s.slice(-3), rest = s.slice(0, -3);
+      while (rest.length > 0) { res = rest.slice(-2) + ',' + res; rest = rest.slice(0, -2); }
+      return '₹' + res;
+    }
+
+    let cartData = null;
+
+    async function loadCart() {
+      try {
+        const r = await fetch(`/api/cart/${cid()}`, { headers: H });
+        cartData = await r.json();
+        render(cartData);
+      } catch(e) {
+        document.getElementById('cart-items').innerHTML = '<p style="color:var(--muted)">Unable to load cart.</p>';
+      }
+    }
+
+    function render(d) {
+      const empty = document.getElementById('cart-empty');
+      const layout = document.getElementById('cart-layout');
+      const cartCount = document.getElementById('nav-cart-btn');
+      if (cartCount) cartCount.dataset.count = d.item_count || 0;
+
+      if (!d.items || d.items.length === 0) {
+        empty.style.display = 'block';
+        layout.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      layout.style.display = 'grid';
+
+      const itemsEl = document.getElementById('cart-items');
+      itemsEl.innerHTML = d.items.map(item => `
+        <div class="cart-item" id="item-${item.product_id}">
+          <div class="cart-item__img">
+            <img src="${item.image_url}" alt="${item.product_name}" />
+          </div>
+          <div class="cart-item__info">
+            <p class="cart-item__category">${item.category || ''}</p>
+            <h3 class="cart-item__name">${item.product_name}</h3>
+            <p class="cart-item__price">${fmt(item.unit_price)}</p>
+            <div class="cart-item__stepper">
+              <button class="stepper-btn" onclick="changeQty('${item.product_id}', ${item.qty - 1})">−</button>
+              <input class="stepper-qty" type="number" value="${item.qty}" min="0"
+                onchange="changeQty('${item.product_id}', parseInt(this.value))" />
+              <button class="stepper-btn" onclick="changeQty('${item.product_id}', ${item.qty + 1})">+</button>
+            </div>
+            <button class="cart-item__remove" onclick="removeItem('${item.product_id}')">Remove</button>
+          </div>
+          <div class="cart-item__right">
+            <p class="cart-item__total">${fmt(item.line_total)}</p>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('summary-subtotal').textContent = fmt(d.subtotal);
+      const shipping = d.shipping_cost || 0;
+      document.getElementById('summary-shipping').innerHTML = shipping > 0
+        ? fmt(shipping)
+        : '<span class="free">Free</span>';
+      document.getElementById('summary-total').textContent = fmt(d.subtotal + shipping);
+    }
+
+    async function changeQty(productId, newQty) {
+      try {
+        const r = await fetch(`/api/cart/${cid()}/update`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ product_id: productId, quantity: newQty })
+        });
+        cartData = await r.json();
+        render(cartData);
+      } catch(e) {}
+    }
+
+    async function removeItem(productId) {
+      try {
+        const r = await fetch(`/api/cart/${cid()}/remove`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ product_id: productId })
+        });
+        cartData = await r.json();
+        render(cartData);
+      } catch(e) {}
+    }
+
+    async function placeOrder() {
+      const btn = document.getElementById('checkout-btn');
+      const errEl = document.getElementById('checkout-error');
+      btn.disabled = true;
+      btn.textContent = 'Placing order…';
+      errEl.style.display = 'none';
+      try {
+        const r = await fetch(`/api/cart/${cid()}/checkout`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid() })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          window.location.href = 'account.html';
+        } else {
+          errEl.textContent = d.message || 'Something went wrong. Please try again.';
+          errEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Place Order';
+        }
+      } catch(e) {
+        errEl.textContent = 'Network error. Please check your connection and try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Place Order';
+      }
+    }
+
+    loadCart();
+  </script>
+
+</body>
+</html>

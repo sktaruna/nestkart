@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — NestKart</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background: #f4f2ef; }
+
+    /* ── ADMIN HEADER ── */
+    .admin-header {
+      background: var(--dark);
+      padding: 20px 48px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+    }
+    .admin-header__left {}
+    .admin-header__title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.35rem; font-weight: 600;
+      color: #fff; letter-spacing: 0.02em;
+    }
+    .admin-header__sub {
+      font-size: 0.75rem; color: rgba(255,255,255,0.45);
+      letter-spacing: 0.06em; margin-top: 2px;
+    }
+    .reset-btn {
+      padding: 10px 22px;
+      background: #c62828; color: #fff;
+      border: none; font-family: inherit;
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .reset-btn:hover { background: #b71c1c; }
+    .reset-confirm {
+      display: none;
+      background: #fff3e0;
+      border: 1px solid #ffb74d;
+      padding: 12px 48px;
+      font-size: 0.85rem; color: var(--dark);
+      display: none; align-items: center; gap: 16px;
+    }
+    .reset-confirm.visible { display: flex; }
+    .reset-confirm__text { flex: 1; }
+    .reset-confirm button {
+      padding: 8px 18px; font-family: inherit;
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+    }
+    .reset-ok { background: #c62828; color: #fff; border: none; }
+    .reset-cancel { background: none; border: 1px solid var(--border); color: var(--dark); }
+
+    /* ── MAIN CONTENT ── */
+    .admin-main { padding: 40px 48px 80px; max-width: 1300px; margin: 0 auto; }
+    .admin-status-bar {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 28px;
+    }
+    .admin-title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.7rem; font-weight: 400; color: var(--dark);
+    }
+    .poll-indicator {
+      font-size: 0.72rem; color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+    .poll-dot {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: #43a047;
+      margin-right: 6px; animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    /* ── CUSTOMER SECTION ── */
+    .customer-section { margin-bottom: 40px; }
+    .customer-section__header {
+      background: var(--dark); color: #fff;
+      padding: 12px 20px;
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 0;
+    }
+    .customer-section__name {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.15rem; font-weight: 400;
+    }
+    .customer-section__id {
+      font-family: monospace; font-size: 0.75rem;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── ORDERS TABLE ── */
+    .orders-table { width: 100%; border-collapse: collapse; }
+    .orders-table th {
+      background: var(--surface);
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); padding: 10px 16px;
+      text-align: left; border-bottom: 1px solid var(--border);
+    }
+    .orders-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; color: var(--dark);
+      background: var(--white); vertical-align: middle;
+    }
+    .orders-table tr:last-child td { border-bottom: none; }
+
+    .order-id-cell {
+      font-family: monospace; font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .items-cell {
+      color: var(--body); font-size: 0.82rem;
+      max-width: 280px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .status-select {
+      font-family: inherit; font-size: 0.78rem;
+      padding: 6px 10px; border: 1px solid var(--border);
+      background: var(--white); color: var(--dark);
+      cursor: pointer; outline: none;
+      transition: border-color 0.2s;
+    }
+    .status-select:focus { border-color: var(--accent); }
+    .flash-ok {
+      font-size: 0.72rem; color: #2e7d32;
+      display: none; margin-left: 8px;
+    }
+    .flash-ok.show { display: inline; }
+
+    .status-pill {
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 2px;
+    }
+    .status-pill--processing { background: #e6f4ea; color: #2e7d32; }
+    .status-pill--dispatched { background: #ede7f6; color: #4527a0; }
+    .status-pill--in_transit { background: #fff8e1; color: #f57f17; }
+    .status-pill--delivered  { background: #e3f2fd; color: #1565c0; }
+    .status-pill--cancelled  { background: #fbe9e7; color: #bf360c; }
+
+    /* ── STOCK SECTION ── */
+    .section-divider {
+      margin: 56px 0 28px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .stock-table { width: 100%; border-collapse: collapse; }
+    .stock-table th {
+      background: var(--surface);
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); padding: 10px 16px;
+      text-align: left; border-bottom: 1px solid var(--border);
+    }
+    .stock-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; color: var(--dark);
+      background: var(--white); vertical-align: middle;
+    }
+    .stock-table tr:last-child td { border-bottom: none; }
+    .stock-table tr:hover td { background: #fafaf8; }
+
+    .stock-name { font-weight: 500; }
+    .stock-category {
+      font-size: 0.72rem; color: var(--muted);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .stock-input {
+      width: 72px; padding: 6px 10px;
+      font-family: inherit; font-size: 0.85rem;
+      border: 1px solid var(--border); outline: none;
+      color: var(--dark); background: var(--white);
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+    }
+    .stock-input::-webkit-outer-spin-button,
+    .stock-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .stock-input:focus { border-color: var(--accent); }
+    .stock-save-btn {
+      padding: 6px 14px; font-family: inherit;
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      background: var(--dark); color: #fff;
+      border: none; cursor: pointer; transition: background 0.2s;
+      margin-left: 8px;
+    }
+    .stock-save-btn:hover { background: #2c2c2c; }
+
+    .stock-pill {
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 2px;
+    }
+    .stock-pill--in_stock   { background: #e6f4ea; color: #2e7d32; }
+    .stock-pill--low_stock  { background: #fff8e1; color: #f57f17; }
+    .stock-pill--out_of_stock { background: #fbe9e7; color: #bf360c; }
+
+    .flash-stock {
+      font-size: 0.72rem; color: #2e7d32;
+      display: none; margin-left: 8px;
+    }
+    .flash-stock.show { display: inline; }
+    .flash-stock.err { color: #c62828; }
+
+    @media (max-width: 768px) {
+      .admin-header { padding: 16px 24px; }
+      .admin-main { padding: 28px 24px 60px; }
+      .orders-table th, .orders-table td { padding: 10px 12px; }
+      .stock-table th, .stock-table td { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ADMIN HEADER -->
+  <div class="admin-header">
+    <div class="admin-header__left">
+      <p class="admin-header__title">NestKart Admin</p>
+      <p class="admin-header__sub">Demo control panel</p>
+    </div>
+    <button class="reset-btn" onclick="showResetConfirm()">Reset Demo</button>
+  </div>
+
+  <!-- Reset confirm bar -->
+  <div class="reset-confirm" id="reset-confirm">
+    <p class="reset-confirm__text">This will reset all demo data — orders, carts, returns, status overrides, and stock. Are you sure?</p>
+    <button class="reset-ok" onclick="doReset()">Yes, Reset</button>
+    <button class="reset-cancel" onclick="hideResetConfirm()">Cancel</button>
+  </div>
+
+  <!-- MAIN -->
+  <div class="admin-main">
+    <div class="admin-status-bar">
+      <h1 class="admin-title">All Orders</h1>
+      <p class="poll-indicator"><span class="poll-dot"></span>Live — refreshing every 5s</p>
+    </div>
+    <div id="orders-container">
+      <p style="color:var(--muted);font-size:0.9rem">Loading orders...</p>
+    </div>
+
+    <!-- INVENTORY -->
+    <div class="section-divider">
+      <h1 class="admin-title">Inventory</h1>
+    </div>
+    <table class="stock-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>Status</th>
+          <th>Set Stock</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="stock-tbody">
+        <tr><td colspan="7" style="color:var(--muted)">Loading inventory...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // ── ORDERS ──
+    async function loadOrders() {
+      try {
+        const r = await fetch('/admin/orders');
+        const d = await r.json();
+        if (!d.ok) return;
+        renderOrders(d.customers);
+      } catch(e) {}
+    }
+
+    function fmt(n) {
+      if (!n && n !== 0) return '—';
+      const s = String(Math.round(n));
+      if (s.length <= 3) return 'Rs.' + s;
+      let res = s.slice(-3), rest = s.slice(0, -3);
+      while (rest.length > 0) { res = rest.slice(-2) + ',' + res; rest = rest.slice(0, -2); }
+      return 'Rs.' + res;
+    }
+
+    function statusPill(status) {
+      return '<span class="status-pill status-pill--' + status + '">' + status.replace('_', ' ') + '</span>';
+    }
+
+    function renderOrders(customers) {
+      const container = document.getElementById('orders-container');
+      if (!customers || !customers.length) {
+        container.innerHTML = '<p style="color:var(--muted)">No orders found.</p>';
+        return;
+      }
+      let html = '';
+      customers.forEach(function(cust) {
+        if (!cust.orders || !cust.orders.length) return;
+        let rows = '';
+        cust.orders.forEach(function(o) {
+          const items = (o.items || []).map(function(i) { return i.product_name + ' x' + i.qty; }).join(', ');
+          rows += '<tr id="row-' + o.order_id + '">' +
+            '<td class="order-id-cell">' + o.order_id + '</td>' +
+            '<td class="items-cell">' + items + '</td>' +
+            '<td>' + fmt(o.price_total) + '</td>' +
+            '<td id="pill-' + o.order_id + '">' + statusPill(o.status) + '</td>' +
+            '<td><select class="status-select" id="sel-' + o.order_id + '" onchange="setStatus(\'' + o.order_id + '\', this.value)">' +
+              '<option value="processing"' + (o.status === 'processing' ? ' selected' : '') + '>Processing</option>' +
+              '<option value="dispatched"' + (o.status === 'dispatched' ? ' selected' : '') + '>Dispatched</option>' +
+              '<option value="in_transit"' + (o.status === 'in_transit' ? ' selected' : '') + '>In Transit</option>' +
+              '<option value="delivered"' + (o.status === 'delivered' ? ' selected' : '') + '>Delivered</option>' +
+              '<option value="cancelled"' + (o.status === 'cancelled' ? ' selected' : '') + '>Cancelled</option>' +
+            '</select></td>' +
+            '<td><span class="flash-ok" id="flash-' + o.order_id + '">Updated</span></td>' +
+          '</tr>';
+        });
+        html += '<div class="customer-section">' +
+          '<div class="customer-section__header">' +
+            '<span class="customer-section__name">' + cust.name + '</span>' +
+            '<span class="customer-section__id">' + cust.customer_id + '</span>' +
+          '</div>' +
+          '<table class="orders-table"><thead><tr>' +
+            '<th>Order ID</th><th>Items</th><th>Total</th><th>Status</th><th>Set Status</th><th></th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+      });
+      container.innerHTML = html;
+    }
+
+    async function setStatus(orderId, status) {
+      try {
+        const r = await fetch('/admin/orders/' + orderId + '/set-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: status })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          const pill = document.getElementById('pill-' + orderId);
+          if (pill) pill.innerHTML = statusPill(d.status);
+          const flash = document.getElementById('flash-' + orderId);
+          if (flash) {
+            flash.classList.add('show');
+            setTimeout(function() { flash.classList.remove('show'); }, 2000);
+          }
+        }
+      } catch(e) {}
+    }
+
+    function showResetConfirm() {
+      document.getElementById('reset-confirm').classList.add('visible');
+    }
+    function hideResetConfirm() {
+      document.getElementById('reset-confirm').classList.remove('visible');
+    }
+
+    async function doReset() {
+      hideResetConfirm();
+      try {
+        const r = await fetch('/admin/reset', { method: 'POST' });
+        const d = await r.json();
+        if (d.ok) { loadOrders(); loadStock(); }
+      } catch(e) {}
+    }
+
+    // ── INVENTORY ──
+    var API_KEY = 'nk-fin-dev-key-2025';
+
+    function stockPill(status) {
+      var labels = { in_stock: 'In Stock', low_stock: 'Low Stock', out_of_stock: 'Out of Stock' };
+      var label = labels[status] || status;
+      return '<span class="stock-pill stock-pill--' + status + '">' + label + '</span>';
+    }
+
+    async function loadStock() {
+      try {
+        const r = await fetch('/api/products', { headers: { 'X-Api-Key': API_KEY } });
+        const d = await r.json();
+        if (!d.ok) return;
+        renderStock(d.products);
+      } catch(e) {}
+    }
+
+    function renderStock(products) {
+      const tbody = document.getElementById('stock-tbody');
+      if (!products || !products.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted)">No products found.</td></tr>';
+        return;
+      }
+      const sorted = products.slice().sort(function(a, b) {
+        return a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+      });
+      let html = '';
+      sorted.forEach(function(p) {
+        html += '<tr id="stock-row-' + p.product_id + '">' +
+          '<td class="stock-name">' + p.name + '</td>' +
+          '<td class="stock-category">' + p.category + '</td>' +
+          '<td>' + fmt(p.price) + '</td>' +
+          '<td id="stock-count-' + p.product_id + '" style="font-family:monospace;font-size:0.9rem;font-weight:600">' + p.stock + '</td>' +
+          '<td id="stock-pill-' + p.product_id + '">' + stockPill(p.stock_status) + '</td>' +
+          '<td>' +
+            '<input class="stock-input" type="number" min="0" step="1" id="stock-input-' + p.product_id + '" value="' + p.stock + '" />' +
+            '<button class="stock-save-btn" onclick="setStock(\'' + p.product_id + '\')">Save</button>' +
+          '</td>' +
+          '<td><span class="flash-stock" id="flash-stock-' + p.product_id + '"></span></td>' +
+        '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    async function setStock(productId) {
+      const input = document.getElementById('stock-input-' + productId);
+      const flash = document.getElementById('flash-stock-' + productId);
+      const val = parseInt(input.value, 10);
+      if (isNaN(val) || val < 0) {
+        flash.textContent = 'Invalid value';
+        flash.className = 'flash-stock err show';
+        setTimeout(function() { flash.classList.remove('show'); }, 2500);
+        return;
+      }
+      try {
+        const r = await fetch('/admin/products/' + productId + '/stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: val })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          document.getElementById('stock-count-' + productId).textContent = d.stock;
+          document.getElementById('stock-pill-' + productId).innerHTML = stockPill(d.stock_status);
+          input.value = d.stock;
+          flash.textContent = 'Saved';
+          flash.className = 'flash-stock show';
+          setTimeout(function() { flash.classList.remove('show'); }, 2000);
+        } else {
+          flash.textContent = 'Error';
+          flash.className = 'flash-stock err show';
+          setTimeout(function() { flash.classList.remove('show'); }, 2500);
+        }
+      } catch(e) {
+        flash.textContent = 'Failed';
+        flash.className = 'flash-stock err show';
+        setTimeout(function() { flash.classList.remove('show'); }, 2500);
+      }
+    }
+
+    // Load immediately + poll every 5 seconds
+    loadOrders();
+    loadStock();
+    setInterval(function() { loadOrders(); loadStock(); }, 5000);
+  </script>
+
+</body>
+</html>

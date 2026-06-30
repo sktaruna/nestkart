@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Account — NestKart</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .account-page { padding: 56px 48px 96px; }
+    .account-page__inner { max-width: 1100px; margin: 0 auto; }
+
+    /* ── PROFILE CARD ── */
+    .profile-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      padding: 40px;
+      margin-bottom: 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .profile-card__name {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2rem; font-weight: 400;
+      color: var(--dark); margin-bottom: 16px;
+      grid-column: 1 / -1;
+    }
+    .profile-field { margin-bottom: 12px; }
+    .profile-label {
+      font-size: 0.65rem; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .profile-value { font-size: 0.92rem; color: var(--dark); }
+
+    /* ── TABS ── */
+    .orders-tabs { margin-bottom: 32px; }
+    .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+    .tab-btn {
+      padding: 14px 24px;
+      font-size: 0.78rem; font-weight: 500; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px; transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active { color: var(--dark); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; padding-top: 32px; }
+    .tab-panel.active { display: block; }
+
+    /* ── ORDER CARD ── */
+    .order-card {
+      border: 1px solid var(--border);
+      background: var(--white);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .order-card__header {
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap;
+      gap: 12px; padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .order-id {
+      font-family: monospace; font-size: 0.82rem;
+      color: var(--muted); letter-spacing: 0.04em;
+    }
+    .status-pill {
+      font-size: 0.65rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 2px;
+    }
+    .status-pill--processing { background: #e6f4ea; color: #2e7d32; }
+    .status-pill--dispatched { background: #ede7f6; color: #4527a0; }
+    .status-pill--in_transit { background: #fff8e1; color: #f57f17; }
+    .status-pill--delivered  { background: #e3f2fd; color: #1565c0; }
+    .status-pill--cancelled  { background: #fbe9e7; color: #bf360c; }
+
+    .order-card__body { padding: 20px 24px; }
+    .order-items-summary {
+      font-size: 0.88rem; color: var(--body);
+      margin-bottom: 8px; line-height: 1.5;
+    }
+    .order-meta {
+      display: flex; gap: 24px; flex-wrap: wrap;
+      font-size: 0.8rem; color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .order-meta span { white-space: nowrap; }
+    .order-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .order-actions .btn-sm {
+      font-size: 0.7rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 9px 18px; border: 1px solid var(--border);
+      background: none; color: var(--dark);
+      transition: all 0.2s; cursor: pointer;
+    }
+    .order-actions .btn-sm:hover { border-color: var(--dark); background: var(--dark); color: #fff; }
+    .order-actions .btn-sm--danger { border-color: #e53935; color: #e53935; }
+    .order-actions .btn-sm--danger:hover { background: #e53935; color: #fff; border-color: #e53935; }
+
+    /* ── INLINE PANEL ── */
+    .inline-panel {
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      padding: 24px; display: none;
+    }
+    .inline-panel.open { display: block; }
+    .inline-panel__title {
+      font-size: 0.78rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--dark); margin-bottom: 20px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 0.7rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 14px;
+      border: 1px solid var(--border); background: var(--white);
+      font-family: inherit; font-size: 0.88rem;
+      color: var(--dark); outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--dark);
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .panel-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .panel-actions button { cursor: pointer; font-family: inherit; }
+    .panel-confirm {
+      font-size: 0.76rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 11px 24px; background: var(--dark);
+      color: #fff; border: 1px solid var(--dark);
+      transition: background 0.2s;
+    }
+    .panel-confirm:hover { background: var(--accent); border-color: var(--accent); }
+    .panel-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+    .panel-cancel {
+      font-size: 0.76rem; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 11px 24px;
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); transition: all 0.2s;
+    }
+    .panel-cancel:hover { border-color: var(--dark); color: var(--dark); }
+    .panel-message {
+      margin-top: 14px; font-size: 0.85rem;
+      line-height: 1.6; display: none;
+    }
+    .panel-message.success { color: #2e7d32; display: block; }
+    .panel-message.error { color: #c62828; display: block; }
+
+    .slot-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .slot-pill {
+      padding: 8px 16px; border: 1px solid var(--border);
+      font-size: 0.78rem; color: var(--body);
+      background: var(--white); cursor: pointer;
+      transition: all 0.2s;
+    }
+    .slot-pill:hover, .slot-pill.selected {
+      border-color: var(--accent); color: var(--accent);
+    }
+
+    .pkg-toggle { display: flex; gap: 8px; }
+    .pkg-opt {
+      flex: 1; padding: 10px; text-align: center;
+      border: 1px solid var(--border); background: var(--white);
+      font-size: 0.82rem; cursor: pointer; transition: all 0.2s;
+    }
+    .pkg-opt.selected {
+      border-color: var(--dark); background: var(--dark); color: #fff;
+    }
+
+    .no-orders {
+      font-size: 0.9rem; color: var(--muted);
+      padding: 48px 0; text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .account-page { padding: 36px 24px 72px; }
+      .profile-card { grid-template-columns: 1fr; padding: 28px; }
+      .profile-card__name { grid-column: 1; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ NAV ══ -->
+  <header class="nav">
+    <div class="nav__inner">
+      <a href="index.html" class="nav__brand">NestKart</a>
+      <ul class="nav__links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="shop.html">Shop</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="journal.html">Journal</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="admin.html">Admin</a></li>
+      </ul>
+      <div class="nav__actions">
+        <button class="nav__icon" aria-label="Search">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7.5"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+          </svg>
+        </button>
+        <a href="account.html" class="nav__icon active" aria-label="Account">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </a>
+        <a href="cart.html" class="nav__icon nav__cart-count" id="nav-cart-btn" aria-label="Cart" data-count="0">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 01-8 0"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ ACCOUNT PAGE ══ -->
+  <main class="account-page">
+    <div class="account-page__inner">
+
+      <!-- Profile card -->
+      <div class="profile-card" id="profile-card">
+        <p class="profile-card__name" id="pc-name">—</p>
+        <div>
+          <div class="profile-field"><p class="profile-label">Email</p><p class="profile-value" id="pc-email">—</p></div>
+          <div class="profile-field"><p class="profile-label">Phone</p><p class="profile-value" id="pc-phone">—</p></div>
+          <div class="profile-field"><p class="profile-label">Member Since</p><p class="profile-value" id="pc-since">—</p></div>
+        </div>
+        <div>
+          <div class="profile-field"><p class="profile-label">Address</p><p class="profile-value" id="pc-address">—</p></div>
+        </div>
+      </div>
+
+      <!-- Orders tabs -->
+      <div class="orders-tabs">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('current', this)">Current Orders</button>
+          <button class="tab-btn" onclick="switchTab('completed', this)">Completed Orders</button>
+        </div>
+        <div class="tab-panel active" id="tab-current">
+          <div id="current-orders"></div>
+        </div>
+        <div class="tab-panel" id="tab-completed">
+          <div id="completed-orders"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="intercom-init.js"></script>
+  <script>
+    const API_KEY = 'nk-fin-dev-key-2025';
+    const H = { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY };
+    function cid() { return localStorage.getItem('nk_active_user') || 'cust_001'; }
+
+    function fmt(n) {
+      if (n === null || n === undefined) return '—';
+      const s = String(Math.round(n));
+      if (s.length <= 3) return '₹' + s;
+      let res = s.slice(-3), rest = s.slice(0, -3);
+      while (rest.length > 0) { res = rest.slice(-2) + ',' + res; rest = rest.slice(0, -2); }
+      return '₹' + res;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function fmtMemberSince(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    }
+
+    function statusPill(status) {
+      return `<span class="status-pill status-pill--${status}">${status.replace('_', ' ')}</span>`;
+    }
+
+    function itemSummary(items) {
+      if (!items || !items.length) return '';
+      return items.map(i => `${i.product_name} × ${i.qty}`).join(', ');
+    }
+
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // ── LOAD PROFILE ────────────────────────────────────────────────────────
+    async function loadProfile() {
+      try {
+        const r = await fetch(`/api/customers/${cid()}`, { headers: H });
+        const d = await r.json();
+        if (!d.ok) return;
+        document.getElementById('pc-name').textContent = d.name;
+        document.getElementById('pc-email').textContent = d.email;
+        document.getElementById('pc-phone').textContent = d.phone || '—';
+        document.getElementById('pc-since').textContent = fmtMemberSince(d.account_created);
+        if (d.address) {
+          const a = d.address;
+          document.getElementById('pc-address').textContent =
+            `${a.street}, ${a.city}, ${a.state} ${a.pincode}`;
+        }
+      } catch(e) {}
+    }
+
+    // ── LOAD CART COUNT ──────────────────────────────────────────────────────
+    async function updateCartCount() {
+      try {
+        const r = await fetch(`/api/cart/${cid()}`, { headers: H });
+        const d = await r.json();
+        const btn = document.getElementById('nav-cart-btn');
+        if (btn) btn.dataset.count = d.item_count || 0;
+      } catch(e) {}
+    }
+
+    // ── LOAD ORDERS ──────────────────────────────────────────────────────────
+    async function loadOrders() {
+      try {
+        const r = await fetch(`/api/customers/${cid()}/orders`, { headers: H });
+        const d = await r.json();
+        if (!d.ok) return;
+
+        const CURRENT_STATUSES = ['processing', 'dispatched', 'in_transit'];
+        const DONE_STATUSES = ['delivered', 'cancelled'];
+
+        const current = d.orders.filter(o => CURRENT_STATUSES.includes(o.status));
+        const completed = d.orders.filter(o => DONE_STATUSES.includes(o.status));
+
+        renderOrderList('current-orders', current, false);
+        renderOrderList('completed-orders', completed, true);
+      } catch(e) {}
+    }
+
+    function renderOrderList(containerId, orders, isCompleted) {
+      const el = document.getElementById(containerId);
+      if (!orders.length) {
+        el.innerHTML = '<p class="no-orders">No orders here yet.</p>';
+        return;
+      }
+      el.innerHTML = orders.map(o => buildOrderCard(o, isCompleted)).join('');
+    }
+
+    function buildOrderCard(o, isCompleted) {
+      const items = itemSummary(o.items);
+      const total = fmt(o.price_total);
+      const estDel = fmtDate(o.estimated_delivery);
+
+      // Action buttons
+      let actions = '';
+      if (!isCompleted) {
+        if (o.status === 'processing') {
+          actions = `
+            <button class="btn-sm btn-sm--danger" onclick="openPanel('${o.order_id}', 'cancel')">Cancel Order</button>
+            <button class="btn-sm" onclick="openPanel('${o.order_id}', 'reschedule')">Reschedule Delivery</button>
+            <button class="btn-sm" onclick="openPanel('${o.order_id}', 'address')">Update Address</button>`;
+        } else if (o.status === 'dispatched') {
+          actions = `<button class="btn-sm" onclick="openPanel('${o.order_id}', 'reschedule')">Reschedule Delivery</button>`;
+        } else if (o.status === 'in_transit' && o.tracking_url) {
+          actions = `<a href="${o.tracking_url}" target="_blank" class="btn-sm" style="text-decoration:none;display:inline-block">Track Shipment →</a>`;
+        }
+      } else {
+        if (o.status === 'delivered') {
+          actions += `<button class="btn-sm" onclick="openPanel('${o.order_id}', 'return')">Return Items</button>`;
+          if (o.damage_claim_active) {
+            actions += `<button class="btn-sm" onclick="openPanel('${o.order_id}', 'replacement')">Request Replacement</button>`;
+          }
+        }
+      }
+
+      return `
+        <div class="order-card" id="card-${o.order_id}">
+          <div class="order-card__header">
+            <span class="order-id">${o.order_id}</span>
+            ${statusPill(o.status)}
+          </div>
+          <div class="order-card__body">
+            <p class="order-items-summary">${items}</p>
+            <div class="order-meta">
+              <span>Total: <strong>${total}</strong></span>
+              <span>${o.status === 'delivered' ? 'Delivered: ' : 'Est. delivery: '}<strong>${estDel}</strong></span>
+            </div>
+            ${actions ? `<div class="order-actions">${actions}</div>` : ''}
+          </div>
+          ${buildPanels(o)}
+        </div>`;
+    }
+
+    function buildPanels(o) {
+      return `
+        <!-- Cancel panel -->
+        <div class="inline-panel" id="panel-${o.order_id}-cancel">
+          <p class="inline-panel__title">Cancel This Order</p>
+          <p style="font-size:0.88rem;color:var(--body);margin-bottom:16px">Are you sure you want to cancel order ${o.order_id}?</p>
+          <div class="form-group">
+            <label>Reason</label>
+            <select id="cancel-reason-${o.order_id}">
+              <option value="changed_my_mind">Changed my mind</option>
+              <option value="ordered_by_mistake">Ordered by mistake</option>
+              <option value="found_better_price">Found a better price</option>
+              <option value="delivery_too_slow">Delivery too slow</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="panel-actions">
+            <button class="panel-confirm" id="btn-cancel-${o.order_id}" onclick="doCancel('${o.order_id}')">Confirm Cancellation</button>
+            <button class="panel-cancel" onclick="closePanel('${o.order_id}', 'cancel')">Go Back</button>
+          </div>
+          <p class="panel-message" id="msg-cancel-${o.order_id}"></p>
+        </div>
+
+        <!-- Reschedule panel -->
+        <div class="inline-panel" id="panel-${o.order_id}-reschedule">
+          <p class="inline-panel__title">Reschedule Delivery</p>
+          <p style="font-size:0.88rem;color:var(--body);margin-bottom:16px">Select a new delivery date:</p>
+          <div class="slot-pills" id="slots-${o.order_id}">
+            <p style="font-size:0.82rem;color:var(--muted)">Loading available dates…</p>
+          </div>
+          <div class="panel-actions" style="margin-top:20px">
+            <button class="panel-confirm" id="btn-reschedule-${o.order_id}" onclick="doReschedule('${o.order_id}')">Confirm Reschedule</button>
+            <button class="panel-cancel" onclick="closePanel('${o.order_id}', 'reschedule')">Go Back</button>
+          </div>
+          <p class="panel-message" id="msg-reschedule-${o.order_id}"></p>
+        </div>
+
+        <!-- Address panel -->
+        <div class="inline-panel" id="panel-${o.order_id}-address">
+          <p class="inline-panel__title">Update Delivery Address</p>
+          <div class="form-group"><label>Street</label><input type="text" id="addr-street-${o.order_id}" placeholder="Street address" /></div>
+          <div class="form-row">
+            <div class="form-group"><label>City</label><input type="text" id="addr-city-${o.order_id}" placeholder="City" /></div>
+            <div class="form-group"><label>State</label><input type="text" id="addr-state-${o.order_id}" placeholder="State" /></div>
+          </div>
+          <div class="form-group"><label>Pincode</label><input type="text" id="addr-pincode-${o.order_id}" placeholder="Pincode" /></div>
+          <div class="panel-actions">
+            <button class="panel-confirm" id="btn-address-${o.order_id}" onclick="doUpdateAddress('${o.order_id}')">Update Address</button>
+            <button class="panel-cancel" onclick="closePanel('${o.order_id}', 'address')">Go Back</button>
+          </div>
+          <p class="panel-message" id="msg-address-${o.order_id}"></p>
+        </div>
+
+        <!-- Return panel -->
+        <div class="inline-panel" id="panel-${o.order_id}-return">
+          <p class="inline-panel__title">Return Items</p>
+          <div class="form-group">
+            <label>Reason for Return</label>
+            <select id="return-reason-${o.order_id}">
+              <option value="change_of_mind">Change of mind</option>
+              <option value="item_not_as_described">Item not as described</option>
+              <option value="damaged_on_arrival">Damaged on arrival</option>
+              <option value="defective">Defective</option>
+              <option value="wrong_item_received">Wrong item received</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Item Condition</label>
+            <select id="return-condition-${o.order_id}">
+              <option value="unused">Unused</option>
+              <option value="opened">Opened</option>
+              <option value="assembled">Assembled</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Original Packaging?</label>
+            <div class="pkg-toggle">
+              <button class="pkg-opt selected" id="pkg-yes-${o.order_id}" onclick="setPkg('${o.order_id}', true)">Yes</button>
+              <button class="pkg-opt" id="pkg-no-${o.order_id}" onclick="setPkg('${o.order_id}', false)">No</button>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="panel-confirm" id="btn-return-${o.order_id}" onclick="doReturn('${o.order_id}')">Initiate Return</button>
+            <button class="panel-cancel" onclick="closePanel('${o.order_id}', 'return')">Go Back</button>
+          </div>
+          <p class="panel-message" id="msg-return-${o.order_id}"></p>
+        </div>
+
+        <!-- Replacement panel -->
+        <div class="inline-panel" id="panel-${o.order_id}-replacement">
+          <p class="inline-panel__title">Request Replacement</p>
+          <div class="form-group"><label>Reason</label><input type="text" id="rep-reason-${o.order_id}" placeholder="e.g. Item arrived damaged" /></div>
+          <div class="form-group"><label>Description</label><textarea id="rep-desc-${o.order_id}" placeholder="Describe the damage or issue in detail…"></textarea></div>
+          <div class="panel-actions">
+            <button class="panel-confirm" id="btn-replacement-${o.order_id}" onclick="doReplacement('${o.order_id}')">Submit Replacement Request</button>
+            <button class="panel-cancel" onclick="closePanel('${o.order_id}', 'replacement')">Go Back</button>
+          </div>
+          <p class="panel-message" id="msg-replacement-${o.order_id}"></p>
+        </div>
+      `;
+    }
+
+    // ── PANEL OPEN / CLOSE ───────────────────────────────────────────────────
+    const pkgState = {};
+
+    function openPanel(orderId, type) {
+      // Close all other panels first
+      document.querySelectorAll('.inline-panel.open').forEach(p => p.classList.remove('open'));
+      const panel = document.getElementById(`panel-${orderId}-${type}`);
+      if (!panel) return;
+      panel.classList.add('open');
+      if (type === 'reschedule') loadSlots(orderId);
+      if (!(orderId in pkgState)) pkgState[orderId] = true;
+    }
+
+    function closePanel(orderId, type) {
+      const panel = document.getElementById(`panel-${orderId}-${type}`);
+      if (panel) panel.classList.remove('open');
+    }
+
+    function setPkg(orderId, val) {
+      pkgState[orderId] = val;
+      document.getElementById(`pkg-yes-${orderId}`).classList.toggle('selected', val === true);
+      document.getElementById(`pkg-no-${orderId}`).classList.toggle('selected', val === false);
+    }
+
+    // ── SLOT LOADING ─────────────────────────────────────────────────────────
+    const selectedSlot = {};
+    async function loadSlots(orderId) {
+      const container = document.getElementById(`slots-${orderId}`);
+      try {
+        const r = await fetch(`/api/orders/${orderId}/reschedule/slots`, { headers: H });
+        const d = await r.json();
+        if (!d.ok || !d.slots) { container.innerHTML = '<p style="color:var(--muted)">No slots available.</p>'; return; }
+        container.innerHTML = d.slots.map(s =>
+          `<button class="slot-pill" id="slot-${orderId}-${s}" onclick="selectSlot('${orderId}','${s}')">${fmtDate(s)}</button>`
+        ).join('');
+      } catch(e) { container.innerHTML = '<p style="color:var(--muted)">Unable to load slots.</p>'; }
+    }
+
+    function selectSlot(orderId, slot) {
+      document.querySelectorAll(`[id^="slot-${orderId}-"]`).forEach(el => el.classList.remove('selected'));
+      document.getElementById(`slot-${orderId}-${slot}`).classList.add('selected');
+      selectedSlot[orderId] = slot;
+    }
+
+    // ── ACTIONS ──────────────────────────────────────────────────────────────
+    function setMsg(id, text, type) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      el.className = 'panel-message ' + type;
+    }
+
+    async function doCancel(orderId) {
+      const btn = document.getElementById(`btn-cancel-${orderId}`);
+      const reason = document.getElementById(`cancel-reason-${orderId}`).value;
+      btn.disabled = true; btn.textContent = 'Cancelling…';
+      try {
+        const r = await fetch(`/api/orders/${orderId}/cancel`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid(), reason })
+        });
+        const d = await r.json();
+        if (d.ok && d.cancelled) {
+          setMsg(`msg-cancel-${orderId}`, `Order cancelled. Refund will be processed in ${d.refund_timeline}`, 'success');
+          btn.style.display = 'none';
+          // Update status pill
+          const pill = document.querySelector(`#card-${orderId} .status-pill`);
+          if (pill) { pill.textContent = 'cancelled'; pill.className = 'status-pill status-pill--cancelled'; }
+          document.querySelector(`#card-${orderId} .order-actions`).innerHTML = '';
+        } else {
+          setMsg(`msg-cancel-${orderId}`, d.message || 'This order cannot be cancelled.', 'error');
+          btn.disabled = false; btn.textContent = 'Confirm Cancellation';
+        }
+      } catch(e) {
+        setMsg(`msg-cancel-${orderId}`, 'Something went wrong. Please try again.', 'error');
+        btn.disabled = false; btn.textContent = 'Confirm Cancellation';
+      }
+    }
+
+    async function doReschedule(orderId) {
+      const btn = document.getElementById(`btn-reschedule-${orderId}`);
+      const slot = selectedSlot[orderId];
+      if (!slot) { setMsg(`msg-reschedule-${orderId}`, 'Please select a date first.', 'error'); return; }
+      btn.disabled = true; btn.textContent = 'Rescheduling…';
+      try {
+        const r = await fetch(`/api/orders/${orderId}/reschedule`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid(), new_date: slot })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          setMsg(`msg-reschedule-${orderId}`, `Delivery rescheduled to ${fmtDate(d.new_estimated_delivery)}.`, 'success');
+          btn.style.display = 'none';
+          // Update displayed date
+          const meta = document.querySelector(`#card-${orderId} .order-meta`);
+          if (meta) {
+            meta.querySelectorAll('span')[1].innerHTML = `Est. delivery: <strong>${fmtDate(d.new_estimated_delivery)}</strong>`;
+          }
+        } else {
+          setMsg(`msg-reschedule-${orderId}`, d.message || 'Unable to reschedule.', 'error');
+          btn.disabled = false; btn.textContent = 'Confirm Reschedule';
+        }
+      } catch(e) {
+        setMsg(`msg-reschedule-${orderId}`, 'Something went wrong. Please try again.', 'error');
+        btn.disabled = false; btn.textContent = 'Confirm Reschedule';
+      }
+    }
+
+    async function doUpdateAddress(orderId) {
+      const btn = document.getElementById(`btn-address-${orderId}`);
+      const street = document.getElementById(`addr-street-${orderId}`).value.trim();
+      const city = document.getElementById(`addr-city-${orderId}`).value.trim();
+      const state = document.getElementById(`addr-state-${orderId}`).value.trim();
+      const pincode = document.getElementById(`addr-pincode-${orderId}`).value.trim();
+      if (!street || !city || !state || !pincode) {
+        setMsg(`msg-address-${orderId}`, 'Please fill in all address fields.', 'error'); return;
+      }
+      btn.disabled = true; btn.textContent = 'Updating…';
+      try {
+        const r = await fetch(`/api/orders/${orderId}/address`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid(), new_address: { street, city, state, pincode } })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          setMsg(`msg-address-${orderId}`, `Address updated to: ${street}, ${city}, ${state} ${pincode}`, 'success');
+          btn.style.display = 'none';
+        } else {
+          setMsg(`msg-address-${orderId}`, d.message || 'Unable to update address.', 'error');
+          btn.disabled = false; btn.textContent = 'Update Address';
+        }
+      } catch(e) {
+        setMsg(`msg-address-${orderId}`, 'Something went wrong. Please try again.', 'error');
+        btn.disabled = false; btn.textContent = 'Update Address';
+      }
+    }
+
+    async function doReturn(orderId) {
+      const btn = document.getElementById(`btn-return-${orderId}`);
+      const reason = document.getElementById(`return-reason-${orderId}`).value;
+      const condition = document.getElementById(`return-condition-${orderId}`).value;
+      const has_original_packaging = pkgState[orderId] !== false;
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        const r = await fetch(`/api/orders/${orderId}/returns`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid(), reason, condition, has_original_packaging })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          setMsg(`msg-return-${orderId}`,
+            `Return ${d.return_id} created. ${d.return_shipping_label_url ? 'Label: ' + d.return_shipping_label_url : ''} Estimated refund: ${fmtDate(d.estimated_refund_date)}.`, 'success');
+          btn.style.display = 'none';
+        } else {
+          setMsg(`msg-return-${orderId}`, d.reason || d.message || 'Unable to initiate return.', 'error');
+          btn.disabled = false; btn.textContent = 'Initiate Return';
+        }
+      } catch(e) {
+        setMsg(`msg-return-${orderId}`, 'Something went wrong. Please try again.', 'error');
+        btn.disabled = false; btn.textContent = 'Initiate Return';
+      }
+    }
+
+    async function doReplacement(orderId) {
+      const btn = document.getElementById(`btn-replacement-${orderId}`);
+      const reason = document.getElementById(`rep-reason-${orderId}`).value.trim();
+      const description = document.getElementById(`rep-desc-${orderId}`).value.trim();
+      if (!reason) { setMsg(`msg-replacement-${orderId}`, 'Please enter a reason.', 'error'); return; }
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        const r = await fetch(`/api/orders/${orderId}/replacement`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ customer_id: cid(), reason, description })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          setMsg(`msg-replacement-${orderId}`,
+            `Replacement ${d.replacement_id} requested. Estimated dispatch: ${fmtDate(d.estimated_dispatch_date)}.`, 'success');
+          btn.style.display = 'none';
+        } else {
+          setMsg(`msg-replacement-${orderId}`, d.message || 'Unable to submit replacement.', 'error');
+          btn.disabled = false; btn.textContent = 'Submit Replacement Request';
+        }
+      } catch(e) {
+        setMsg(`msg-replacement-${orderId}`, 'Something went wrong. Please try again.', 'error');
+        btn.disabled = false; btn.textContent = 'Submit Replacement Request';
+      }
+    }
+
+    // ── INIT ────────────────────────────────────────────────────────────────
+    updateCartCount();
+    loadProfile();
+    loadOrders();
+  </script>
+
+</body>
+</html>
