@@ -32,11 +32,33 @@ app = Flask(__name__)
 CORS(app)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# HEALTH CHECK — for uptime pings / "Test Connection" buttons in tool builders
+# ─────────────────────────────────────────────────────────────────────────────
+@app.route('/health')
+@app.route('/ping')
+def health_check():
+    return jsonify({
+        "ok": True,
+        "status": "healthy",
+        "service": "NestKart Mock API",
+        "version": "4.0.0",
+    }), 200
+
+# ─────────────────────────────────────────────────────────────────────────────
 # STATIC FILE SERVING
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/')
 def serve_index():
-    return send_from_directory('.', 'index.html')
+    if os.path.exists('index.html'):
+        return send_from_directory('.', 'index.html')
+    # No static frontend deployed (API-only deployment) — respond 200 instead
+    # of 404 so base-URL health checks / "Test Connection" buttons pass.
+    return jsonify({
+        "ok": True,
+        "service": "NestKart Mock API",
+        "version": "4.0.0",
+        "message": "API is running. See /health for a dedicated health check.",
+    }), 200
 
 @app.route('/<path:filename>')
 def serve_static(filename):
