@@ -13,11 +13,7 @@ RUN LOCALLY:
     Server starts on http://0.0.0.0:5050
 
 AUTHENTICATION:
-    All /api/* routes require one of:
-        X-Api-Key: nk-fin-dev-key-2025
-        Authorization: Bearer nk-bearer-dev-token-2025
-
-    /admin/* routes require NO auth (demo only).
+    None. All /api/* and /admin/* routes are open (demo only).
 
 TEST IDs:
     Customers : cust_001 · cust_002 · cust_003 · cust_004 · cust_005
@@ -34,12 +30,6 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AUTH CONFIG
-# ─────────────────────────────────────────────────────────────────────────────
-VALID_API_KEY = "nk-fin-dev-key-2025"
-VALID_BEARER  = "nk-bearer-dev-token-2025"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STATIC FILE SERVING
@@ -916,24 +906,6 @@ def _return_eligibility_check(order_id):
         "days_remaining": None, "return_shipping_cost": None,
         "fin_note": "Escalate to support team.",
     }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AUTH MIDDLEWARE
-# ─────────────────────────────────────────────────────────────────────────────
-@app.before_request
-def check_auth():
-    if not request.path.startswith("/api"):
-        return
-    api_key  = request.headers.get("X-Api-Key", "")
-    auth_hdr = request.headers.get("Authorization", "")
-    bearer   = auth_hdr[len("Bearer "):] if auth_hdr.startswith("Bearer ") else ""
-    if api_key == VALID_API_KEY or bearer == VALID_BEARER:
-        return
-    return jsonify({
-        "ok": False, "error": "unauthorized",
-        "message": "A valid X-Api-Key header or Authorization Bearer token is required.",
-    }), 401
 
 
 # ─────────────────────────────────────────────────────────────────────────────
