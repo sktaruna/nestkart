@@ -77,7 +77,7 @@ CUSTOMERS = {
         "phone": "+91 98100 12345",
         "account_created": "2024-03-10",
         "marketing_opt_in": True,
-        "state": "NY",  # kept for Fin fin_note AK/HI logic
+        "state": "NY",
         "address": {
             "street": "14, Lodhi Colony",
             "city": "New Delhi",
@@ -456,10 +456,6 @@ RETURNS = {
         "refund_issued_date": None, "refund_method": "original_payment_method",
         "return_shipping": "free", "requires_agent_escalation": True,
         "escalation_reason": "refund_overdue",
-        "fin_note": (
-            "OVERDUE: Refund was estimated by 2025-06-06 but has not been issued. "
-            "Escalate to Billing Team immediately."
-        ),
     },
     "RET-2202": {
         "return_id": "RET-2202", "order_id": "ORD-10102", "customer_id": "cust_001",
@@ -471,11 +467,6 @@ RETURNS = {
         "refund_issued_date": None, "refund_method": "original_payment_method",
         "return_shipping": "₹200 estimated", "refund_locked": True,
         "refund_locked_reason": "non_returnable_item",
-        "fin_note": (
-            "INELIGIBLE — this item was opened and used. Opened ceramics are not returnable "
-            "under NestKart policy. This return_requested status is an error state. "
-            "Inform the customer and escalate to an agent to close this return request."
-        ),
     },
     "RET-2203": {
         "return_id": "RET-2203", "order_id": "ORD-10201", "customer_id": "cust_002",
@@ -488,11 +479,6 @@ RETURNS = {
         "return_shipping": "free", "refund_locked": True,
         "refund_locked_reason": "damage_claim_under_review",
         "requires_agent_escalation": True,
-        "fin_note": (
-            "Damage claim under review by Returns Team. Photos received. "
-            "Do not confirm refund amount or timeline until review is complete. "
-            "Escalate if customer is pressing for resolution."
-        ),
     },
 }
 
@@ -593,7 +579,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": "NK10101TRACK",
-            "fin_note": None,
         },
         "ORD-10102": {
             "order_id": "ORD-10102", "customer_id": "cust_001",
@@ -609,7 +594,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
         "ORD-10103": {
             "order_id": "ORD-10103", "customer_id": "cust_001",
@@ -627,7 +611,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
 
         # ── cust_002 (Arjun Mehta) ────────────────────────────────────────────
@@ -645,11 +628,6 @@ def _seed_orders():
             "damage_claim_active": True,
             "cancelled": False,
             "tracking_number": "NK10201TRACK",
-            "fin_note": (
-                "Active damage claim on this order. Customer reported a crack in the slab "
-                "on delivery. Claim status: under_review. Do not offer autonomous refund — "
-                "escalate to Returns Team."
-            ),
         },
         "ORD-10202": {
             "order_id": "ORD-10202", "customer_id": "cust_002",
@@ -665,7 +643,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
         "ORD-10203": {
             "order_id": "ORD-10203", "customer_id": "cust_002",
@@ -681,7 +658,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
 
         # ── cust_003 (Kavitha Nair) ───────────────────────────────────────────
@@ -699,7 +675,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": "NK10301TRACK",
-            "fin_note": None,
         },
         "ORD-10302": {
             "order_id": "ORD-10302", "customer_id": "cust_003",
@@ -715,7 +690,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
 
         # ── cust_004 (Rohit Verma) ────────────────────────────────────────────
@@ -733,10 +707,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": "NK10401TRACK",
-            "fin_note": (
-                "This customer is in AK/HI (state flag). Standard shipping surcharge applies. "
-                "Express shipping is not available."
-            ),
         },
         "ORD-10402": {
             "order_id": "ORD-10402", "customer_id": "cust_004",
@@ -754,9 +724,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": (
-                "AK/HI customer — standard surcharge applies. Express shipping not available."
-            ),
         },
 
         # ── cust_005 (Anika Rossi) ────────────────────────────────────────────
@@ -776,10 +743,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": "NK10501TRACK",
-            "fin_note": (
-                "Customer's saved payment method (Mastercard ••8888) is expired. "
-                "Flag this if they are placing or modifying an order requiring payment."
-            ),
         },
         "ORD-10502": {
             "order_id": "ORD-10502", "customer_id": "cust_005",
@@ -795,7 +758,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
         "ORD-10503": {
             "order_id": "ORD-10503", "customer_id": "cust_005",
@@ -813,7 +775,6 @@ def _seed_orders():
             "damage_claim_active": False,
             "cancelled": False,
             "tracking_number": None,
-            "fin_note": None,
         },
     }
     ORDERS.update(seeded)
@@ -833,7 +794,6 @@ def ownership_error(provided_id, actual_id):
         return jsonify({
             "ok": False, "error": "ownership_mismatch",
             "message": "The provided customer_id does not match the verified owner of this resource.",
-            "fin_note": "Do not retry with a different customer_id. Re-confirm the customer's identity.",
         }), 403
     return None
 
@@ -857,7 +817,6 @@ def _build_order_response(order):
         "cancellable": status == "processing",
         "tracking_number": tn,
         "tracking_url": t_url,
-        "fin_note": order.get("fin_note"),
     }
 
 def _return_eligibility_check(order_id):
@@ -870,7 +829,6 @@ def _return_eligibility_check(order_id):
             "reason": "Order has not yet been delivered. Return can only be initiated after confirmed delivery.",
             "return_window_days": 30, "return_window_expires_on": None,
             "days_remaining": None, "return_shipping_cost": "₹200–₹500 estimated",
-            "fin_note": "Order has not yet been delivered. Return eligibility cannot be confirmed until delivery.",
         }
 
     if status == "cancelled":
@@ -878,7 +836,6 @@ def _return_eligibility_check(order_id):
             "eligible": False, "reason": "Order was cancelled and cannot be returned.",
             "return_window_days": None, "return_window_expires_on": None,
             "days_remaining": None, "return_shipping_cost": None,
-            "fin_note": "Order is cancelled. A refund was issued at cancellation.",
         }
 
     if order.get("damage_claim_active"):
@@ -888,7 +845,6 @@ def _return_eligibility_check(order_id):
             "return_window_days": 30, "return_window_expires_on": None,
             "days_remaining": None, "return_shipping_cost": "free",
             "refund_locked": True, "refund_locked_reason": "damage_claim_under_review",
-            "fin_note": "Active damage claim under review. Do not confirm refund until Returns Team completes review.",
         }
 
     # Delivered — check 30-day window from estimated_delivery
@@ -908,7 +864,6 @@ def _return_eligibility_check(order_id):
                 "return_window_expires_on": expiry_date.isoformat(),
                 "days_remaining": 0,
                 "return_shipping_cost": "₹200–₹500 estimated",
-                "fin_note": f"Return window expired on {expiry_date.isoformat()}. Any return requires agent exception approval.",
             }
         else:
             return {
@@ -918,7 +873,6 @@ def _return_eligibility_check(order_id):
                 "return_window_expires_on": expiry_date.isoformat(),
                 "days_remaining": days_remaining,
                 "return_shipping_cost": "free (defective/damaged); ₹200–₹500 customer pays (change of mind)",
-                "fin_note": None,
             }
 
     return {
@@ -926,7 +880,6 @@ def _return_eligibility_check(order_id):
         "reason": "Return eligibility could not be determined.",
         "return_window_days": None, "return_window_expires_on": None,
         "days_remaining": None, "return_shipping_cost": None,
-        "fin_note": "Escalate to support team.",
     }
 
 
@@ -971,7 +924,7 @@ def cancel_order(order_id):
     oe = ownership_error(customer_id, order["customer_id"])
     if oe:
         return oe
-    ACCEPTED = ["changed_my_mind", "ordered_by_mistake", "found_better_price", "delivery_too_slow", "other"]
+    ACCEPTED = ["changed my mind", "ordered by mistake", "found better price", "delivery too slow", "other"]
     if not reason:
         return err("missing_field", "Required field 'reason' is missing.", 400)
     if reason not in ACCEPTED:
@@ -980,9 +933,8 @@ def cancel_order(order_id):
     if status != "processing":
         return jsonify({
             "ok": False, "cancelled": False,
-            "reason": "order_not_cancellable",
+            "reason": "order not cancellable",
             "current_status": status,
-            "fin_note": "Order cannot be cancelled — it is no longer in processing status.",
         }), 200
     order["cancelled"] = True
     STATUS_OVERRIDES[order_id] = "cancelled"
@@ -1090,7 +1042,7 @@ def initiate_return(order_id):
     condition = body.get("condition")
     has_pkg = body.get("has_original_packaging")
 
-    ACCEPTED_REASONS = ["change_of_mind", "item_not_as_described", "damaged_on_arrival", "defective", "wrong_item_received"]
+    ACCEPTED_REASONS = ["change of mind", "item not as described", "damaged on arrival", "defective", "wrong item received"]
     ACCEPTED_CONDITIONS = ["unused", "opened", "assembled"]
 
     missing = [f for f, v in [("customer_id", customer_id), ("reason", reason), ("condition", condition)] if not v]
@@ -1109,13 +1061,13 @@ def initiate_return(order_id):
 
     elig = _return_eligibility_check(order_id)
     if not elig["eligible"]:
-        return jsonify({"ok": False, "eligible": False, "reason": elig["reason"], "fin_note": elig.get("fin_note")}), 200
+        return jsonify({"ok": False, "eligible": False, "reason": elig["reason"]}), 200
 
     return_id = f"RET-{_return_counter[0]}"
     _return_counter[0] += 1
     today = date.today()
     refund_eta = add_business_days(today, 7)
-    free_return = reason in ("damaged_on_arrival", "defective", "wrong_item_received", "item_not_as_described")
+    free_return = reason in ("damaged on arrival", "defective", "wrong item received", "item not as described")
     incl_shipping = free_return
 
     # Restore stock when return is initiated (only if this order decremented it)
@@ -1136,7 +1088,6 @@ def initiate_return(order_id):
         "refund_estimated_date": refund_eta.isoformat(),
         "refund_issued_date": None, "refund_method": "original_payment_method",
         "return_shipping": "free" if free_return else "₹200–₹500 (customer pays)",
-        "fin_note": None,
     }
     return jsonify({
         "ok": True, "return_id": return_id, "status": "return_requested",
@@ -1155,7 +1106,7 @@ def get_return(return_id):
     resp = {
         "ok": True,
         "return_id": ret["return_id"], "order_id": ret["order_id"],
-        "item_name": ret["item_name"], "reason": ret["reason"],
+        "item_name": ret["item_name"], "reason": ret["reason"].replace("_", " "),
         "status": ret["status"], "return_initiated": ret["return_initiated"],
         "return_received_date": ret.get("return_received_date"),
         "refund_status": ret["refund_status"], "refund_amount": ret.get("refund_amount"),
@@ -1170,8 +1121,6 @@ def get_return(return_id):
     if ret.get("requires_agent_escalation"):
         resp["requires_agent_escalation"] = True
         resp["escalation_reason"] = ret.get("escalation_reason")
-    if ret.get("fin_note"):
-        resp["fin_note"] = ret["fin_note"]
     return jsonify(resp)
 
 
@@ -1201,7 +1150,6 @@ def request_replacement(order_id):
         "ok": True, "replacement_id": replacement_id,
         "status": "replacement_requested",
         "estimated_dispatch_date": dispatch_date.isoformat(),
-        "fin_note": "Replacement request submitted. Returns Team will review the damage claim and confirm dispatch within 2 business days.",
     })
 
 
@@ -1215,17 +1163,8 @@ def get_customer(customer_id):
     if not cust:
         return err("customer_not_found", f"No customer found with ID '{customer_id}'.", 404)
     payment = PAYMENT_METHODS.get(customer_id)
+    order_ids = [o["order_id"] for o in ORDERS.values() if o["customer_id"] == customer_id]
     ak_hi = cust["state"] in ("AK", "HI")
-    fin_notes = []
-    if ak_hi:
-        fin_notes.append(
-            "This customer is in AK/HI. Standard shipping surcharge applies. Express shipping not available."
-        )
-    if payment and payment["is_expired"]:
-        fin_notes.append(
-            f"Customer's saved payment method ({payment['type']} ••{payment['last_four']}) is expired. "
-            "Flag this if they are placing or modifying an order."
-        )
     resp = {
         "ok": True,
         "customer_id": cust["customer_id"],
@@ -1236,6 +1175,7 @@ def get_customer(customer_id):
         "marketing_opt_in": cust["marketing_opt_in"],
         "state": cust["state"],
         "address": cust.get("address"),
+        "orders": order_ids,
         "ak_hi_customer": ak_hi,
         "account_status": "active",
         "payment_method": {
@@ -1246,8 +1186,6 @@ def get_customer(customer_id):
             "is_expired": payment["is_expired"],
         } if payment else None,
     }
-    if fin_notes:
-        resp["fin_note"] = " ".join(fin_notes)
     return jsonify(resp)
 
 
@@ -1472,7 +1410,6 @@ def checkout(customer_id):
         "damage_claim_active": False,
         "cancelled": False,
         "tracking_number": None,
-        "fin_note": None,
         "stock_decremented": True,   # flag so cancel/return know to restore
     }
 
