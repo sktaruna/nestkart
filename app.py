@@ -13,7 +13,7 @@ RUN LOCALLY:
     Server starts on http://0.0.0.0:5050
 
 AUTHENTICATION:
-    None. All /api/* and /admin/* routes are open (demo only).
+    None.
 
 TEST IDs:
     Customers : cust_001 · cust_002 · cust_003 · cust_004 · cust_005
