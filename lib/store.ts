@@ -8,19 +8,28 @@
  * module persists a single JSON blob to a hosted Redis store (Upstash) via
  * its REST API and re-loads it on every request.
  *
- * Configure via env vars (set these in the Vercel project settings):
- *     UPSTASH_REDIS_REST_URL
- *     UPSTASH_REDIS_REST_TOKEN
+ * Configure via env vars. Both naming conventions are accepted, because
+ * Vercel's KV/Upstash marketplace integration auto-injects KV_REST_API_*
+ * names while a manually-created Upstash database documents itself as
+ * UPSTASH_REDIS_REST_*. Reading only one set meant the vars could look
+ * "present" in the Vercel dashboard while the app still saw nothing and
+ * silently ran in per-instance in-memory mode:
+ *     UPSTASH_REDIS_REST_URL   or  KV_REST_API_URL
+ *     UPSTASH_REDIS_REST_TOKEN or  KV_REST_API_TOKEN
  *
- * If those aren't set (e.g. running locally), this module is a no-op and the
+ * If neither is set (e.g. running locally), this module is a no-op and the
  * app falls back to plain in-memory state, resetting on restart — which is
  * fine for local dev.
+ *
+ * Note: the read-only token (KV_REST_API_READ_ONLY_TOKEN) will NOT work —
+ * saving state requires write access. KV_URL/REDIS_URL are the raw Redis
+ * TCP protocol, not the REST API this module speaks.
  */
 
 export const STATE_KEY = "nestkart_state";
 
-const _REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
-const _REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const _REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const _REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
 export const ENABLED = Boolean(_REDIS_URL && _REDIS_TOKEN);
 
