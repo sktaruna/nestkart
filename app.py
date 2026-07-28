@@ -27,6 +27,7 @@ import os
 from datetime import datetime, date, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+import store
 
 app = Flask(__name__)
 CORS(app)
@@ -782,6 +783,72 @@ def _seed_orders():
 
 
 _seed_orders()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SHARED STATE PERSISTENCE
+#
+# Serverless hosting (Vercel) can route requests to separate instances that
+# don't share process memory — plain in-memory globals reset per instance.
+# If store.ENABLED (Upstash Redis env vars configured), every request loads
+# the latest shared snapshot before handling and saves it back after, so
+# ORDERS/CARTS/etc. stay consistent no matter which instance serves a
+# request. If not configured (e.g. local `python app.py`), these are no-ops
+# and behavior is unchanged: pure in-memory state, reset on restart.
+# ─────────────────────────────────────────────────────────────────────────────
+def _serialize_orders(orders):
+    out = {}
+    for oid, o in orders.items():
+        o2 = dict(o)
+        if isinstance(o2.get("placed_at"), datetime):
+            o2["placed_at"] = o2["placed_at"].isoformat()
+        out[oid] = o2
+    return out
+
+def _deserialize_orders(orders):
+    out = {}
+    for oid, o in orders.items():
+        o2 = dict(o)
+        if isinstance(o2.get("placed_at"), str):
+            o2["placed_at"] = datetime.fromisoformat(o2["placed_at"])
+        out[oid] = o2
+    return out
+
+def _snapshot_state():
+    return {
+        "orders": _serialize_orders(ORDERS),
+        "carts": CARTS,
+        "dynamic_returns": DYNAMIC_RETURNS,
+        "status_overrides": STATUS_OVERRIDES,
+        "order_counter": _order_counter[0],
+        "return_counter": _return_counter[0],
+        "product_stock": {pid: p["stock"] for pid, p in PRODUCTS.items()},
+    }
+
+def _apply_state(state):
+    global ORDERS, CARTS, DYNAMIC_RETURNS, STATUS_OVERRIDES
+    ORDERS = _deserialize_orders(state.get("orders", {}))
+    CARTS = state.get("carts", {})
+    DYNAMIC_RETURNS = state.get("dynamic_returns", {})
+    STATUS_OVERRIDES = state.get("status_overrides", {})
+    _order_counter[0] = state.get("order_counter", _order_counter[0])
+    _return_counter[0] = state.get("return_counter", _return_counter[0])
+    for pid, stock in state.get("product_stock", {}).items():
+        if pid in PRODUCTS:
+            PRODUCTS[pid]["stock"] = stock
+
+@app.before_request
+def _load_shared_state():
+    if not store.ENABLED:
+        return
+    state = store.load_state()
+    if state:
+        _apply_state(state)
+
+@app.after_request
+def _save_shared_state(response):
+    if store.ENABLED:
+        store.save_state(_snapshot_state())
+    return response
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
