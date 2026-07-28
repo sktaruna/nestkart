@@ -33,7 +33,7 @@ function OrderCard({ order, isCompleted }: { order: Order; isCompleted: boolean 
   const [actionDone, setActionDone] = useState(false);
 
   // cancel
-  const [cancelReason, setCancelReason] = useState('changed_my_mind');
+  const [cancelReason, setCancelReason] = useState('changed my mind');
   // reschedule
   const [slots, setSlots] = useState<string[] | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -43,7 +43,7 @@ function OrderCard({ order, isCompleted }: { order: Order; isCompleted: boolean 
   const [addrState, setAddrState] = useState('');
   const [pincode, setPincode] = useState('');
   // return
-  const [returnReason, setReturnReason] = useState('change_of_mind');
+  const [returnReason, setReturnReason] = useState('change of mind');
   const [returnCondition, setReturnCondition] = useState('unused');
   const [hasPkg, setHasPkg] = useState(true);
   // replacement
@@ -271,10 +271,10 @@ function OrderCard({ order, isCompleted }: { order: Order; isCompleted: boolean 
           <div className={styles.formGroup}>
             <label>Reason</label>
             <select value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}>
-              <option value="changed_my_mind">Changed my mind</option>
-              <option value="ordered_by_mistake">Ordered by mistake</option>
-              <option value="found_better_price">Found a better price</option>
-              <option value="delivery_too_slow">Delivery too slow</option>
+              <option value="changed my mind">Changed my mind</option>
+              <option value="ordered by mistake">Ordered by mistake</option>
+              <option value="found better price">Found a better price</option>
+              <option value="delivery too slow">Delivery too slow</option>
               <option value="other">Other</option>
             </select>
           </div>
@@ -358,11 +358,11 @@ function OrderCard({ order, isCompleted }: { order: Order; isCompleted: boolean 
           <div className={styles.formGroup}>
             <label>Reason for Return</label>
             <select value={returnReason} onChange={(e) => setReturnReason(e.target.value)}>
-              <option value="change_of_mind">Change of mind</option>
-              <option value="item_not_as_described">Item not as described</option>
-              <option value="damaged_on_arrival">Damaged on arrival</option>
+              <option value="change of mind">Change of mind</option>
+              <option value="item not as described">Item not as described</option>
+              <option value="damaged on arrival">Damaged on arrival</option>
               <option value="defective">Defective</option>
-              <option value="wrong_item_received">Wrong item received</option>
+              <option value="wrong item received">Wrong item received</option>
             </select>
           </div>
           <div className={styles.formGroup}>
