@@ -960,14 +960,19 @@ def update_address(order_id):
         return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
     body = request.get_json(silent=True) or {}
     customer_id = body.get("customer_id")
-    new_address = body.get("new_address")
     if not customer_id:
         return err("missing_field", "Required field 'customer_id' is missing.", 400)
     oe = ownership_error(customer_id, order["customer_id"])
     if oe:
         return oe
-    if not new_address or not all(k in new_address for k in ("street", "city", "state", "pincode")):
-        return err("missing_field", "new_address must include: street, city, state, pincode.", 400)
+    if not all(k in body for k in ("street", "city", "state", "pincode")):
+        return err("missing_field", "Request must include: street, city, state, pincode.", 400)
+    new_address = {
+        "street": body["street"],
+        "city": body["city"],
+        "state": body["state"],
+        "pincode": body["pincode"],
+    }
     status = get_order_status(order)
     if status != "processing":
         return jsonify({
@@ -977,7 +982,10 @@ def update_address(order_id):
     order["delivery_address"] = new_address
     return jsonify({
         "ok": True, "order_id": order_id,
-        "updated_address": new_address,
+        "street": new_address["street"],
+        "city": new_address["city"],
+        "state": new_address["state"],
+        "pincode": new_address["pincode"],
         "message": "Delivery address updated successfully.",
     })
 
