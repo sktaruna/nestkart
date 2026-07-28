@@ -494,11 +494,11 @@ def get_order_status(order):
     if isinstance(placed_at, str):
         placed_at = datetime.fromisoformat(placed_at)
     elapsed_minutes = (datetime.now() - placed_at).total_seconds() / 60
-    if elapsed_minutes < 10:
+    if elapsed_minutes < 1440:
         return "processing"
-    elif elapsed_minutes < 30:
+    elif elapsed_minutes < 2880:
         return "dispatched"
-    elif elapsed_minutes < 90:
+    elif elapsed_minutes < 5760:
         return "in_transit"
     else:
         return "delivered"
@@ -572,9 +572,9 @@ def _seed_orders():
                  "qty": 1, "unit_price": 89999, "line_total": 89999}
             ],
             "price_total": 89999,
-            "placed_at": now - timedelta(days=3),
+            "placed_at": now - timedelta(days=5),
             "shipping_method": "large_item",
-            "estimated_delivery": (now - timedelta(days=3) + timedelta(days=10)).date().isoformat(),
+            "estimated_delivery": (now - timedelta(days=5) + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_001"]["address"]),
             "damage_claim_active": False,
             "cancelled": False,
@@ -587,7 +587,7 @@ def _seed_orders():
                  "qty": 2, "unit_price": 4200, "line_total": 8400}
             ],
             "price_total": 8400,
-            "placed_at": now - timedelta(minutes=20),
+            "placed_at": now - timedelta(days=1, hours=12),
             "shipping_method": "standard",
             "estimated_delivery": (now + timedelta(days=5)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_001"]["address"]),
@@ -621,9 +621,9 @@ def _seed_orders():
                  "qty": 1, "unit_price": 124000, "line_total": 124000}
             ],
             "price_total": 124000,
-            "placed_at": now - timedelta(days=3),
+            "placed_at": now - timedelta(days=5),
             "shipping_method": "large_item",
-            "estimated_delivery": (now - timedelta(days=3) + timedelta(days=10)).date().isoformat(),
+            "estimated_delivery": (now - timedelta(days=5) + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_002"]["address"]),
             "damage_claim_active": True,
             "cancelled": False,
@@ -636,7 +636,7 @@ def _seed_orders():
                  "qty": 1, "unit_price": 22000, "line_total": 22000}
             ],
             "price_total": 22000,
-            "placed_at": now - timedelta(minutes=20),
+            "placed_at": now - timedelta(days=1, hours=12),
             "shipping_method": "large_item",
             "estimated_delivery": (now + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_002"]["address"]),
@@ -668,9 +668,9 @@ def _seed_orders():
                  "qty": 1, "unit_price": 68000, "line_total": 68000}
             ],
             "price_total": 68000,
-            "placed_at": now - timedelta(days=3),
+            "placed_at": now - timedelta(days=5),
             "shipping_method": "large_item",
-            "estimated_delivery": (now - timedelta(days=3) + timedelta(days=10)).date().isoformat(),
+            "estimated_delivery": (now - timedelta(days=5) + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_003"]["address"]),
             "damage_claim_active": False,
             "cancelled": False,
@@ -683,7 +683,7 @@ def _seed_orders():
                  "qty": 2, "unit_price": 14500, "line_total": 29000}
             ],
             "price_total": 29000,
-            "placed_at": now - timedelta(minutes=20),
+            "placed_at": now - timedelta(days=1, hours=12),
             "shipping_method": "standard",
             "estimated_delivery": (now + timedelta(days=5)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_003"]["address"]),
@@ -700,9 +700,9 @@ def _seed_orders():
                  "qty": 1, "unit_price": 32500, "line_total": 32500}
             ],
             "price_total": 32500,
-            "placed_at": now - timedelta(days=3),
+            "placed_at": now - timedelta(days=5),
             "shipping_method": "large_item",
-            "estimated_delivery": (now - timedelta(days=3) + timedelta(days=10)).date().isoformat(),
+            "estimated_delivery": (now - timedelta(days=5) + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_004"]["address"]),
             "damage_claim_active": False,
             "cancelled": False,
@@ -736,9 +736,9 @@ def _seed_orders():
                  "qty": 1, "unit_price": 68000, "line_total": 68000},
             ],
             "price_total": 157999,
-            "placed_at": now - timedelta(days=3),
+            "placed_at": now - timedelta(days=5),
             "shipping_method": "large_item",
-            "estimated_delivery": (now - timedelta(days=3) + timedelta(days=10)).date().isoformat(),
+            "estimated_delivery": (now - timedelta(days=5) + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_005"]["address"]),
             "damage_claim_active": False,
             "cancelled": False,
@@ -751,7 +751,7 @@ def _seed_orders():
                  "qty": 1, "unit_price": 21500, "line_total": 21500}
             ],
             "price_total": 21500,
-            "placed_at": now - timedelta(minutes=20),
+            "placed_at": now - timedelta(days=1, hours=12),
             "shipping_method": "large_item",
             "estimated_delivery": (now + timedelta(days=10)).date().isoformat(),
             "delivery_address": dict(CUSTOMERS["cust_005"]["address"]),
