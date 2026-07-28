@@ -439,7 +439,7 @@ ORDERS = {}
 CARTS = {}
 DYNAMIC_RETURNS = {}
 STATUS_OVERRIDES = {}
-_order_counter = [10200]   # runtime order IDs start at ORD-10200
+_order_counter = [20000]   # runtime order IDs start at ORD-20000, well clear of seeded ORD-1xxxx IDs
 _return_counter = [2210]   # runtime return IDs start at RET-2210
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -817,6 +817,7 @@ def _build_order_response(order):
         "cancellable": status == "processing",
         "tracking_number": tn,
         "tracking_url": t_url,
+        "is_seed": order["order_id"] in _SEED_ORDER_IDS,
     }
 
 def _return_eligibility_check(order_id):
@@ -1461,6 +1462,17 @@ def admin_set_status(order_id):
     return jsonify({"ok": True, "order_id": order_id, "status": status})
 
 
+@app.route("/admin/orders/<order_id>", methods=["DELETE"])
+def admin_delete_order(order_id):
+    if order_id not in ORDERS:
+        return err("order_not_found", f"No order found with ID '{order_id}'.", 404)
+    if order_id in _SEED_ORDER_IDS:
+        return err("delete_not_allowed", "Seeded demo orders cannot be deleted.", 400)
+    del ORDERS[order_id]
+    STATUS_OVERRIDES.pop(order_id, None)
+    return jsonify({"ok": True, "order_id": order_id, "deleted": True})
+
+
 @app.route("/admin/orders", methods=["GET"])
 def admin_get_orders():
     customers_out = []
@@ -1501,7 +1513,7 @@ def admin_reset():
     STATUS_OVERRIDES.clear()
     DYNAMIC_RETURNS.clear()
     CARTS.clear()
-    _order_counter[0] = 10200
+    _order_counter[0] = 20000
     _return_counter[0] = 2210
     # Restore all product stocks to original seeded values
     for pid, original_stock in _ORIGINAL_STOCK.items():

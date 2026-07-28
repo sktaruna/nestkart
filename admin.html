@@ -132,6 +132,14 @@
       display: none; margin-left: 8px;
     }
     .flash-ok.show { display: inline; }
+    .delete-order-btn {
+      font-family: inherit; font-size: 0.72rem;
+      padding: 5px 10px; border: 1px solid #c62828;
+      background: var(--white); color: #c62828;
+      cursor: pointer; outline: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .delete-order-btn:hover { background: #c62828; color: var(--white); }
 
     .status-pill {
       font-size: 0.65rem; font-weight: 500;
@@ -316,6 +324,9 @@
               '<option value="cancelled"' + (o.status === 'cancelled' ? ' selected' : '') + '>Cancelled</option>' +
             '</select></td>' +
             '<td><span class="flash-ok" id="flash-' + o.order_id + '">Updated</span></td>' +
+            '<td>' + (o.is_seed ? '' :
+              '<button class="delete-order-btn" onclick="deleteOrder(\'' + o.order_id + '\')">Delete</button>'
+            ) + '</td>' +
           '</tr>';
         });
         html += '<div class="customer-section">' +
@@ -324,7 +335,7 @@
             '<span class="customer-section__id">' + cust.customer_id + '</span>' +
           '</div>' +
           '<table class="orders-table"><thead><tr>' +
-            '<th>Order ID</th><th>Items</th><th>Total</th><th>Status</th><th>Set Status</th><th></th>' +
+            '<th>Order ID</th><th>Items</th><th>Total</th><th>Status</th><th>Set Status</th><th></th><th></th>' +
           '</tr></thead><tbody>' + rows + '</tbody></table></div>';
       });
       container.innerHTML = html;
@@ -346,6 +357,18 @@
             flash.classList.add('show');
             setTimeout(function() { flash.classList.remove('show'); }, 2000);
           }
+        }
+      } catch(e) {}
+    }
+
+    async function deleteOrder(orderId) {
+      if (!confirm('Delete order ' + orderId + '? This cannot be undone.')) return;
+      try {
+        const r = await fetch('/admin/orders/' + orderId, { method: 'DELETE' });
+        const d = await r.json();
+        if (d.ok) {
+          const row = document.getElementById('row-' + orderId);
+          if (row) row.remove();
         }
       } catch(e) {}
     }
