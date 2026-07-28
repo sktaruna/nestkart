@@ -851,7 +851,11 @@ def _load_shared_state():
 
 @app.after_request
 def _save_shared_state(response):
-    if store.ENABLED:
+    # Only persist after requests that can actually mutate state. Saving on
+    # every GET too meant a read-only request that loaded a slightly-older
+    # snapshot could resave it after a concurrent write finished, silently
+    # clobbering that write (classic last-write-wins lost update).
+    if store.ENABLED and request.method in ("POST", "PUT", "PATCH", "DELETE"):
         store.save_state(_snapshot_state())
     return response
 
