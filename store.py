@@ -20,6 +20,7 @@ restart — which is fine for local dev.
 import os
 import json
 import urllib.request
+import urllib.error
 
 STATE_KEY = "nestkart_state"
 
@@ -39,8 +40,12 @@ def _cmd(*args, timeout=5):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8")).get("result")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("result")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Upstash HTTP {e.code}: {body}") from None
 
 
 def load_state():
@@ -50,9 +55,11 @@ def load_state():
     try:
         raw = _cmd("GET", STATE_KEY)
         return json.loads(raw) if raw else None
-    except Exception:
+    except Exception as e:
         # Store unreachable — fall back to whatever's already in local memory
-        # rather than breaking the request.
+        # rather than breaking the request. Logged so it's visible in
+        # Vercel's function logs instead of failing completely silently.
+        print(f"[store] load_state failed: {e!r}")
         return None
 
 
@@ -61,5 +68,5 @@ def save_state(state):
         return
     try:
         _cmd("SET", STATE_KEY, json.dumps(state))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[store] save_state failed: {e!r}")
