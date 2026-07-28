@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import { useEffect, useState } from 'react';
-import Nav from '@/components/Nav';
+import Nav, { notifyCartChanged } from '@/components/Nav';
 import Footer from '@/components/Footer';
 import Newsletter from '@/components/Newsletter';
 import styles from '@/styles/Shop.module.css';
@@ -27,8 +27,8 @@ export default function ShopPage() {
   const [category, setCategory] = useState('all');
   const [sortLabel, setSortLabel] = useState('Featured');
   const [products, setProducts] = useState<Product[]>([]);
-  const [addingId, setAddingId] = useState<string | null>(null);
   const [addedId, setAddedId] = useState<string | null>(null);
+  const [addError, setAddError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +52,13 @@ export default function ShopPage() {
   }, [category, sortLabel]);
 
   async function addToCart(productId: string) {
-    setAddingId(productId);
+    // Show "Added" immediately rather than waiting on the ~300ms round
+    // trip — the request still runs in the background; on the rare
+    // failure (e.g. out of stock) we roll the feedback back and surface
+    // the real error instead of leaving a false "Added" state up.
+    setAddedId(productId);
+    setAddError('');
+    notifyCartChanged();
     try {
       const r = await fetch(`/api/cart/${getActiveCustomerId()}/add`, {
         method: 'POST',
@@ -61,13 +67,18 @@ export default function ShopPage() {
         body: JSON.stringify({ product_id: productId, quantity: 1 }),
       });
       const d = await r.json();
-      setAddingId(null);
       if (d.ok) {
-        setAddedId(productId);
-        setTimeout(() => setAddedId(null), 1200);
+        setTimeout(() => setAddedId((cur) => (cur === productId ? null : cur)), 1200);
+        notifyCartChanged();
+      } else {
+        setAddedId((cur) => (cur === productId ? null : cur));
+        setAddError(d.message || 'Could not add this item to your cart.');
+        notifyCartChanged();
       }
     } catch {
-      setAddingId(null);
+      setAddedId((cur) => (cur === productId ? null : cur));
+      setAddError('Network error. Please try again.');
+      notifyCartChanged();
     }
   }
 
@@ -87,6 +98,14 @@ export default function ShopPage() {
           <h1 className={styles.pageBannerTitle}>Shop All</h1>
         </div>
       </div>
+
+      {addError && (
+        <div style={{ maxWidth: 1200, margin: '16px auto 0', padding: '0 24px' }}>
+          <p style={{ color: '#b3261e', background: '#fdecea', padding: '10px 16px', borderRadius: 6 }}>
+            {addError}
+          </p>
+        </div>
+      )}
 
       <div className={styles.filterBar}>
         <div className={styles.filterBarInner}>
@@ -132,7 +151,6 @@ export default function ShopPage() {
               }
               let btnLabel = 'Add to Bag';
               if (oos) btnLabel = 'Out of Stock';
-              else if (addingId === p.product_id) btnLabel = 'Adding...';
               else if (addedId === p.product_id) btnLabel = 'Added!';
 
               return (
@@ -143,7 +161,7 @@ export default function ShopPage() {
                     <button
                       className="product-card__quick"
                       onClick={() => addToCart(p.product_id)}
-                      disabled={oos || addingId === p.product_id}
+                      disabled={oos}
                       style={oos ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     >
                       {btnLabel}

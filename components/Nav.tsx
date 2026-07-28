@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { getActiveCustomerId } from '@/lib/useActiveCustomer';
 import { API_HEADERS } from '@/lib/format';
@@ -7,8 +8,20 @@ interface NavProps {
   active?: 'home' | 'shop' | 'about' | 'journal' | 'contact' | 'admin' | 'account';
 }
 
+// Cart-mutating pages (shop, cart, account) call this after add/update/
+// remove/checkout succeeds so every mounted Nav instance refreshes its
+// badge immediately, instead of only refetching once on mount (which left
+// the badge stale until the next full page/route change).
+export const CART_CHANGED_EVENT = 'nk:cart-changed';
+export function notifyCartChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(CART_CHANGED_EVENT));
+  }
+}
+
 export default function Nav({ active }: NavProps) {
   const [cartCount, setCartCount] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -25,9 +38,15 @@ export default function Nav({ active }: NavProps) {
       }
     }
     updateCartCount();
+
+    window.addEventListener(CART_CHANGED_EVENT, updateCartCount);
+    router.events.on('routeChangeComplete', updateCartCount);
     return () => {
       cancelled = true;
+      window.removeEventListener(CART_CHANGED_EVENT, updateCartCount);
+      router.events.off('routeChangeComplete', updateCartCount);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
