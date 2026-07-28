@@ -24,6 +24,11 @@ TEST IDs:
 """
 
 import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from datetime import datetime, date, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
