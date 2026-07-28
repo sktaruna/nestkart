@@ -26,13 +26,13 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const body = getBody(req);
   const customerId = body.customer_id as string | undefined;
-  const reason = body.reason as string | undefined;
+  const reason = body.return_reason as string | undefined;
   const condition = body.condition as string | undefined;
   const hasPkg = body.has_original_packaging;
 
   const missing: string[] = [];
   if (!customerId) missing.push("customer_id");
-  if (!reason) missing.push("reason");
+  if (!reason) missing.push("return_reason");
   if (!condition) missing.push("condition");
   if (hasPkg === undefined || hasPkg === null) missing.push("has_original_packaging");
   if (missing.length) {

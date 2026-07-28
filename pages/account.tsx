@@ -166,7 +166,7 @@ function OrderCard({ order, isCompleted }: { order: Order; isCompleted: boolean 
         cache: 'no-store',
         body: JSON.stringify({
           customer_id: getActiveCustomerId(),
-          reason: returnReason,
+          return_reason: returnReason,
           condition: returnCondition,
           has_original_packaging: hasPkg,
         }),
