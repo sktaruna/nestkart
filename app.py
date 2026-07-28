@@ -850,6 +850,17 @@ def _load_shared_state():
         _apply_state(state)
 
 @app.after_request
+def _no_cache_api_responses(response):
+    # jsonify() sends no Cache-Control header, so browsers/CDNs (Vercel's
+    # edge included) are free to cache API responses using their own
+    # heuristics — showing stale data on the frontend until a hard refresh
+    # bypasses the cache. API/admin responses always need to be live.
+    if request.path.startswith("/api/") or request.path.startswith("/admin/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+@app.after_request
 def _save_shared_state(response):
     # Only persist after requests that can actually mutate state. Saving on
     # every GET too meant a read-only request that loaded a slightly-older
