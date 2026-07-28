@@ -1,0 +1,71 @@
+.pageBanner {
+  position: relative;
+  height: 340px;
+  overflow: hidden;
+}
+.pageBanner img { position: absolute; inset: 0; }
+.pageBannerOverlay {
+  position: absolute; inset: 0;
+  background: rgba(15, 8, 2, 0.46);
+}
+.pageBannerContent {
+  position: relative; z-index: 2;
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; color: #fff; padding: 24px;
+}
+.pageBannerKicker {
+  font-size: 0.68rem; letter-spacing: 0.22em;
+  text-transform: uppercase; opacity: 0.78; margin-bottom: 12px;
+}
+.pageBannerTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  font-weight: 400; line-height: 1.1;
+}
+
+.filterBar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 0 48px;
+  position: sticky; top: var(--nav-h); z-index: 100;
+}
+.filterBarInner {
+  max-width: 1380px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.filterTabs {
+  display: flex; align-items: center;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filterTabs::-webkit-scrollbar { display: none; }
+.filterTab {
+  padding: 18px 22px;
+  font-size: 0.76rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); background: none; border: none;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
+}
+.filterTab:hover { color: var(--dark); }
+.filterTabActive { color: var(--dark); border-bottom-color: var(--accent); }
+
+.filterSort { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.filterSort label { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.filterSort select {
+  font-family: inherit; font-size: 0.8rem; color: var(--dark);
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  padding: 4px 8px 4px 0; cursor: pointer; outline: none;
+}
+
+.shopSection { padding: 64px 48px 96px; }
+.shopSectionInner { max-width: 1380px; margin: 0 auto; }
+.shopGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px 20px; }
+.shopCount { font-size: 0.8rem; color: var(--muted); margin-bottom: 36px; letter-spacing: 0.04em; }
+
+@media (max-width: 1100px) { .shopGrid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px) {
+  .filterBar { padding: 0 24px; }
+  .shopSection { padding: 48px 24px 72px; }
+  .shopGrid { grid-template-columns: repeat(2, 1fr); gap: 28px 12px; }
+}

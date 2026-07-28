@@ -1,0 +1,170 @@
+.accountPage { padding: 56px 48px 96px; }
+.accountPageInner { max-width: 1100px; margin: 0 auto; }
+
+/* ── PROFILE CARD ── */
+.profileCard {
+  background: var(--white);
+  border: 1px solid var(--border);
+  padding: 40px;
+  margin-bottom: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.profileCardName {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 2rem; font-weight: 400;
+  color: var(--dark); margin-bottom: 16px;
+  grid-column: 1 / -1;
+}
+.profileField { margin-bottom: 12px; }
+.profileLabel {
+  font-size: 0.65rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 2px;
+}
+.profileValue { font-size: 0.92rem; color: var(--dark); }
+
+/* ── TABS ── */
+.ordersTabs { margin-bottom: 32px; }
+.tabBar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.tabBtn {
+  padding: 14px 24px;
+  font-size: 0.78rem; font-weight: 500; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; transition: color 0.2s, border-color 0.2s;
+}
+.tabBtnActive { color: var(--dark); border-bottom-color: var(--accent); }
+.tabPanel { padding-top: 32px; }
+
+/* ── ORDER CARD ── */
+.orderCard {
+  border: 1px solid var(--border);
+  background: var(--white);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.orderCardHeader {
+  display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap;
+  gap: 12px; padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.orderId {
+  font-family: monospace; font-size: 0.82rem;
+  color: var(--muted); letter-spacing: 0.04em;
+}
+
+.orderCardBody { padding: 20px 24px; }
+.orderItemsSummary {
+  font-size: 0.88rem; color: var(--body);
+  margin-bottom: 8px; line-height: 1.5;
+}
+.orderMeta {
+  display: flex; gap: 24px; flex-wrap: wrap;
+  font-size: 0.8rem; color: var(--muted);
+  margin-bottom: 16px;
+}
+.orderMeta span { white-space: nowrap; }
+.orderActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btnSm {
+  font-size: 0.7rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 9px 18px; border: 1px solid var(--border);
+  background: none; color: var(--dark);
+  transition: all 0.2s; cursor: pointer;
+  text-decoration: none; display: inline-block;
+}
+.btnSm:hover { border-color: var(--dark); background: var(--dark); color: #fff; }
+.btnSmDanger { border-color: #e53935; color: #e53935; }
+.btnSmDanger:hover { background: #e53935; color: #fff; border-color: #e53935; }
+
+/* ── INLINE PANEL ── */
+.inlinePanel {
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 24px;
+}
+.inlinePanelTitle {
+  font-size: 0.78rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dark); margin-bottom: 20px;
+}
+.formGroup { margin-bottom: 16px; }
+.formGroup label {
+  display: block; font-size: 0.7rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px;
+}
+.formGroup input, .formGroup select, .formGroup textarea {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid var(--border); background: var(--white);
+  font-family: inherit; font-size: 0.88rem;
+  color: var(--dark); outline: none;
+  transition: border-color 0.2s;
+}
+.formGroup input:focus, .formGroup select:focus, .formGroup textarea:focus {
+  border-color: var(--dark);
+}
+.formGroup textarea { min-height: 80px; resize: vertical; }
+.formRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.panelActions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.panelActions button { cursor: pointer; font-family: inherit; }
+.panelConfirm {
+  font-size: 0.76rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 11px 24px; background: var(--dark);
+  color: #fff; border: 1px solid var(--dark);
+  transition: background 0.2s;
+}
+.panelConfirm:hover { background: var(--accent); border-color: var(--accent); }
+.panelConfirm:disabled { opacity: 0.6; cursor: not-allowed; }
+.panelCancel {
+  font-size: 0.76rem; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 11px 24px;
+  background: none; border: 1px solid var(--border);
+  color: var(--muted); transition: all 0.2s;
+}
+.panelCancel:hover { border-color: var(--dark); color: var(--dark); }
+.panelMessage {
+  margin-top: 14px; font-size: 0.85rem;
+  line-height: 1.6;
+}
+.panelMessageSuccess { color: #2e7d32; }
+.panelMessageError { color: #c62828; }
+
+.slotPills { display: flex; flex-wrap: wrap; gap: 8px; }
+.slotPill {
+  padding: 8px 16px; border: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--body);
+  background: var(--white); cursor: pointer;
+  transition: all 0.2s;
+}
+.slotPill:hover, .slotPillSelected {
+  border-color: var(--accent); color: var(--accent);
+}
+
+.pkgToggle { display: flex; gap: 8px; }
+.pkgOpt {
+  flex: 1; padding: 10px; text-align: center;
+  border: 1px solid var(--border); background: var(--white);
+  font-size: 0.82rem; cursor: pointer; transition: all 0.2s;
+}
+.pkgOptSelected {
+  border-color: var(--dark); background: var(--dark); color: #fff;
+}
+
+.noOrders {
+  font-size: 0.9rem; color: var(--muted);
+  padding: 48px 0; text-align: center;
+}
+
+@media (max-width: 768px) {
+  .accountPage { padding: 36px 24px 72px; }
+  .profileCard { grid-template-columns: 1fr; padding: 28px; }
+  .profileCardName { grid-column: 1; }
+  .formRow { grid-template-columns: 1fr; }
+}

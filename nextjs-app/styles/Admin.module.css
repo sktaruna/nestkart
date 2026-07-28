@@ -1,0 +1,202 @@
+.body { background: #f4f2ef; min-height: 100vh; }
+
+/* ── ADMIN HEADER ── */
+.adminHeader {
+  background: var(--dark);
+  padding: 20px 48px;
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 16px;
+}
+.adminHeaderTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.35rem; font-weight: 600;
+  color: #fff; letter-spacing: 0.02em;
+}
+.adminHeaderSub {
+  font-size: 0.75rem; color: rgba(255,255,255,0.45);
+  letter-spacing: 0.06em; margin-top: 2px;
+}
+.resetBtn {
+  padding: 10px 22px;
+  background: #c62828; color: #fff;
+  border: none; font-family: inherit;
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: background 0.2s;
+}
+.resetBtn:hover { background: #b71c1c; }
+.refreshBtn {
+  padding: 10px 22px;
+  background: none; color: #fff;
+  border: 1px solid rgba(255,255,255,0.3); font-family: inherit;
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: background 0.2s, border-color 0.2s;
+  margin-right: 10px;
+}
+.refreshBtn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.6); }
+.resetConfirm {
+  background: #fff3e0;
+  border: 1px solid #ffb74d;
+  padding: 12px 48px;
+  font-size: 0.85rem; color: var(--dark);
+  display: flex; align-items: center; gap: 16px;
+}
+.resetConfirmText { flex: 1; }
+.resetConfirm button {
+  padding: 8px 18px; font-family: inherit;
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer;
+}
+.resetOk { background: #c62828; color: #fff; border: none; }
+.resetCancel { background: none; border: 1px solid var(--border); color: var(--dark); }
+
+/* ── MAIN CONTENT ── */
+.adminMain { padding: 40px 48px 80px; max-width: 1300px; margin: 0 auto; }
+.adminStatusBar {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 28px;
+}
+.adminTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.7rem; font-weight: 400; color: var(--dark);
+}
+.statusBarRight { display: flex; align-items: center; }
+.pollIndicator {
+  font-size: 0.72rem; color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+/* ── CUSTOMER SECTION ── */
+.customerSection { margin-bottom: 40px; }
+.customerSectionHeader {
+  background: var(--dark); color: #fff;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 0;
+}
+.customerSectionName {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.15rem; font-weight: 400;
+}
+.customerSectionId {
+  font-family: monospace; font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+}
+
+/* ── ORDERS TABLE ── */
+.ordersTable { width: 100%; border-collapse: collapse; }
+.ordersTable th {
+  background: var(--surface);
+  font-size: 0.65rem; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); padding: 10px 16px;
+  text-align: left; border-bottom: 1px solid var(--border);
+}
+.ordersTable td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem; color: var(--dark);
+  background: var(--white); vertical-align: middle;
+}
+.ordersTable tr:last-child td { border-bottom: none; }
+
+.orderIdCell {
+  font-family: monospace; font-size: 0.8rem;
+  color: var(--muted);
+}
+.itemsCell {
+  color: var(--body); font-size: 0.82rem;
+  max-width: 280px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.statusSelect {
+  font-family: inherit; font-size: 0.78rem;
+  padding: 6px 10px; border: 1px solid var(--border);
+  background: var(--white); color: var(--dark);
+  cursor: pointer; outline: none;
+  transition: border-color 0.2s;
+}
+.statusSelect:focus { border-color: var(--accent); }
+.flashOk {
+  font-size: 0.72rem; color: #2e7d32;
+  margin-left: 8px;
+}
+.deleteOrderBtn {
+  font-family: inherit; font-size: 0.72rem;
+  padding: 5px 10px; border: 1px solid #c62828;
+  background: var(--white); color: #c62828;
+  cursor: pointer; outline: none;
+  transition: background-color 0.2s, color 0.2s;
+}
+.deleteOrderBtn:hover { background: #c62828; color: var(--white); }
+
+/* ── STOCK SECTION ── */
+.sectionDivider {
+  margin: 56px 0 28px;
+  display: flex; align-items: center;
+  justify-content: space-between;
+}
+.stockTable { width: 100%; border-collapse: collapse; }
+.stockTable th {
+  background: var(--surface);
+  font-size: 0.65rem; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); padding: 10px 16px;
+  text-align: left; border-bottom: 1px solid var(--border);
+}
+.stockTable td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem; color: var(--dark);
+  background: var(--white); vertical-align: middle;
+}
+.stockTable tr:last-child td { border-bottom: none; }
+.stockTable tr:hover td { background: #fafaf8; }
+
+.stockName { font-weight: 500; }
+.stockCategory {
+  font-size: 0.72rem; color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.stockCount { font-family: monospace; font-size: 0.9rem; font-weight: 600; }
+.stockInput {
+  width: 72px; padding: 6px 10px;
+  font-family: inherit; font-size: 0.85rem;
+  border: 1px solid var(--border); outline: none;
+  color: var(--dark); background: var(--white);
+  transition: border-color 0.2s;
+}
+.stockInput:focus { border-color: var(--accent); }
+.stockSaveBtn {
+  padding: 6px 14px; font-family: inherit;
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--dark); color: #fff;
+  border: none; cursor: pointer; transition: background 0.2s;
+  margin-left: 8px;
+}
+.stockSaveBtn:hover { background: #2c2c2c; }
+
+.stockPill {
+  font-size: 0.65rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 2px;
+}
+.stockPillInStock    { background: #e6f4ea; color: #2e7d32; }
+.stockPillLowStock   { background: #fff8e1; color: #f57f17; }
+.stockPillOutOfStock { background: #fbe9e7; color: #bf360c; }
+
+.flashStock {
+  font-size: 0.72rem; color: #2e7d32;
+  margin-left: 8px;
+}
+.flashStockErr { color: #c62828; }
+
+@media (max-width: 768px) {
+  .adminHeader { padding: 16px 24px; }
+  .adminMain { padding: 28px 24px 60px; }
+  .ordersTable th, .ordersTable td { padding: 10px 12px; }
+  .stockTable th, .stockTable td { padding: 10px 12px; }
+}

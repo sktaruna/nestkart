@@ -1,0 +1,284 @@
+/* ── HERO ── */
+.hero {
+  position: relative;
+  height: calc(92vh - var(--nav-h));
+  min-height: 560px;
+  overflow: hidden;
+}
+
+.heroImg {
+  position: absolute;
+  inset: 0;
+}
+
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(20, 12, 5, 0.18) 0%,
+    rgba(20, 12, 5, 0.55) 100%
+  );
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  color: #fff;
+}
+
+.heroLabel {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+  opacity: 0.85;
+}
+
+.heroTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(3rem, 7.5vw, 5.8rem);
+  font-weight: 400;
+  line-height: 1.07;
+  margin-bottom: 24px;
+  max-width: 760px;
+}
+
+.heroTitle em { font-style: italic; }
+
+.heroSub {
+  font-size: 0.95rem;
+  font-weight: 300;
+  opacity: 0.78;
+  margin-bottom: 42px;
+  max-width: 420px;
+  line-height: 1.75;
+}
+
+/* ── SHOP BY ROOM (3 tiles) ── */
+.roomsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.roomTile {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  display: block;
+}
+
+.roomTileOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(15, 8, 2, 0.65) 0%,
+    rgba(15, 8, 2, 0.08) 55%
+  );
+  transition: background 0.3s;
+}
+.roomTile:hover .roomTileOverlay {
+  background: linear-gradient(
+    to top,
+    rgba(15, 8, 2, 0.75) 0%,
+    rgba(15, 8, 2, 0.2) 55%
+  );
+}
+
+.roomTile img { transition: transform 0.65s ease; }
+.roomTile:hover img { transform: scale(1.05); }
+
+.roomTileContent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 30px 26px;
+  color: #fff;
+}
+
+.roomTileLabel {
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  margin-bottom: 6px;
+}
+
+.roomTileName {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 400;
+  line-height: 1.12;
+  margin-bottom: 16px;
+}
+
+.roomTileCta {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.48);
+  padding-bottom: 2px;
+  display: inline-block;
+  transition: border-color 0.2s;
+}
+.roomTile:hover .roomTileCta { border-color: #fff; }
+
+/* ── OUR STORY (split) ── */
+.story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 600px;
+}
+
+.storyImg { position: relative; overflow: hidden; }
+
+.storyBody {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 72px;
+  background: var(--white);
+}
+
+.storyBody :global(.section__kicker) { margin-bottom: 14px; }
+
+.storyTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.8rem, 2.8vw, 2.7rem);
+  font-weight: 400;
+  line-height: 1.2;
+  margin-bottom: 22px;
+  color: var(--dark);
+}
+
+.storyText {
+  font-size: 0.93rem;
+  color: var(--body);
+  line-height: 1.85;
+  margin-bottom: 36px;
+  max-width: 460px;
+}
+
+/* ── JOURNAL CARDS ── */
+.journalGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.journalCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.journalCardImg {
+  aspect-ratio: 3/2;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.journalCardImg img { transition: transform 0.6s ease; }
+.journalCard:hover .journalCardImg img { transform: scale(1.05); }
+
+.journalCardDate {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.journalCardTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.22rem;
+  font-weight: 500;
+  color: var(--dark);
+  line-height: 1.3;
+  margin-bottom: 10px;
+  transition: color 0.2s;
+}
+.journalCard:hover .journalCardTitle { color: var(--accent); }
+
+.journalCardExcerpt {
+  font-size: 0.87rem;
+  color: var(--body);
+  line-height: 1.72;
+}
+
+/* ── TRUST BAR ── */
+.trustBar {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 36px 48px;
+}
+
+.trustBarInner {
+  max-width: 1380px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.trustItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.trustItemIcon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.trustItemTitle {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--dark);
+  margin-bottom: 3px;
+}
+
+.trustItemSub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 960px) {
+  .roomsGrid { grid-template-columns: 1fr 1fr; }
+  .roomsGrid > .roomTile:last-child { grid-column: span 2; aspect-ratio: 2/1; }
+  .story { grid-template-columns: 1fr; }
+  .storyBody { padding: 60px 40px; }
+  .journalGrid { grid-template-columns: 1fr 1fr; }
+  .journalGrid > .journalCard:last-child { display: none; }
+  .trustBarInner { grid-template-columns: 1fr 1fr; gap: 20px; }
+}
+
+@media (max-width: 600px) {
+  .heroTitle { font-size: 2.6rem; }
+  .roomsGrid { grid-template-columns: 1fr; }
+  .roomsGrid > .roomTile:last-child { grid-column: span 1; aspect-ratio: 3/4; }
+  .storyBody { padding: 48px 24px; }
+  .journalGrid { grid-template-columns: 1fr; }
+  .journalGrid > .journalCard:last-child { display: flex; }
+  .trustBarInner { grid-template-columns: 1fr; }
+  .trustBar { padding: 36px 24px; }
+}

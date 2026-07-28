@@ -1,0 +1,140 @@
+.pageBanner {
+  position: relative; height: 300px; overflow: hidden;
+}
+.pageBanner img { position: absolute; inset: 0; }
+.pageBannerOverlay { position: absolute; inset: 0; background: rgba(12, 7, 2, 0.46); }
+.pageBannerContent {
+  position: relative; z-index: 2; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; color: #fff; padding: 24px;
+}
+.pageBannerKicker {
+  font-size: 0.68rem; letter-spacing: 0.22em;
+  text-transform: uppercase; opacity: 0.75; margin-bottom: 12px;
+}
+.pageBannerTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 400; line-height: 1.1;
+}
+
+.contactSection {
+  padding: 96px 48px;
+  background: var(--white);
+}
+.contactSectionInner {
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start;
+}
+
+.contactInfo :global(.section__kicker) { margin-bottom: 12px; }
+.contactInfoTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem); font-weight: 400;
+  color: var(--dark); line-height: 1.2; margin-bottom: 20px;
+}
+.contactInfoIntro {
+  font-size: 0.92rem; color: var(--body); line-height: 1.85;
+  margin-bottom: 48px; max-width: 400px;
+}
+.contactDetails { display: flex; flex-direction: column; gap: 32px; margin-bottom: 48px; }
+.contactDetail {
+  display: flex; align-items: flex-start; gap: 16px;
+}
+.contactDetailIcon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); margin-top: 2px;
+}
+.contactDetailLabel {
+  font-size: 0.7rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+}
+.contactDetailValue {
+  font-size: 0.93rem; color: var(--dark); line-height: 1.6;
+}
+.contactDetailValue a { transition: color 0.2s; }
+.contactDetailValue a:hover { color: var(--accent); }
+
+.contactSocials {
+  display: flex; gap: 12px;
+}
+.contactSocial {
+  width: 40px; height: 40px;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); transition: all 0.2s;
+}
+.contactSocial:hover { border-color: var(--dark); color: var(--dark); }
+
+.contactFormWrap { background: var(--surface); padding: 48px; }
+.contactFormHeading {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.5rem; font-weight: 400; color: var(--dark);
+  margin-bottom: 32px;
+}
+.formRow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.formGroup { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+.formGroup label {
+  font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--body);
+}
+.formGroup input,
+.formGroup select,
+.formGroup textarea {
+  width: 100%; padding: 13px 16px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  color: var(--dark); font-family: inherit; font-size: 0.9rem;
+  outline: none; transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.formGroup input::placeholder,
+.formGroup textarea::placeholder { color: var(--muted); }
+.formGroup input:focus,
+.formGroup select:focus,
+.formGroup textarea:focus { border-color: var(--accent); }
+.formGroup textarea { height: 120px; resize: vertical; }
+
+.formSubmit {
+  width: 100%; padding: 15px;
+  background: var(--dark); border: 1px solid var(--dark);
+  color: #fff; font-family: inherit;
+  font-size: 0.78rem; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  cursor: pointer; transition: background 0.25s, border-color 0.25s;
+  margin-top: 8px;
+}
+.formSubmit:hover { background: var(--accent); border-color: var(--accent); }
+.formSubmitSent { background: #4CAF50 !important; border-color: #4CAF50 !important; }
+
+.hoursBand {
+  background: var(--surface); padding: 72px 48px;
+}
+.hoursBandInner {
+  max-width: 900px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start;
+}
+.hoursTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.8rem; font-weight: 400; color: var(--dark); margin-bottom: 8px;
+}
+.hoursSub { font-size: 0.88rem; color: var(--muted); line-height: 1.65; }
+.hoursTable { width: 100%; border-collapse: collapse; }
+.hoursTable tr { border-bottom: 1px solid var(--border); }
+.hoursTable tr:last-child { border-bottom: none; }
+.hoursTable td { padding: 10px 0; font-size: 0.88rem; }
+.hoursTable td:first-child { color: var(--muted); }
+.hoursTable td:last-child { text-align: right; color: var(--dark); font-weight: 500; }
+
+@media (max-width: 900px) {
+  .contactSectionInner { grid-template-columns: 1fr; gap: 48px; }
+  .hoursBandInner { grid-template-columns: 1fr; gap: 36px; }
+}
+@media (max-width: 600px) {
+  .contactSection { padding: 64px 24px; }
+  .contactFormWrap { padding: 36px 24px; }
+  .formRow { grid-template-columns: 1fr; }
+  .hoursBand { padding: 56px 24px; }
+}
