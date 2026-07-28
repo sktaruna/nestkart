@@ -376,7 +376,7 @@ export function seedReturns(): Record<string, ReturnRecord> {
     "RET-2201": {
       return_id: "RET-2201", order_id: "ORD-10101", customer_id: "cust_001",
       item_name: "Linen Cloud Sofa",
-      reason: "item_not_as_described", status: "return_received",
+      reason: "item not as described", status: "return_received",
       return_initiated: "2025-05-25", return_received_date: "2025-05-30",
       refund_status: "processing", refund_amount: "₹89,999",
       refund_includes_shipping: true, refund_estimated_date: "2025-06-06",
@@ -387,7 +387,7 @@ export function seedReturns(): Record<string, ReturnRecord> {
     "RET-2202": {
       return_id: "RET-2202", order_id: "ORD-10102", customer_id: "cust_001",
       item_name: "Ceramic Vessel Set",
-      reason: "change_of_mind", status: "return_requested",
+      reason: "change of mind", status: "return_requested",
       return_initiated: "2025-06-16", return_received_date: null,
       refund_status: "pending", refund_amount: null,
       refund_includes_shipping: false, refund_estimated_date: null,
@@ -398,7 +398,7 @@ export function seedReturns(): Record<string, ReturnRecord> {
     "RET-2203": {
       return_id: "RET-2203", order_id: "ORD-10201", customer_id: "cust_002",
       item_name: "Teak Slab Dining Table",
-      reason: "damaged_on_arrival", status: "under_review",
+      reason: "damaged on arrival", status: "under_review",
       return_initiated: "2025-06-06", return_received_date: null,
       refund_status: "pending", refund_amount: "₹1,24,000",
       refund_includes_shipping: true, refund_estimated_date: null,
