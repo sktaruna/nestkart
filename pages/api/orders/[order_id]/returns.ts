@@ -67,6 +67,10 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   );
   const inclShipping = freeReturn;
 
+  if (reason === "damaged on arrival") {
+    order.damage_claim_active = true;
+  }
+
   // Restore stock when return is initiated (only if this order decremented it)
   if (order.stock_decremented) {
     for (const item of order.items || []) {
