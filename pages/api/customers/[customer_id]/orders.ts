@@ -22,6 +22,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     ok: true,
     customer_id: customerId,
     total_orders: orders.length,
+    order_ids: orders.map((o) => o.order_id),
     orders: orders.map(buildOrderResponse),
   });
 });
