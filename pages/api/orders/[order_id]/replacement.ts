@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS, returnCounter } from "../../../../lib/state";
-import { err, ownershipError, addBusinessDays, getBody } from "../../../../lib/helpers";
+import { err, ownershipError, addBusinessDays, getBody, returnEligibilityCheck } from "../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "POST") {
@@ -26,11 +26,12 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
   if (ownershipError(res, customerId, order.customer_id)) return;
 
-  if (!order.damage_claim_active) {
+  const eligibility = returnEligibilityCheck(orderId);
+  if (!eligibility.eligible) {
     res.status(400).json({
       ok: false,
       error: "replacement_not_eligible",
-      message: "Replacement is only available for orders with an active damage claim.",
+      message: `Replacement is only available for orders eligible for return. ${eligibility.reason}`,
     });
     return;
   }
