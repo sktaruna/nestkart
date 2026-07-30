@@ -104,6 +104,20 @@ function snapshotState(): Snapshot {
 
 function applyState(state: Partial<Snapshot>): void {
   ORDERS = (state.orders as Record<string, Order>) || {};
+
+  // Snapshots written before status moved onto the order carry no `status`
+  // field, and their statuses live in a separate `status_overrides` map that
+  // nothing reads any more. Left alone, every persisted order silently reads
+  // back as "processing". Recover what was explicitly set; anything else was
+  // derived from elapsed time and was never stored, so seeded orders need an
+  // admin/reset to get their intended statuses back.
+  const legacyOverrides = (state as { status_overrides?: Record<string, string> }).status_overrides;
+  for (const [oid, order] of Object.entries(ORDERS)) {
+    if (!order.status) {
+      order.status = (legacyOverrides?.[oid] as Order["status"]) || "processing";
+    }
+  }
+
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};
   orderCounter.value = state.order_counter ?? orderCounter.value;
