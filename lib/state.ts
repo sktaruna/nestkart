@@ -27,7 +27,6 @@ export interface CartItem {
 export let ORDERS: Record<string, Order> = {};
 export let CARTS: Record<string, CartItem[]> = {};
 export let DYNAMIC_RETURNS: Record<string, ReturnRecord> = {};
-export let STATUS_OVERRIDES: Record<string, string> = {};
 export let PRODUCTS: Record<string, Product> = seedProducts();
 export const RETURNS: Record<string, ReturnRecord> = seedReturns();
 
@@ -53,7 +52,6 @@ function resetAllState(): void {
   ORDERS = {};
   CARTS = {};
   DYNAMIC_RETURNS = {};
-  STATUS_OVERRIDES = {};
   PRODUCTS = seedProducts();
   orderCounter.value = 20000;
   returnCounter.value = 2210;
@@ -71,7 +69,6 @@ export function adminReset(): void {
       delete ORDERS[oid];
     }
   }
-  STATUS_OVERRIDES = {};
   DYNAMIC_RETURNS = {};
   CARTS = {};
   orderCounter.value = 20000;
@@ -89,7 +86,6 @@ interface Snapshot {
   orders: Record<string, Order>;
   carts: Record<string, CartItem[]>;
   dynamic_returns: Record<string, ReturnRecord>;
-  status_overrides: Record<string, string>;
   order_counter: number;
   return_counter: number;
   product_stock: Record<string, number>;
@@ -100,7 +96,6 @@ function snapshotState(): Snapshot {
     orders: ORDERS,
     carts: CARTS,
     dynamic_returns: DYNAMIC_RETURNS,
-    status_overrides: STATUS_OVERRIDES,
     order_counter: orderCounter.value,
     return_counter: returnCounter.value,
     product_stock: Object.fromEntries(Object.entries(PRODUCTS).map(([pid, p]) => [pid, p.stock])),
@@ -111,7 +106,6 @@ function applyState(state: Partial<Snapshot>): void {
   ORDERS = (state.orders as Record<string, Order>) || {};
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};
-  STATUS_OVERRIDES = (state.status_overrides as Record<string, string>) || {};
   orderCounter.value = state.order_counter ?? orderCounter.value;
   returnCounter.value = state.return_counter ?? returnCounter.value;
   const productStock = state.product_stock || {};

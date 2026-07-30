@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, STATUS_OVERRIDES, PRODUCTS } from "../../../../lib/state";
+import { withState, ORDERS, PRODUCTS } from "../../../../lib/state";
 import { err, ownershipError, getOrderStatus, getBody } from "../../../../lib/helpers";
 
 const ACCEPTED_REASONS = [
@@ -54,7 +54,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   order.cancelled = true;
-  STATUS_OVERRIDES[orderId] = "cancelled";
+  order.status = "cancelled";
 
   // Restore stock only for orders that went through checkout (not seeded orders)
   if (order.stock_decremented) {

@@ -56,12 +56,19 @@ export interface OrderItem {
   category?: string;
 }
 
+export type OrderStatus = "processing" | "dispatched" | "in_transit" | "delivered" | "cancelled";
+
 export interface Order {
   order_id: string;
   customer_id: string;
   items: OrderItem[];
   price_total: number;
   placed_at: string; // ISO datetime string
+  /**
+   * Stored, never derived. Only the admin panel / set-status API moves an order
+   * through the pipeline — elapsed time since `placed_at` has no effect.
+   */
+  status: OrderStatus;
   shipping_method: string;
   estimated_delivery: string | null;
   delivery_address: Address;
@@ -440,6 +447,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_001", product_name: "Linen Cloud Sofa", qty: 1, unit_price: 89999, line_total: 89999 }],
       price_total: 89999,
       placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_001"),
@@ -450,6 +458,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_008", product_name: "Ceramic Vessel Set", qty: 2, unit_price: 4200, line_total: 8400 }],
       price_total: 8400,
       placed_at: daysAgoIso(now, 1, 12),
+      status: "dispatched",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_001"),
@@ -463,6 +472,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       ],
       price_total: 13400,
       placed_at: daysAgoIso(now, 0, 0, 5),
+      status: "processing",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_001"),
@@ -473,6 +483,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_003", product_name: "Teak Slab Dining Table", qty: 1, unit_price: 124000, line_total: 124000 }],
       price_total: 124000,
       placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_002"),
@@ -483,6 +494,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_009", product_name: "Linen Dining Chair Set of 2", qty: 1, unit_price: 22000, line_total: 22000 }],
       price_total: 22000,
       placed_at: daysAgoIso(now, 1, 12),
+      status: "dispatched",
       shipping_method: "large_item",
       estimated_delivery: addDaysDateOnly(now, 10),
       delivery_address: addr("cust_002"),
@@ -493,6 +505,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_011", product_name: "Handwoven Wool Rug 6×9 ft", qty: 1, unit_price: 26500, line_total: 26500 }],
       price_total: 26500,
       placed_at: daysAgoIso(now, 0, 0, 5),
+      status: "processing",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_002"),
@@ -503,6 +516,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_006", product_name: "Walnut Platform Bed", qty: 1, unit_price: 68000, line_total: 68000 }],
       price_total: 68000,
       placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_003"),
@@ -513,6 +527,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_004", product_name: "Cloud Linen Bed Set", qty: 2, unit_price: 14500, line_total: 29000 }],
       price_total: 29000,
       placed_at: daysAgoIso(now, 1, 12),
+      status: "dispatched",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_003"),
@@ -523,6 +538,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_002", product_name: "Velvet Accent Chair", qty: 1, unit_price: 32500, line_total: 32500 }],
       price_total: 32500,
       placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_004"),
@@ -536,6 +552,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       ],
       price_total: 27300,
       placed_at: daysAgoIso(now, 0, 0, 5),
+      status: "processing",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_004"),
@@ -549,6 +566,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       ],
       price_total: 157999,
       placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_005"),
@@ -559,6 +577,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
       price_total: 21500,
       placed_at: daysAgoIso(now, 1, 12),
+      status: "dispatched",
       shipping_method: "large_item",
       estimated_delivery: addDaysDateOnly(now, 10),
       delivery_address: addr("cust_005"),
@@ -572,6 +591,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       ],
       price_total: 7800,
       placed_at: daysAgoIso(now, 0, 0, 5),
+      status: "processing",
       shipping_method: "standard",
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_005"),

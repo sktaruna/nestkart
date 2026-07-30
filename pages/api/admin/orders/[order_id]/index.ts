@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, STATUS_OVERRIDES, SEED_ORDER_IDS } from "../../../../../lib/state";
+import { withState, ORDERS, SEED_ORDER_IDS } from "../../../../../lib/state";
 import { err } from "../../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
@@ -19,7 +19,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   delete ORDERS[orderId];
-  delete STATUS_OVERRIDES[orderId];
 
   res.status(200).json({ ok: true, order_id: orderId, deleted: true });
 });

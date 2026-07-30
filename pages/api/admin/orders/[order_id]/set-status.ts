@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, STATUS_OVERRIDES } from "../../../../../lib/state";
+import { withState, ORDERS } from "../../../../../lib/state";
 import { err, getBody } from "../../../../../lib/helpers";
+import type { OrderStatus } from "../../../../../lib/data";
 
-const VALID_STATUSES = ["processing", "dispatched", "in_transit", "delivered", "cancelled"];
+const VALID_STATUSES: OrderStatus[] = ["processing", "dispatched", "in_transit", "delivered", "cancelled"];
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "POST") {
@@ -17,13 +18,13 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const body = getBody(req);
-  const status = body.status as string | undefined;
+  const status = body.status as OrderStatus | undefined;
   if (!status || !VALID_STATUSES.includes(status)) {
     err(res, "invalid_status", `status must be one of: ${VALID_STATUSES.join(", ")}.`, 400);
     return;
   }
 
-  STATUS_OVERRIDES[orderId] = status;
+  ORDERS[orderId].status = status;
   ORDERS[orderId].cancelled = status === "cancelled";
 
   res.status(200).json({ ok: true, order_id: orderId, status });

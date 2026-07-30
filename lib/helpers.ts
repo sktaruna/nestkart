@@ -1,6 +1,6 @@
 import type { NextApiResponse } from "next";
 import { Order } from "./data";
-import { ORDERS, PRODUCTS, STATUS_OVERRIDES, SEED_ORDER_IDS } from "./state";
+import { ORDERS, PRODUCTS, SEED_ORDER_IDS } from "./state";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERIC RESPONSE HELPERS
@@ -23,19 +23,16 @@ export function ownershipError(res: NextApiResponse, providedId: unknown, actual
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ORDER STATUS — DERIVED, NEVER STORED
+// ORDER STATUS — STORED, NEVER DERIVED
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Reads the status recorded on the order. An order only advances when the admin
+ * panel (or the set-status / cancel API) writes a new one — time since
+ * `placed_at` never moves it. Orders default to "processing" at checkout.
+ */
 export function getOrderStatus(order: Order): string {
   if (order.cancelled) return "cancelled";
-  if (Object.prototype.hasOwnProperty.call(STATUS_OVERRIDES, order.order_id)) {
-    return STATUS_OVERRIDES[order.order_id];
-  }
-  const placedAt = new Date(order.placed_at);
-  const elapsedMinutes = (Date.now() - placedAt.getTime()) / 1000 / 60;
-  if (elapsedMinutes < 1440) return "processing";
-  if (elapsedMinutes < 2880) return "dispatched";
-  if (elapsedMinutes < 5760) return "in_transit";
-  return "delivered";
+  return order.status || "processing";
 }
 
 export function isCancellable(order: Order): boolean {

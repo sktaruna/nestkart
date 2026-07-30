@@ -50,6 +50,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     items: cartItems.map((i) => ({ ...i })),
     price_total: priceTotal,
     placed_at: new Date().toISOString(),
+    status: "processing",
     shipping_method: shippingMethod,
     estimated_delivery: estimatedDelivery,
     delivery_address: { ...CUSTOMERS[customerId].address },
