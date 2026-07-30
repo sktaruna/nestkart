@@ -157,14 +157,36 @@ export type ApiHandler = (req: NextApiRequest, res: NextApiResponse) => void | P
  * slightly-older snapshot could otherwise resave it after a concurrent write
  * finished, silently clobbering that write (classic last-write-wins lost
  * update) — this mirrors a real bug already fixed in the Flask version.
+ *
+ * Step (c) must finish BEFORE the response reaches the client. Handlers call
+ * res.json() themselves, which would flush the 200 while the Redis write was
+ * still in flight — so a read fired right after (an admin refresh following a
+ * cancellation, a cart GET after an add) could load a pre-write snapshot, and
+ * because GETs never save, nothing would repair the stale view until the next
+ * read. res.json() is therefore buffered here and replayed after the save.
  */
 export function withState(handler: ApiHandler): ApiHandler {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     await loadSharedState();
     setNoCacheHeaders(res);
-    await handler(req, res);
-    if (store.ENABLED && MUTATING_METHODS.has(req.method || "")) {
-      await saveSharedState();
+
+    const sendJson = res.json.bind(res);
+    let payload: unknown;
+    let responded = false;
+    res.json = ((body: unknown) => {
+      payload = body;
+      responded = true;
+      return res;
+    }) as NextApiResponse["json"];
+
+    try {
+      await handler(req, res);
+      if (store.ENABLED && MUTATING_METHODS.has(req.method || "")) {
+        await saveSharedState();
+      }
+    } finally {
+      res.json = sendJson;
+      if (responded) sendJson(payload);
     }
   };
 }
