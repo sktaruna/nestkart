@@ -19,6 +19,10 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     ok: true,
     return_id: ret.return_id,
     order_id: ret.order_id,
+    // Was omitted here while every other view of a return carries it, so an agent
+    // handed a return ID had no way to confirm it belonged to the customer it was
+    // talking to — it had to list the customer's returns and search for the ID.
+    customer_id: ret.customer_id,
     item_name: ret.item_name,
     reason: ret.reason.replace(/_/g, " "),
     status: ret.status,

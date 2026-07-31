@@ -2,6 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { ENABLED } from "../../lib/store";
 
 export default function handler(req: NextApiRequest, res: NextApiResponse): void {
+  // Every other endpoint refuses the wrong verb; this one answered POST with a
+  // 200, so an agent that guessed POST got a success and learned nothing.
+  if (req.method !== "GET") {
+    res.status(405).json({ ok: false, error: "method_not_allowed", message: "Use GET for this endpoint." });
+    return;
+  }
+
   // Reports which credential env vars are visible to the running function
   // (names only — never values) so a misconfigured deployment is
   // diagnosable from outside. Without this, missing vars silently degrade

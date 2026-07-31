@@ -223,6 +223,12 @@ const RETURN_SCHEMA = {
     ok: OK_TRUE,
     return_id: { type: "string", example: "RET-2201" },
     order_id: { type: "string", example: "ORD-10101" },
+    customer_id: {
+      type: "string",
+      example: "cust_001",
+      description:
+        "Owner of the return. Sent by GET /api/returns/{return_id}; omitted from the per-customer list, where the customer is already the path parameter.",
+    },
     item_name: { type: "string", example: "Linen Cloud Sofa" },
     reason: { type: "string", example: "item not as described" },
     status: {
