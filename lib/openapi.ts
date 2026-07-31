@@ -248,7 +248,13 @@ const RETURN_SCHEMA = {
       enum: ["pending", "processing", "issued", "rejected"],
       description: "Refund progress, tracked separately from the return's physical status.",
     },
-    refund_amount: { type: "string", nullable: true, example: "₹89,999" },
+    refund_amount: {
+      type: "string",
+      nullable: true,
+      example: "₹89,999",
+      description:
+        "The order total, formatted. Null only on seeded returns that were created without one — every return filed through the API carries an amount.",
+    },
     refund_includes_shipping: { type: "boolean", nullable: true },
     refund_method: { type: "string", example: "original_payment_method" },
     refund_estimated_date: { type: "string", nullable: true, format: "date" },
@@ -1007,7 +1013,7 @@ export const OPENAPI_SPEC = {
         summary: "File a return",
         description:
           "Creates a return and issues a shipping label. **An ineligible order returns HTTP 200 with `ok: false`** — check the field, not the status code. Call /return-eligibility first. " +
-          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.",
+          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1050,6 +1056,18 @@ export const OPENAPI_SPEC = {
                         return_shipping_cost: {
                           type: "string",
                           description: "'free', or '₹200–₹500 (customer pays)' for change of mind.",
+                        },
+                        refund_amount: {
+                          type: "string",
+                          example: "₹8,400",
+                          description:
+                            "The order total, formatted. This is what the customer gets back; return shipping is not deducted from it and is charged separately.",
+                        },
+                        refund_status: {
+                          type: "string",
+                          enum: ["pending"],
+                          description:
+                            "Always 'pending' on a new return. Nothing is paid out until an operator moves it to processing and then issued — filing a return does not refund anything.",
                         },
                         estimated_refund_date: {
                           type: "string",

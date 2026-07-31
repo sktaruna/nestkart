@@ -388,3 +388,9 @@
 /* Sentence case and wrappable — the uppercase version was one of the widest
    columns in a table that had none to spare. */
 .reasonCell { font-size: 0.78rem; color: var(--muted); min-width: 110px; line-height: 1.4; }
+/* The refund figure above its status select — an operator moving a refund to
+   'issued' should see the amount they are approving without opening the API. */
+.amount {
+  font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+  margin-bottom: 4px;
+}

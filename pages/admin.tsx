@@ -600,6 +600,7 @@ export default function AdminPage() {
                               the current value, and the duplicate cost enough width to
                               squeeze the Flags labels onto four lines each. Colour
                               comes from the select's own accent instead. */}
+                          <div className={styles.amount}>{ret.refund_amount ?? '—'}</div>
                           <select
                             className={`${styles.select} ${styles[REFUND_PILL_CLASS[ret.refund_status]] || ''}`}
                             value={ret.refund_status}

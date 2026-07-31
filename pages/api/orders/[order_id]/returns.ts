@@ -8,6 +8,7 @@ import {
   getBody,
   dateOnly,
   today,
+  formatInr,
 } from "../../../../lib/helpers";
 
 const ACCEPTED_REASONS = [
@@ -97,6 +98,12 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   // null ETA for the same reason. Quoting a date and "under review" at once is
   // exactly the contradiction an agent repeats to the customer.
   const refundEtaIso = damageClaim ? null : dateOnly(refundEta);
+  // The order total, formatted like the seeded returns (RET-2201 carries the
+  // ₹89,999 of ORD-10101). Left null before, so every agent-filed return had no
+  // answer to "how much do I get back?" while the amount was sitting on the
+  // order. Shipping is not added on top: the seeds don't, and orders don't store
+  // what shipping was charged, so any figure here would be invented.
+  const refundAmount = formatInr(order.price_total);
 
   DYNAMIC_RETURNS[returnId] = {
     return_id: returnId,
@@ -108,7 +115,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return_initiated: dateOnly(now),
     return_received_date: null,
     refund_status: "pending",
-    refund_amount: null,
+    refund_amount: refundAmount,
     refund_includes_shipping: inclShipping,
     refund_estimated_date: refundEtaIso,
     refund_issued_date: null,
@@ -129,6 +136,8 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       "Please repack the item securely and attach the return label to the outside. Drop off at any Delhivery or Blue Dart location within 14 days.",
     return_shipping_label_url: `https://returns.nestkart.com/label/${returnId}`,
     return_shipping_cost: freeReturn ? "free" : "₹200–₹500 (customer pays)",
+    refund_amount: refundAmount,
+    refund_status: "pending",
     estimated_refund_date: refundEtaIso,
     ...(damageClaim
       ? {
