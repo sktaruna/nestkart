@@ -1019,7 +1019,7 @@ export const OPENAPI_SPEC = {
         summary: "File a return",
         description:
           "Creates a return and issues a shipping label. **An ineligible order returns HTTP 200 with `ok: false`** — check the field, not the status code. Call /return-eligibility first. " +
-          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several.",
+          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1103,6 +1103,27 @@ export const OPENAPI_SPEC = {
                           type: "string",
                           description: "Customer-ready explanation, same wording as /return-eligibility.",
                         },
+                      },
+                    },
+                    {
+                      title: "Declined — a return is already open",
+                      type: "object",
+                      properties: {
+                        ok: { type: "boolean", enum: [false] },
+                        error: { type: "string", enum: ["return_already_open"] },
+                        message: {
+                          type: "string",
+                          description:
+                            "Customer-ready. Tell them the existing return is being handled; do not file another.",
+                        },
+                        open_return_ids: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "Every return on this order that is not completed or rejected.",
+                        },
+                        existing_return_id: { type: "string", example: "RET-2210" },
+                        existing_return_status: { type: "string", example: "return_requested" },
+                        existing_refund_status: { type: "string", example: "pending" },
                       },
                     },
                   ],

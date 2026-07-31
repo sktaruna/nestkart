@@ -1,5 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, DYNAMIC_RETURNS, PRODUCTS, returnCounter } from "../../../../lib/state";
+import {
+  withState,
+  ORDERS,
+  DYNAMIC_RETURNS,
+  PRODUCTS,
+  returnCounter,
+  openReturnsForOrder,
+} from "../../../../lib/state";
 import {
   err,
   ownershipError,
@@ -59,6 +66,29 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   if (ownershipError(res, customerId, order.customer_id)) return;
+
+  // One open return per order. A return covers every item in the order and is
+  // refunded at the full order total, so a second one promises the customer the
+  // order's value twice — and an agent that files again after a slow first
+  // response is the likeliest way to get there. Closed returns (completed,
+  // rejected) do not block: a rejected return should be re-fileable.
+  const openReturns = openReturnsForOrder(orderId);
+  if (openReturns.length > 0) {
+    const existing = openReturns[0];
+    res.status(200).json({
+      ok: false,
+      error: "return_already_open",
+      message:
+        `A return is already in progress for order ${orderId} (${existing.return_id}), ` +
+        "and it covers the whole order. Tell the customer their return is already being " +
+        "handled rather than filing another one.",
+      open_return_ids: openReturns.map((ret) => ret.return_id),
+      existing_return_id: existing.return_id,
+      existing_return_status: existing.status,
+      existing_refund_status: existing.refund_status,
+    });
+    return;
+  }
 
   const elig = returnEligibilityCheck(orderId);
   if (!elig.eligible) {
