@@ -192,6 +192,16 @@ async function saveSharedState(extraCommands: unknown[][] = []): Promise<void> {
   await store.saveState(snapshotState() as unknown as Record<string, unknown>, extraCommands);
 }
 
+/** Save and unlock in one round trip. See store.saveStateAndRelease. */
+async function saveSharedStateAndRelease(extraCommands: unknown[][], lockToken: string): Promise<void> {
+  if (!store.ENABLED) return;
+  await store.saveStateAndRelease(
+    snapshotState() as unknown as Record<string, unknown>,
+    extraCommands,
+    lockToken
+  );
+}
+
 function setNoCacheHeaders(res: NextApiResponse): void {
   // jsonify() sends no Cache-Control header, so browsers/CDNs (Vercel's edge
   // included) are free to cache API responses using their own heuristics —
@@ -273,6 +283,10 @@ export function withState(handler: ApiHandler): ApiHandler {
       const startedAt = Date.now();
       const requestBody = mutating ? req.body : undefined;
       const lockToken = mutating ? await store.acquireLock() : null;
+      // Set once the save has already released the lock, so `finally` does not
+      // release it a second time — and still does release it if the handler threw
+      // before the save ran.
+      let lockReleased = false;
 
       const sendJson = res.json.bind(res);
       let payload: unknown;
@@ -319,7 +333,14 @@ export function withState(handler: ApiHandler): ApiHandler {
           : null;
 
         if (mutating) {
-          await saveSharedState(entry ? requestLog.appendCommands(entry) : []);
+          const logCommands = entry ? requestLog.appendCommands(entry) : [];
+          if (lockToken) {
+            // Save, log and unlock in a single round trip.
+            await saveSharedStateAndRelease(logCommands, lockToken);
+            lockReleased = true;
+          } else {
+            await saveSharedState(logCommands);
+          }
           if (entry) requestLog.appendToMemory(entry);
         } else if (entry) {
           // A read has no save to ride along with, so this is the one extra round
@@ -328,8 +349,9 @@ export function withState(handler: ApiHandler): ApiHandler {
         }
       } finally {
         // Release before replaying the response: the client should never be able
-        // to fire its next request while this one still holds the lock.
-        if (lockToken) await store.releaseLock(lockToken);
+        // to fire its next request while this one still holds the lock. Skipped
+        // when the pipelined save already released it.
+        if (lockToken && !lockReleased) await store.releaseLock(lockToken);
         res.json = sendJson;
         if (responded) sendJson(payload);
       }

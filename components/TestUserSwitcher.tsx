@@ -9,7 +9,20 @@ import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustome
  * change the active customer (localStorage 'nk_active_user') across the
  * whole site. Runs once on mount, on every page, via _app.tsx.
  */
-const AGENT_ID = 'agent_2401kwbf2gwwe6e8w10gnkbntctt';
+/**
+ * ElevenLabs agent to mount, from NEXT_PUBLIC_ELEVENLABS_AGENT_ID.
+ *
+ * Was hardcoded to `agent_2401kwbf2gwwe6e8w10gnkbntctt`, which ElevenLabs now
+ * answers for with `agent_not_found` — so every page load fetched a 404 and
+ * logged "Cannot fetch config for agent", and no widget ever appeared. A dead id
+ * in source is worse than no id: it can only be fixed by editing code, and it
+ * makes the console noisy enough to hide real errors.
+ *
+ * Unset means the widget is skipped entirely — no third-party script, no 404.
+ */
+const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || '';
+
+let warnedNoAgent = false;
 
 /**
  * Routes where the switcher panel is hidden. It's fixed at bottom-left and
@@ -22,6 +35,18 @@ const HIDE_SWITCHER_ON = ['/admin'];
 function bootElevenLabs(userId: string) {
   const customer = CUSTOMERS[userId];
   if (!customer) return;
+  if (!AGENT_ID) {
+    // info, not error: an unconfigured widget is a valid state for this demo,
+    // and shouting about it buries genuine console errors. Once only — this runs
+    // again on every customer switch.
+    if (!warnedNoAgent) {
+      warnedNoAgent = true;
+      console.info(
+        '[NestKart] Voice agent disabled. Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID to enable the ElevenLabs widget.'
+      );
+    }
+    return;
+  }
 
   const existing = document.querySelector('elevenlabs-convai');
   if (existing) existing.parentNode?.removeChild(existing);

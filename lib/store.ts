@@ -148,6 +148,41 @@ export async function saveState(
   }
 }
 
+/**
+ * Saves state and releases the lock in ONE round trip.
+ *
+ * A mutating request used to make four separate calls — acquire, load, save,
+ * release. Each is a chance to be caught by the 5s abort, and the abort is a
+ * wall-clock timer, so under CPU pressure it can cancel a call that would have
+ * returned in 130ms. Folding save and release together takes writes to three.
+ *
+ * Ordering is what makes this safe: pipelined commands run in sequence on one
+ * connection, so the release cannot land before the save.
+ */
+export async function saveStateAndRelease(
+  state: Record<string, unknown>,
+  extraCommands: unknown[][],
+  lockToken: string
+): Promise<void> {
+  if (!ENABLED) return;
+  try {
+    await pipeline([
+      ["SET", STATE_KEY, JSON.stringify(state)],
+      ...extraCommands,
+      [
+        "EVAL",
+        'if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end',
+        1,
+        LOCK_KEY,
+        lockToken,
+      ],
+    ]);
+  } catch (e) {
+    console.error(`[store] save_and_release failed: ${String(e)}`);
+    // The lock is left to expire by TTL rather than risking a second failed call.
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WRITE LOCK
 // ─────────────────────────────────────────────────────────────────────────────
