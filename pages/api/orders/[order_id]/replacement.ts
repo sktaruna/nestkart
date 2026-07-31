@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS, returnCounter } from "../../../../lib/state";
-import { err, ownershipError, addBusinessDays, getBody, returnEligibilityCheck } from "../../../../lib/helpers";
+import {
+  err,
+  ownershipError,
+  addBusinessDays,
+  getBody,
+  returnEligibilityCheck,
+  dateOnly,
+  today,
+} from "../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "POST") {
@@ -38,14 +46,12 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const replacementId = `REP-${returnCounter.value}`;
   returnCounter.value += 1;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dispatchDate = addBusinessDays(today, 5);
+  const dispatchDate = addBusinessDays(today(), 5);
 
   res.status(200).json({
     ok: true,
     replacement_id: replacementId,
     status: "replacement_requested",
-    estimated_dispatch_date: dispatchDate.toISOString().slice(0, 10),
+    estimated_dispatch_date: dateOnly(dispatchDate),
   });
 });

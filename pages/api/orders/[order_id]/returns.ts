@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS, DYNAMIC_RETURNS, PRODUCTS, returnCounter } from "../../../../lib/state";
-import { err, ownershipError, returnEligibilityCheck, addBusinessDays, getBody } from "../../../../lib/helpers";
+import {
+  err,
+  ownershipError,
+  returnEligibilityCheck,
+  addBusinessDays,
+  getBody,
+  dateOnly,
+  today,
+} from "../../../../lib/helpers";
 
 const ACCEPTED_REASONS = [
   "change of mind",
@@ -59,9 +67,8 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const returnId = `RET-${returnCounter.value}`;
   returnCounter.value += 1;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const refundEta = addBusinessDays(today, 7);
+  const now = today();
+  const refundEta = addBusinessDays(now, 7);
   const freeReturn = ["damaged on arrival", "defective", "wrong item received", "item not as described"].includes(
     reason as string
   );
@@ -80,7 +87,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
-  const refundEtaIso = refundEta.toISOString().slice(0, 10);
+  const refundEtaIso = dateOnly(refundEta);
 
   DYNAMIC_RETURNS[returnId] = {
     return_id: returnId,
@@ -89,7 +96,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     item_name: itemNames,
     reason: reason as string,
     status: "return_requested",
-    return_initiated: today.toISOString().slice(0, 10),
+    return_initiated: dateOnly(now),
     return_received_date: null,
     refund_status: "pending",
     refund_amount: null,

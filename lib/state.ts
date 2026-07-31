@@ -10,6 +10,7 @@ import {
   OrderItem,
 } from "./data";
 import * as store from "./store";
+import * as requestLog from "./requestLog";
 
 export interface CartItem {
   product_id: string;
@@ -36,6 +37,41 @@ export const orderCounter = { value: 20000 };
 export const returnCounter = { value: 2210 };
 
 export let SEED_ORDER_IDS: Set<string> = new Set();
+export const SEED_RETURN_IDS: Set<string> = new Set(Object.keys(RETURNS));
+
+/**
+ * The live record for a return id. DYNAMIC_RETURNS wins over RETURNS: a seeded
+ * return that the admin panel has edited is promoted into DYNAMIC_RETURNS (see
+ * `mutableReturn`), and that copy is the current one.
+ */
+export function findReturn(returnId: string): ReturnRecord | undefined {
+  return DYNAMIC_RETURNS[returnId] || RETURNS[returnId];
+}
+
+/** Every return, newest-initiated first, with seed overrides already applied. */
+export function allReturns(): ReturnRecord[] {
+  const merged: Record<string, ReturnRecord> = { ...RETURNS, ...DYNAMIC_RETURNS };
+  return Object.values(merged).sort((a, b) =>
+    (b.return_initiated || "").localeCompare(a.return_initiated || "")
+  );
+}
+
+/**
+ * A writable record for `returnId`, copying a seeded return into DYNAMIC_RETURNS
+ * on first write. RETURNS is rebuilt from seedReturns() at every module load and
+ * never enters the persisted snapshot, so mutating it in place would be lost as
+ * soon as the next request landed on a different serverless instance. Promoting
+ * to DYNAMIC_RETURNS puts the edit somewhere that persists — and admin/reset
+ * clears DYNAMIC_RETURNS, which restores the seeded values.
+ */
+export function mutableReturn(returnId: string): ReturnRecord | undefined {
+  const existing = DYNAMIC_RETURNS[returnId];
+  if (existing) return existing;
+  const seed = RETURNS[returnId];
+  if (!seed) return undefined;
+  DYNAMIC_RETURNS[returnId] = { ...seed };
+  return DYNAMIC_RETURNS[returnId];
+}
 
 const _ORIGINAL_STOCK: Record<string, number> = Object.fromEntries(
   Object.entries(seedProducts()).map(([pid, p]) => [pid, p.stock])
@@ -136,9 +172,9 @@ async function loadSharedState(): Promise<void> {
   }
 }
 
-async function saveSharedState(): Promise<void> {
+async function saveSharedState(extraCommands: unknown[][] = []): Promise<void> {
   if (!store.ENABLED) return;
-  await store.saveState(snapshotState() as unknown as Record<string, unknown>);
+  await store.saveState(snapshotState() as unknown as Record<string, unknown>, extraCommands);
 }
 
 function setNoCacheHeaders(res: NextApiResponse): void {
@@ -152,21 +188,60 @@ function setNoCacheHeaders(res: NextApiResponse): void {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/**
+ * Serializes mutating requests handled by THIS process, before they contend for
+ * the cross-instance Redis lock.
+ *
+ * Two reasons it exists rather than relying on the Redis lock alone:
+ *
+ *  1. Correctness within one process. ORDERS/CARTS/etc. are module globals, and
+ *     `loadSharedState()` replaces them wholesale at the start of every request.
+ *     Two overlapping handlers in the same process therefore clobber each other
+ *     in memory, before Redis is even involved.
+ *  2. Cost. A mutating request holds the Redis lock for four round trips
+ *     (~800ms to a hosted store), so N concurrent writers make the Nth wait
+ *     ~N x 800ms — enough to blow any sane acquire timeout at N of 5 or more.
+ *     Queuing here is free and instant, so by the time a request reaches Redis
+ *     the lock is almost always uncontended.
+ *
+ * The Redis lock still matters: it's the only thing protecting against a second
+ * serverless instance writing concurrently, which this queue cannot see.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
+  // Chain off the tail regardless of whether it settled or rejected, so one
+  // failed request can't wedge the queue for everything behind it.
+  const result = writeQueue.then(task, task);
+  writeQueue = result.catch(() => undefined);
+  return result;
+}
+
 export type ApiHandler = (req: NextApiRequest, res: NextApiResponse) => void | Promise<void>;
 
 /**
  * Wraps an API route handler to:
- *  (a) load shared state from Redis before running business logic (no-op if
+ *  (a) queue behind any other mutating request in this process, then take the
+ *      cross-instance write lock, if this request will mutate state,
+ *  (b) load shared state from Redis before running business logic (no-op if
  *      store isn't configured — falls back to in-memory seed data),
- *  (b) run the handler,
- *  (c) save state after IF the request method was POST/PUT/PATCH/DELETE.
+ *  (c) run the handler,
+ *  (d) save state after IF the request method was POST/PUT/PATCH/DELETE,
+ *  (e) release the lock.
  *
  * Saving is intentionally skipped on GET: a read-only request that loaded a
  * slightly-older snapshot could otherwise resave it after a concurrent write
  * finished, silently clobbering that write (classic last-write-wins lost
  * update) — this mirrors a real bug already fixed in the Flask version.
  *
- * Step (c) must finish BEFORE the response reaches the client. Handlers call
+ * That alone only protects against reads clobbering writes. Two concurrent
+ * *writes* still raced: both loaded the same blob, each applied its own change,
+ * and the second save overwrote the first. Step (a) closes that by serializing
+ * mutating requests, so each one loads the previous one's result. The lock spans
+ * load-through-save — taking it after the load would leave the read-modify-write
+ * just as interleaved as before.
+ *
+ * Step (d) must finish BEFORE the response reaches the client. Handlers call
  * res.json() themselves, which would flush the 200 while the Redis write was
  * still in flight — so a read fired right after (an admin refresh following a
  * cancellation, a cart GET after an add) could load a pre-write snapshot, and
@@ -175,27 +250,61 @@ export type ApiHandler = (req: NextApiRequest, res: NextApiResponse) => void | P
  */
 export function withState(handler: ApiHandler): ApiHandler {
   return async (req: NextApiRequest, res: NextApiResponse) => {
-    await loadSharedState();
-    setNoCacheHeaders(res);
+    // MUTATING_METHODS drives the queue even when the store is disabled: the
+    // in-memory clobbering in (1) above happens with or without Redis.
+    const mutating = MUTATING_METHODS.has(req.method || "");
 
-    const sendJson = res.json.bind(res);
-    let payload: unknown;
-    let responded = false;
-    res.json = ((body: unknown) => {
-      payload = body;
-      responded = true;
-      return res;
-    }) as NextApiResponse["json"];
+    const run = async () => {
+      const startedAt = Date.now();
+      const requestBody = mutating ? req.body : undefined;
+      const lockToken = mutating ? await store.acquireLock() : null;
 
-    try {
-      await handler(req, res);
-      if (store.ENABLED && MUTATING_METHODS.has(req.method || "")) {
-        await saveSharedState();
+      const sendJson = res.json.bind(res);
+      let payload: unknown;
+      let responded = false;
+      res.json = ((body: unknown) => {
+        payload = body;
+        responded = true;
+        return res;
+      }) as NextApiResponse["json"];
+
+      try {
+        await loadSharedState();
+        setNoCacheHeaders(res);
+        await handler(req, res);
+
+        // Built before the save so `ms` covers the handler, and so the append can
+        // be pipelined into that save rather than costing its own round trip.
+        const entry = requestLog.ENABLED
+          ? requestLog.buildEntry({
+              method: req.method || "?",
+              path: req.url || "?",
+              status: res.statusCode,
+              payload,
+              body: requestBody,
+              startedAt,
+              isMutation: mutating,
+            })
+          : null;
+
+        if (mutating) {
+          await saveSharedState(entry ? requestLog.appendCommands(entry) : []);
+          if (entry) requestLog.appendToMemory(entry);
+        } else if (entry) {
+          // A read has no save to ride along with, so this is the one extra round
+          // trip that enabling the log costs.
+          await requestLog.append(entry);
+        }
+      } finally {
+        // Release before replaying the response: the client should never be able
+        // to fire its next request while this one still holds the lock.
+        if (lockToken) await store.releaseLock(lockToken);
+        res.json = sendJson;
+        if (responded) sendJson(payload);
       }
-    } finally {
-      res.json = sendJson;
-      if (responded) sendJson(payload);
-    }
+    };
+
+    return mutating ? enqueueWrite(run) : run();
   };
 }
 

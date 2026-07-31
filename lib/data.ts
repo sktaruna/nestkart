@@ -102,6 +102,19 @@ export interface ReturnRecord {
   has_original_packaging?: boolean;
 }
 
+/** The return lifecycle the admin panel can move a return through. */
+export const RETURN_STATUSES = [
+  "return_requested",
+  "return_in_transit",
+  "return_received",
+  "under_review",
+  "completed",
+  "rejected",
+] as const;
+
+/** Refund progress, tracked independently of the return's physical journey. */
+export const REFUND_STATUSES = ["pending", "processing", "issued", "rejected"] as const;
+
 export const CUSTOMERS: Record<string, Customer> = {
   cust_001: {
     customer_id: "cust_001",
@@ -422,8 +435,17 @@ function daysAgoIso(now: Date, days: number, hours = 0, minutes = 0): string {
   return d.toISOString();
 }
 
+/**
+ * YYYY-MM-DD in local time. Not `toISOString()` — that would shift seeded
+ * delivery dates back a day in any timezone ahead of UTC, so a "delivered
+ * today" seed order would read as delivered yesterday. Mirrors
+ * `dateOnly` in helpers.ts; duplicated here because helpers.ts imports
+ * from this module.
+ */
 function dateOnlyIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
 }
 
 function addDaysDateOnly(now: Date, days: number): string {

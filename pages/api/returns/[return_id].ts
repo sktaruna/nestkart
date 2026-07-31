@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, RETURNS, DYNAMIC_RETURNS } from "../../../lib/state";
+import { withState, findReturn } from "../../../lib/state";
 import { err } from "../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
@@ -9,7 +9,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const returnId = req.query.return_id as string;
-  const ret = RETURNS[returnId] || DYNAMIC_RETURNS[returnId];
+  const ret = findReturn(returnId);
   if (!ret) {
     err(res, "return_not_found", `No return found with ID '${returnId}'.`, 404);
     return;

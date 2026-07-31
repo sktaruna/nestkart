@@ -1,7 +1,8 @@
-export const API_KEY = 'nk-fin-dev-key-2025';
+// No API key: nothing server-side ever verified `X-Api-Key`, so sending it only
+// suggested an authorization step that did not exist. Callers (including the AI
+// agent under test) need no credential to reach these endpoints.
 export const API_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
-  'X-Api-Key': API_KEY,
 };
 
 /** Format a number as Indian-grouped rupees, e.g. 124000 -> "₹1,24,000" */

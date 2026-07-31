@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, CUSTOMERS, CARTS, PRODUCTS, ORDERS, orderCounter } from "../../../../lib/state";
-import { err, formatInr } from "../../../../lib/helpers";
+import { err, formatInr, dateOnly, today } from "../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "POST") {
@@ -38,7 +38,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const hasLarge = cartItems.some((i) => PRODUCTS[i.product_id]?.shipping_type === "large_item");
   const shippingMethod = hasLarge ? "large_item" : "standard";
   const deliveryDays = hasLarge ? 10 : 5;
-  const estimatedDelivery = new Date(Date.now() + deliveryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const estimatedDelivery = dateOnly(new Date(today().getTime() + deliveryDays * 24 * 60 * 60 * 1000));
   const priceTotal = cartItems.reduce((sum, i) => sum + i.line_total, 0);
 
   const orderId = `ORD-${orderCounter.value}`;

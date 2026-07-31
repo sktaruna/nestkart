@@ -57,6 +57,45 @@ async function _cmd(...args: unknown[]): Promise<unknown> {
   }
 }
 
+/**
+ * Runs several commands in ONE HTTP request via Upstash's /pipeline endpoint.
+ *
+ * Commands execute in order on a single connection, which is what makes it safe
+ * to bundle "save the state, then release the lock" — the ordering guarantee is
+ * the point, not just the saved latency. Not a transaction: a failure part-way
+ * does not roll back the earlier commands.
+ */
+export async function pipeline(commands: unknown[][]): Promise<unknown[]> {
+  if (!ENABLED || commands.length === 0) return [];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${(_REDIS_URL as string).replace(/\/$/, "")}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${_REDIS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(commands),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Upstash HTTP ${res.status}: ${text}`);
+    }
+    const data = JSON.parse(text) as Array<{ result?: unknown; error?: string }>;
+    return data.map((entry) => entry.result);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Runs a single command. Exposed for callers that own their own Redis keys. */
+export async function command(...args: unknown[]): Promise<unknown> {
+  if (!ENABLED) return null;
+  return _cmd(...args);
+}
+
 /** Returns the persisted state object, or null if unavailable/not yet saved. */
 export async function loadState(): Promise<Record<string, unknown> | null> {
   if (!ENABLED) return null;
@@ -72,11 +111,113 @@ export async function loadState(): Promise<Record<string, unknown> | null> {
   }
 }
 
-export async function saveState(state: Record<string, unknown>): Promise<void> {
+/**
+ * Persists the state blob.
+ *
+ * `extraCommands` are pipelined into the same round trip, running after the SET.
+ * The request log uses this so that enabling it costs a mutating request nothing
+ * — the append rides along with a write that was already happening.
+ */
+export async function saveState(
+  state: Record<string, unknown>,
+  extraCommands: unknown[][] = []
+): Promise<void> {
   if (!ENABLED) return;
   try {
-    await _cmd("SET", STATE_KEY, JSON.stringify(state));
+    const setState: unknown[] = ["SET", STATE_KEY, JSON.stringify(state)];
+    if (extraCommands.length === 0) {
+      await _cmd(...setState);
+    } else {
+      await pipeline([setState, ...extraCommands]);
+    }
   } catch (e) {
     console.error(`[store] save_state failed: ${String(e)}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WRITE LOCK
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * State lives in a single JSON blob, so every mutation is a read-modify-write of
+ * the whole thing. Two concurrent writers both GET the same blob, each applies
+ * its own change, and the second SET overwrites the first — the classic lost
+ * update. It shows up as an action that reported success and then wasn't there:
+ * "I cancelled that order but it's still processing."
+ *
+ * A short-lived Redis lock serializes the mutating requests so each one reads
+ * the previous one's result. Reads are unlocked — they never save, so they can't
+ * clobber anything.
+ */
+export const LOCK_KEY = "nestkart_state_lock";
+
+/**
+ * Held across one handler — four round trips to a hosted store, ~800ms in
+ * practice. Comfortably above that so a slow save can't have the lock expire
+ * underneath it, but low enough that a request which dies holding it stops
+ * blocking writers quickly.
+ */
+const LOCK_TTL_MS = 10000;
+/**
+ * How long a writer waits for the current holder before giving up.
+ *
+ * Sized for CROSS-INSTANCE contention only: requests within one process already
+ * queue in `withState` before reaching here, so the realistic worst case is a
+ * handful of other serverless instances writing at once, not the full burst.
+ */
+const LOCK_ACQUIRE_TIMEOUT_MS = 5000;
+const LOCK_POLL_MS = 50;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Returns an opaque token to pass to `releaseLock`, or null if the lock could
+ * not be taken in time.
+ *
+ * A null return does NOT block the request. Refusing to write would turn a rare
+ * race into a visible failure for the agent under test, which is the worse
+ * trade for a demo harness — so the caller proceeds unlocked and accepts the
+ * original risk. The TTL guarantees this self-heals: a request that dies holding
+ * the lock releases it within LOCK_TTL_MS rather than wedging every later write.
+ */
+export async function acquireLock(): Promise<string | null> {
+  if (!ENABLED) return null;
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await _cmd("SET", LOCK_KEY, token, "NX", "PX", LOCK_TTL_MS);
+      if (res === "OK") return token;
+    } catch (e) {
+      // Store unreachable: loadState/saveState already degrade to in-memory, so
+      // there's nothing to serialize against. Don't spin.
+      console.error(`[store] acquire_lock failed: ${String(e)}`);
+      return null;
+    }
+    await sleep(LOCK_POLL_MS);
+  }
+
+  console.error(`[store] acquire_lock timed out after ${LOCK_ACQUIRE_TIMEOUT_MS}ms; proceeding unlocked`);
+  return null;
+}
+
+/**
+ * Releases the lock only if `token` still owns it. A plain DEL would let a
+ * request that overran the TTL delete the lock a *different* request had since
+ * acquired, letting two writers run at once — exactly what the lock prevents.
+ */
+export async function releaseLock(token: string): Promise<void> {
+  if (!ENABLED) return;
+  try {
+    await _cmd(
+      "EVAL",
+      'if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end',
+      1,
+      LOCK_KEY,
+      token
+    );
+  } catch (e) {
+    console.error(`[store] release_lock failed: ${String(e)}`);
   }
 }

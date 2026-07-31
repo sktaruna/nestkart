@@ -67,17 +67,33 @@ export function formatInr(amount: number): string {
   return `₹${result}`;
 }
 
-function dateOnly(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/**
+ * YYYY-MM-DD in the server's local timezone.
+ *
+ * NOT `toISOString().slice(0, 10)`: dates here are built from local midnight
+ * (`setHours(0,0,0,0)`), and in any timezone ahead of UTC that instant lands on
+ * the *previous* UTC day — so a refund issued today was reported as issued
+ * yesterday, and weekdaySlots() could offer a slot starting in the past.
+ */
+export function dateOnly(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/** Local midnight today — the base for every date-only calculation. */
+export function today(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 /** Return 7 weekday delivery dates starting tomorrow, within +14 days. */
 export function weekdaySlots(): string[] {
   const slots: string[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let d = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-  const limit = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const base = today();
+  let d = new Date(base.getTime() + 24 * 60 * 60 * 1000);
+  const limit = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
   while (slots.length < 7 && d.getTime() <= limit.getTime()) {
     const day = d.getDay(); // 0=Sun..6=Sat
     if (day >= 1 && day <= 5) {
@@ -184,9 +200,7 @@ export function returnEligibilityCheck(orderId: string): EligibilityResult {
     const deliveryDate = new Date(estDelivery + "T00:00:00");
     const windowDays = 30;
     const expiryDate = new Date(deliveryDate.getTime() + windowDays * 24 * 60 * 60 * 1000);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const daysRemaining = Math.round((expiryDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    const daysRemaining = Math.round((expiryDate.getTime() - today().getTime()) / (24 * 60 * 60 * 1000));
 
     if (daysRemaining <= 0) {
       return {

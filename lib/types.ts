@@ -77,6 +77,41 @@ export interface Customer {
   account_status: string;
 }
 
+/** One API call as recorded by GET /api/admin/log. */
+export interface RequestLogEntry {
+  ts: string;
+  method: string;
+  path: string;
+  status: number;
+  /** From the response body, not the HTTP status. Null if the response wasn't JSON. */
+  ok: boolean | null;
+  error?: string;
+  reason?: string;
+  body?: unknown;
+  ms: number;
+}
+
+/** Shape of GET /api/admin/returns — every flag present, never omitted. */
+export interface AdminReturn {
+  return_id: string;
+  order_id: string;
+  customer_id: string;
+  item_name: string;
+  reason: string;
+  status: string;
+  return_initiated: string;
+  return_received_date: string | null;
+  refund_status: string;
+  refund_amount: string | null;
+  refund_estimated_date: string | null;
+  refund_issued_date: string | null;
+  refund_locked: boolean;
+  refund_locked_reason: string | null;
+  requires_agent_escalation: boolean;
+  escalation_reason: string | null;
+  is_seed: boolean;
+}
+
 export interface AdminCustomerOrders {
   customer_id: string;
   name: string;
