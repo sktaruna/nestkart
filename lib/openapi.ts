@@ -36,6 +36,10 @@ Always branch on the \`ok\` field, never on the HTTP status.
 Errors carry a machine-readable \`error\` code and a human-readable \`message\`
 suitable for paraphrasing to a customer.
 
+Any write can return **503 \`state_unavailable\`** if the backing store could not
+be read. Nothing was changed — the call is safe to retry, and must be retried
+rather than assumed to have applied.
+
 ## Authentication
 
 None. No API key, token, or session is required on any endpoint.

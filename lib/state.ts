@@ -177,12 +177,14 @@ function applyState(state: Partial<Snapshot>): void {
   }
 }
 
-async function loadSharedState(): Promise<void> {
-  if (!store.ENABLED) return;
-  const state = await store.loadState();
+/** False when the store was unreachable, so the in-memory state may be stale. */
+async function loadSharedState(): Promise<boolean> {
+  if (!store.ENABLED) return true;
+  const { ok, state } = await store.loadState();
   if (state) {
     applyState(state as Partial<Snapshot>);
   }
+  return ok;
 }
 
 async function saveSharedState(extraCommands: unknown[][] = []): Promise<void> {
@@ -282,8 +284,23 @@ export function withState(handler: ApiHandler): ApiHandler {
       }) as NextApiResponse["json"];
 
       try {
-        await loadSharedState();
+        const loaded = await loadSharedState();
         setNoCacheHeaders(res);
+
+        // Refuse to write on top of a failed load. The in-memory state is
+        // whatever the last successful request left behind, so mutating and
+        // saving it would overwrite the real blob with something arbitrarily
+        // stale — silent data loss, reported to the caller as success. Reads are
+        // fine: they show slightly old data and save nothing.
+        if (mutating && !loaded) {
+          res.status(503).json({
+            ok: false,
+            error: "state_unavailable",
+            message: "Could not read current state, so the change was not applied. Please retry.",
+          });
+          return;
+        }
+
         await handler(req, res);
 
         // Built before the save so `ms` covers the handler, and so the append can

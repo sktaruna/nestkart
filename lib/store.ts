@@ -96,18 +96,31 @@ export async function command(...args: unknown[]): Promise<unknown> {
   return _cmd(...args);
 }
 
-/** Returns the persisted state object, or null if unavailable/not yet saved. */
-export async function loadState(): Promise<Record<string, unknown> | null> {
-  if (!ENABLED) return null;
+/**
+ * Outcome of a load attempt.
+ *
+ * `ok: false` (the store was unreachable) has to be distinguishable from
+ * `state: null` (the store answered, nothing saved yet). Collapsing the two into
+ * a bare null meant a failed read looked exactly like a fresh database: the
+ * caller kept its stale in-memory state and, on a write, saved it straight over
+ * whatever was really in Redis.
+ */
+export interface LoadResult {
+  ok: boolean;
+  state: Record<string, unknown> | null;
+}
+
+export async function loadState(): Promise<LoadResult> {
+  if (!ENABLED) return { ok: true, state: null };
   try {
     const raw = (await _cmd("GET", STATE_KEY)) as string | null;
-    return raw ? JSON.parse(raw) : null;
+    return { ok: true, state: raw ? JSON.parse(raw) : null };
   } catch (e) {
-    // Store unreachable — fall back to whatever's already in local memory
-    // rather than breaking the request. Logged so it's visible in Vercel's
-    // function logs instead of failing completely silently.
+    // Logged so it's visible in Vercel's function logs rather than failing
+    // silently. Reads carry on with local memory; writes must not — see
+    // withState.
     console.error(`[store] load_state failed: ${String(e)}`);
-    return null;
+    return { ok: false, state: null };
   }
 }
 
