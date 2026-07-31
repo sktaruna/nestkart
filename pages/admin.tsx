@@ -1,10 +1,10 @@
 import Head from 'next/head';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '@/styles/Admin.module.css';
 import { formatRs } from '@/lib/format';
-import type { AdminCustomerOrders, AdminReturn, Order, Product, RequestLogEntry } from '@/lib/types';
+import type { AdminCustomerOrders, AdminReturn, Product, RequestLogEntry } from '@/lib/types';
 
-const ORDER_STATUSES = ['processing', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
+const VALID_STATUSES = ['processing', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
 const RETURN_STATUSES = [
   'return_requested',
   'return_in_transit',
@@ -14,38 +14,22 @@ const RETURN_STATUSES = [
   'rejected',
 ];
 const REFUND_STATUSES = ['pending', 'processing', 'issued', 'rejected'];
+/** Rows shown before "Show all" — enough to cover one agent conversation. */
+const LOG_PREVIEW_COUNT = 25;
+/** Mirrors MAX_ENTRIES in lib/requestLog.ts; display only. */
 const LOG_CAP = 500;
-
-const STOCK_LABELS: Record<string, string> = {
-  in_stock: 'In stock',
-  low_stock: 'Low stock',
-  out_of_stock: 'Out of stock',
+const STOCK_LABELS: Record<string, string> = { in_stock: 'In Stock', low_stock: 'Low Stock', out_of_stock: 'Out of Stock' };
+const STOCK_PILL_CLASS: Record<string, string> = {
+  in_stock: 'stockPillInStock',
+  low_stock: 'stockPillLowStock',
+  out_of_stock: 'stockPillOutOfStock',
 };
-const STOCK_TONE: Record<string, string> = {
-  in_stock: 'toneGood',
-  low_stock: 'toneWarn',
-  out_of_stock: 'toneBad',
-};
-const REFUND_TONE: Record<string, string> = {
-  pending: 'toneNeutral',
-  processing: 'toneWarn',
-  issued: 'toneGood',
-  rejected: 'toneBad',
-};
-const RETURN_TONE: Record<string, string> = {
-  return_requested: 'toneNeutral',
-  return_in_transit: 'toneInfo',
-  return_received: 'toneInfo',
-  under_review: 'toneWarn',
-  completed: 'toneGood',
-  rejected: 'toneBad',
-};
-const ORDER_TONE: Record<string, string> = {
-  processing: 'toneNeutral',
-  dispatched: 'toneInfo',
-  in_transit: 'toneInfo',
-  delivered: 'toneGood',
-  cancelled: 'toneBad',
+/** Refund progress gets the same colour language as order status. */
+const REFUND_PILL_CLASS: Record<string, string> = {
+  pending: 'pillNeutral',
+  processing: 'pillWarn',
+  issued: 'pillGood',
+  rejected: 'pillBad',
 };
 
 type Tab = 'orders' | 'returns' | 'inventory' | 'log';
@@ -54,8 +38,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'orders', label: 'Orders' },
   { id: 'returns', label: 'Returns' },
   { id: 'inventory', label: 'Inventory' },
-  { id: 'log', label: 'Request log' },
+  { id: 'log', label: 'Request Log' },
 ];
+
 const TAB_IDS = TABS.map((t) => t.id);
 
 /**
@@ -65,34 +50,41 @@ const TAB_IDS = TABS.map((t) => t.id);
  */
 const PANEL_HEADERS = { 'X-Admin-Panel': '1' };
 const PANEL_JSON_HEADERS = { ...PANEL_HEADERS, 'Content-Type': 'application/json' };
+
+/** GET as the panel: never cached, never logged. */
 const panelGet = (url: string) => fetch(url, { headers: PANEL_HEADERS, cache: 'no-store' });
 
 /** "return_requested" -> "Return requested" */
 function humanize(value: string): string {
-  const spaced = (value || '').replace(/_/g, ' ');
+  const spaced = value.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-interface Eligibility {
-  eligible: boolean;
-  reason: string;
-  return_window_expires_on: string | null;
-  days_remaining: number | null;
-  refund_locked?: boolean;
+/**
+ * Label for a flag checkbox: "Locked: Damage claim under review" when there's a
+ * reason, plain "Locked" when there isn't. Seeded returns can carry a flag with
+ * no reason (RET-2203 escalates without one), which rendered as a bare
+ * "Escalate:" dangling a colon.
+ */
+function flagLabelText(on: string, off: string, active: boolean, reason?: string | null): string {
+  if (!active) return off;
+  return reason ? `${on}: ${humanize(reason)}` : on;
 }
 
 export default function AdminPage() {
+  // Tab lives in the URL hash so a reload keeps your place and a tab can be
+  // linked to (/admin#log). Initialised to 'orders' rather than read from the
+  // hash here, because this component server-renders where `location` does not
+  // exist — the hash is applied in an effect below.
   const [tab, setTab] = useState<Tab>('orders');
 
-  // Tab lives in the URL hash so a reload keeps your place and a tab can be
-  // linked to (/admin#log). Read in an effect, not at init: this component
-  // server-renders, where `location` does not exist.
   useEffect(() => {
     const fromHash = () => {
       const h = window.location.hash.replace('#', '') as Tab;
       if (TAB_IDS.includes(h)) setTab(h);
     };
     fromHash();
+    // Keeps the back button working between tabs.
     window.addEventListener('hashchange', fromHash);
     return () => window.removeEventListener('hashchange', fromHash);
   }, []);
@@ -105,80 +97,97 @@ export default function AdminPage() {
   const [customers, setCustomers] = useState<AdminCustomerOrders[]>([]);
   const [returns, setReturns] = useState<AdminReturn[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [deliveryInputs, setDeliveryInputs] = useState<Record<string, string>>({});
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [returnsLoading, setReturnsLoading] = useState(true);
+  const [stockLoading, setStockLoading] = useState(true);
+
   const [log, setLog] = useState<RequestLogEntry[]>([]);
   const [logEnabled, setLogEnabled] = useState(true);
+  const [logLoading, setLogLoading] = useState(true);
+  const [logExpanded, setLogExpanded] = useState(false);
 
-  const [loading, setLoading] = useState({ orders: true, returns: true, stock: true, log: true });
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  // Selection is by id, not index, so a reload after an action keeps the same
-  // record selected even when the list order changes.
-  const [selOrderId, setSelOrderId] = useState<string | null>(null);
-  const [selReturnId, setSelReturnId] = useState<string | null>(null);
-  const [selLogKey, setSelLogKey] = useState<string | null>(null);
-
-  const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
-  const [deliveryInput, setDeliveryInput] = useState('');
-  const [eligibility, setEligibility] = useState<Eligibility | null>(null);
-
+  /**
+   * One toast, rather than a per-row status column.
+   *
+   * Every table previously carried a trailing column that existed only to hold a
+   * transient "Saved" note and was empty the rest of the time — dead width in
+   * four tables. The toast names the row it refers to, so nothing is lost.
+   */
   const [toast, setToast] = useState<{ text: string; err: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((text: string, err = false) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ text, err });
-    toastTimer.current = setTimeout(() => setToast(null), err ? 4200 : 2200);
+    toastTimer.current = setTimeout(() => setToast(null), err ? 4000 : 2200);
   }, []);
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
-  const done = (key: keyof typeof loading) =>
-    setLoading((l) => (l[key] ? { ...l, [key]: false } : l));
-
   const loadOrders = useCallback(async () => {
     try {
-      const d = await (await panelGet('/api/admin/orders')).json();
-      if (d.ok) setCustomers(d.customers);
+      const r = await panelGet('/api/admin/orders');
+      const d = await r.json();
+      if (d.ok) {
+        setCustomers(d.customers);
+        const inputs: Record<string, string> = {};
+        (d.customers as AdminCustomerOrders[]).forEach((c) =>
+          c.orders.forEach((o) => {
+            inputs[o.order_id] = o.estimated_delivery || '';
+          })
+        );
+        setDeliveryInputs(inputs);
+      }
     } catch {
       /* ignore */
     } finally {
-      done('orders');
+      setOrdersLoading(false);
     }
   }, []);
 
   const loadReturns = useCallback(async () => {
     try {
-      const d = await (await panelGet('/api/admin/returns')).json();
+      const r = await panelGet('/api/admin/returns');
+      const d = await r.json();
       if (d.ok) setReturns(d.returns);
     } catch {
       /* ignore */
     } finally {
-      done('returns');
+      setReturnsLoading(false);
     }
   }, []);
 
   const loadStock = useCallback(async () => {
     try {
-      const d = await (await panelGet('/api/products')).json();
+      const r = await panelGet('/api/products');
+      const d = await r.json();
       if (d.ok) {
         const sorted = [...d.products].sort(
           (a: Product, b: Product) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
         );
         setProducts(sorted);
-        setStockInputs(Object.fromEntries(sorted.map((p: Product) => [p.product_id, String(p.stock)])));
+        const inputs: Record<string, string> = {};
+        sorted.forEach((p: Product) => {
+          inputs[p.product_id] = String(p.stock);
+        });
+        setStockInputs(inputs);
       }
     } catch {
       /* ignore */
     } finally {
-      done('stock');
+      setStockLoading(false);
     }
   }, []);
 
   const loadLog = useCallback(async () => {
     try {
-      const d = await (await panelGet('/api/admin/log')).json();
+      const r = await panelGet('/api/admin/log');
+      const d = await r.json();
       if (d.ok) {
         setLog(d.entries);
         setLogEnabled(d.enabled);
@@ -186,10 +195,13 @@ export default function AdminPage() {
     } catch {
       /* ignore */
     } finally {
-      done('log');
+      setLogLoading(false);
     }
   }, []);
 
+  // Everything loads on mount rather than per-tab, so the tab counts are honest
+  // before you've opened a tab. No background polling — refresh happens manually
+  // (Refresh button) or automatically right after an admin action succeeds.
   useEffect(() => {
     loadOrders();
     loadReturns();
@@ -197,58 +209,17 @@ export default function AdminPage() {
     loadLog();
   }, [loadOrders, loadReturns, loadStock, loadLog]);
 
-  const allOrders: Order[] = useMemo(
-    () => customers.flatMap((c) => c.orders || []),
-    [customers]
-  );
-  const customerName = useCallback(
-    (id: string) => customers.find((c) => c.customer_id === id)?.name || id,
-    [customers]
-  );
-
-  const selOrder = allOrders.find((o) => o.order_id === selOrderId) || null;
-  const selReturn = returns.find((r) => r.return_id === selReturnId) || null;
-  const selLog = log.find((e, i) => `${e.ts}-${i}` === selLogKey) || null;
-
-  // The delivery input is a draft the user edits, so it is only re-seeded when a
-  // different order is picked — not on every reload, which would discard typing.
-  useEffect(() => {
-    setDeliveryInput(selOrder?.estimated_delivery || '');
-  }, [selOrderId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /**
-   * Shows what the agent would read for the selected order. Read-only, and
-   * panel-flagged so it never appears in the request log.
-   */
-  useEffect(() => {
-    if (!selOrderId) {
-      setEligibility(null);
-      return;
-    }
-    let live = true;
-    panelGet(`/api/orders/${selOrderId}/return-eligibility`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (live && d.ok) setEligibility(d);
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [selOrderId, customers]);
-
-  /** POST a JSON body, reload on success, report the outcome as a toast. */
+  /** POST a JSON body, reload on success, and report the outcome as a toast. */
   const post = useCallback(
     async (url: string, body: unknown, label: string, reload: () => Promise<void>) => {
       try {
-        const d = await (
-          await fetch(url, {
-            method: 'POST',
-            headers: PANEL_JSON_HEADERS,
-            cache: 'no-store',
-            body: JSON.stringify(body),
-          })
-        ).json();
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: PANEL_JSON_HEADERS,
+          cache: 'no-store',
+          body: JSON.stringify(body),
+        });
+        const d = await r.json();
         if (d.ok) {
           showToast(label);
           await reload();
@@ -262,107 +233,124 @@ export default function AdminPage() {
     [showToast]
   );
 
-  const del = useCallback(
-    async (url: string, label: string, reload: () => Promise<void>) => {
-      try {
-        const d = await (
-          await fetch(url, { method: 'DELETE', headers: PANEL_HEADERS, cache: 'no-store' })
-        ).json();
-        if (d.ok) {
-          showToast(d.message || label);
-          await reload();
-        } else {
-          showToast(d.message || `${label} failed`, true);
-        }
-        return d.ok as boolean;
-      } catch {
-        showToast(`${label} failed`, true);
-        return false;
+  /**
+   * Deletes a return, or reverts a seeded one to its seeded state.
+   * Orders are reloaded too: dropping a damaged-on-arrival return can clear the
+   * order's damage claim, so the Orders tab would otherwise show a stale flag.
+   */
+  async function deleteReturn(ret: AdminReturn) {
+    const verb = ret.is_seed ? 'Revert' : 'Delete';
+    if (!window.confirm(`${verb} ${ret.return_id}?`)) return;
+    try {
+      const r = await fetch(`/api/admin/returns/${ret.return_id}`, {
+        method: 'DELETE',
+        headers: PANEL_HEADERS,
+        cache: 'no-store',
+      });
+      const d = await r.json();
+      if (d.ok) {
+        showToast(d.message || `${ret.return_id} deleted`);
+        await Promise.all([loadReturns(), loadOrders()]);
+      } else {
+        showToast(d.message || `${verb} failed`, true);
       }
-    },
-    [showToast]
-  );
+    } catch {
+      showToast(`${verb} failed`, true);
+    }
+  }
 
   async function deleteOrder(orderId: string) {
     if (!window.confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
-    if (await del(`/api/admin/orders/${orderId}`, `${orderId} deleted`, loadOrders)) {
-      setSelOrderId(null);
+    try {
+      const r = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: PANEL_HEADERS,
+        cache: 'no-store',
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setCustomers((prev) =>
+          prev.map((c) => ({ ...c, orders: c.orders.filter((o) => o.order_id !== orderId) }))
+        );
+        showToast(`${orderId} deleted`);
+        await loadOrders();
+      } else {
+        showToast(d.message || 'Delete failed', true);
+      }
+    } catch {
+      showToast('Delete failed', true);
     }
   }
 
-  async function deleteReturn(returnId: string) {
-    if (!window.confirm(`Delete return ${returnId}?`)) return;
-    if (await del(`/api/admin/returns/${returnId}`, `${returnId} deleted`, loadReturns)) {
-      setSelReturnId(null);
-      // Deleting a return can drop the order's damage claim, so orders are stale.
-      await loadOrders();
-    }
-  }
-
-  function setStock(p: Product) {
-    const val = parseInt(stockInputs[p.product_id], 10);
+  function setStock(product: Product) {
+    const val = parseInt(stockInputs[product.product_id], 10);
     if (isNaN(val) || val < 0) {
       showToast('Stock must be a whole number, 0 or more', true);
       return;
     }
     return post(
-      `/api/admin/products/${p.product_id}/stock`,
+      `/api/admin/products/${product.product_id}/stock`,
       { stock: val },
-      `${p.name} → ${val} in stock`,
+      `${product.name} → ${val} in stock`,
       loadStock
     );
-  }
-
-  async function refreshAll() {
-    setLoading({ orders: true, returns: true, stock: true, log: true });
-    await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
   }
 
   async function doReset() {
     setShowResetConfirm(false);
     try {
-      const d = await (
-        await fetch('/api/admin/reset', { method: 'POST', headers: PANEL_HEADERS, cache: 'no-store' })
-      ).json();
+      const r = await fetch('/api/admin/reset', { method: 'POST', headers: PANEL_HEADERS, cache: 'no-store' });
+      const d = await r.json();
       if (d.ok) {
         showToast('Demo data reset');
-        setSelOrderId(null);
-        setSelReturnId(null);
-        await refreshAll();
+        await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
       }
     } catch {
       showToast('Reset failed', true);
     }
   }
 
-  // Deliberately separate from Reset Demo: the log records what happened, and
-  // wiping it as a side effect of resetting data throws away the trail of the
-  // conversation you were debugging.
+  // Deliberately separate from Reset Demo: the log is a record of what happened,
+  // and wiping it as a side effect of resetting data would throw away the trail
+  // of the conversation you were debugging.
   async function clearLog() {
-    if (await del('/api/admin/log', 'Request log cleared', loadLog)) setSelLogKey(null);
+    try {
+      const r = await fetch('/api/admin/log', { method: 'DELETE', headers: PANEL_HEADERS, cache: 'no-store' });
+      if ((await r.json()).ok) {
+        showToast('Request log cleared');
+        await loadLog();
+      }
+    } catch {
+      showToast('Could not clear log', true);
+    }
   }
 
-  const counts: Record<Tab, number | null> = {
-    orders: loading.orders ? null : allOrders.length,
-    returns: loading.returns ? null : returns.length,
-    inventory: loading.stock ? null : products.length,
-    log: loading.log ? null : log.length,
-  };
+  async function refreshAll() {
+    setOrdersLoading(true);
+    setReturnsLoading(true);
+    setStockLoading(true);
+    setLogLoading(true);
+    await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
+  }
 
-  const Pill = ({ tone, children }: { tone: string; children: React.ReactNode }) => (
-    <span className={`${styles.pill} ${styles[tone] || ''}`}>{children}</span>
+  const customersWithOrders = customers.filter((c) => c.orders && c.orders.length > 0);
+  const customerNames: Record<string, string> = {};
+  customers.forEach((c) => {
+    customerNames[c.customer_id] = c.name;
+  });
+
+  const orderCount = customers.reduce((sum, c) => sum + (c.orders?.length || 0), 0);
+  const counts: Record<Tab, number | null> = useMemo(
+    () => ({
+      orders: ordersLoading ? null : orderCount,
+      returns: returnsLoading ? null : returns.length,
+      inventory: stockLoading ? null : products.length,
+      log: logLoading ? null : log.length,
+    }),
+    [ordersLoading, orderCount, returnsLoading, returns.length, stockLoading, products.length, logLoading, log.length]
   );
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className={styles.field}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <span className={styles.fieldValue}>{children}</span>
-    </div>
-  );
-
-  const Placeholder = ({ children }: { children: React.ReactNode }) => (
-    <div className={styles.placeholder}>{children}</div>
-  );
+  const visibleLog = logExpanded ? log : log.slice(0, LOG_PREVIEW_COUNT);
 
   return (
     <div className={styles.body}>
@@ -371,16 +359,17 @@ export default function AdminPage() {
       </Head>
 
       <header className={styles.topBar}>
-        <div className={styles.headerRow}>
+        <div className={styles.adminHeader}>
           <div>
-            <p className={styles.brand}>NestKart Admin</p>
-            <p className={styles.brandSub}>Agent testing control panel</p>
+            <p className={styles.adminHeaderTitle}>NestKart Admin</p>
+            <p className={styles.adminHeaderSub}>Agent testing control panel</p>
           </div>
           <div className={styles.headerActions}>
-            <button className={styles.btnGhostDark} onClick={refreshAll}>Refresh</button>
-            <button className={styles.btnDanger} onClick={() => setShowResetConfirm(true)}>Reset demo</button>
+            <button className={styles.refreshBtn} onClick={refreshAll}>Refresh</button>
+            <button className={styles.resetBtn} onClick={() => setShowResetConfirm(true)}>Reset Demo</button>
           </div>
         </div>
+
         <nav className={styles.tabBar}>
           {TABS.map((t) => (
             <button
@@ -397,499 +386,457 @@ export default function AdminPage() {
       </header>
 
       {showResetConfirm && (
-        <div className={styles.banner}>
-          <p>Resets orders, carts, returns and stock to their seeded state. The request log is kept.</p>
-          <button className={styles.btnDanger} onClick={doReset}>Yes, reset</button>
-          <button className={styles.btnGhost} onClick={() => setShowResetConfirm(false)}>Cancel</button>
+        <div className={styles.resetConfirm}>
+          <p className={styles.resetConfirmText}>
+            Resets orders, carts, returns and stock to their seeded state. The request log is kept.
+          </p>
+          <button className={styles.resetOk} onClick={doReset}>Yes, reset</button>
+          <button className={styles.resetCancel} onClick={() => setShowResetConfirm(false)}>Cancel</button>
         </div>
       )}
 
-      <main className={styles.main}>
+      <main className={styles.adminMain}>
         {/* ── ORDERS ────────────────────────────────────────────────────────── */}
         {tab === 'orders' && (
-          <div className={styles.split}>
-            <div className={styles.listPane}>
-              <div className={styles.paneHead}>
-                <h2 className={styles.paneTitle}>Orders</h2>
-                <span className={styles.paneHint}>Pick one to edit it</span>
-              </div>
-              <div className={styles.scroll}>
-                {loading.orders && <Placeholder>Loading…</Placeholder>}
-                {!loading.orders && allOrders.length === 0 && <Placeholder>No orders yet.</Placeholder>}
-                {!loading.orders &&
-                  customers
-                    .filter((c) => c.orders?.length)
-                    .map((cust) => (
-                      <div key={cust.customer_id}>
-                        <div className={styles.groupLabel}>
-                          {cust.name}
-                          <span className={styles.groupId}>{cust.customer_id}</span>
-                        </div>
-                        {cust.orders.map((o) => (
-                          <button
-                            key={o.order_id}
-                            className={`${styles.row} ${selOrderId === o.order_id ? styles.rowActive : ''}`}
-                            onClick={() => setSelOrderId(o.order_id)}
-                          >
-                            <span className={styles.rowMain}>
-                              <span className={styles.rowId}>{o.order_id}</span>
-                              <span className={styles.rowSub}>
-                                {(o.items || []).map((i) => `${i.product_name} ×${i.qty}`).join(', ')}
-                              </span>
-                            </span>
-                            <span className={styles.rowSide}>
-                              <Pill tone={ORDER_TONE[o.status]}>{o.status.replace('_', ' ')}</Pill>
-                              <span className={styles.rowAmount}>{formatRs(o.price_total)}</span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-              </div>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <h1 className={styles.panelTitle}>Orders</h1>
+              <p className={styles.panelNote}>
+                Status gates what the agent may do: cancel and address changes need <code>processing</code>,
+                returns need <code>delivered</code>. Backdate <strong>delivery</strong> more than 30 days to
+                expire the return window.
+              </p>
             </div>
 
-            <aside className={styles.detailPane}>
-              {!selOrder ? (
-                <Placeholder>Select an order on the left to change its status, damage claim or delivery date.</Placeholder>
-              ) : (
-                <div className={styles.scroll}>
-                  <div className={styles.detailHead}>
-                    <h2 className={styles.detailTitle}>{selOrder.order_id}</h2>
-                    <p className={styles.detailSub}>
-                      {customerName(selOrder.customer_id)} · {selOrder.customer_id}
-                      {selOrder.is_seed && <span className={styles.seedTag}>seed</span>}
-                    </p>
-                  </div>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Order</h3>
-                    <Field label="Items">
-                      {(selOrder.items || []).map((i) => (
-                        <div key={i.product_id}>{i.product_name} ×{i.qty}</div>
-                      ))}
-                    </Field>
-                    <Field label="Total">{formatRs(selOrder.price_total)}</Field>
-                    <Field label="Placed">{selOrder.placed_at?.slice(0, 10) || '—'}</Field>
-                    <Field label="Shipping">{humanize(selOrder.shipping_method)}</Field>
-                    <Field label="Tracking">
-                      {selOrder.tracking_number ? (
-                        <span className={styles.mono}>{selOrder.tracking_number}</span>
-                      ) : (
-                        <span className={styles.muted}>none until dispatched</span>
-                      )}
-                    </Field>
-                    <Field label="Address">
-                      {selOrder.delivery_address
-                        ? `${selOrder.delivery_address.street}, ${selOrder.delivery_address.city} ${selOrder.delivery_address.pincode}`
-                        : '—'}
-                    </Field>
-                  </section>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>What the agent sees</h3>
-                    <Field label="Cancellable">
-                      {selOrder.cancellable ? 'yes' : <span className={styles.muted}>no</span>}
-                    </Field>
-                    <Field label="Returnable">
-                      {eligibility ? (
-                        <>
-                          {eligibility.eligible ? 'yes' : <span className={styles.muted}>no</span>}
-                          {eligibility.refund_locked && <Pill tone="toneWarn">refund locked</Pill>}
-                          <div className={styles.reasonText}>{eligibility.reason}</div>
-                        </>
-                      ) : (
-                        <span className={styles.muted}>…</span>
-                      )}
-                    </Field>
-                  </section>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Controls</h3>
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Status</span>
-                      <select
-                        className={styles.select}
-                        value={selOrder.status}
-                        onChange={(e) =>
-                          post(
-                            `/api/admin/orders/${selOrder.order_id}/set-status`,
-                            { status: e.target.value },
-                            `${selOrder.order_id} → ${humanize(e.target.value)}`,
-                            loadOrders
-                          )
-                        }
-                      >
-                        {ORDER_STATUSES.map((s) => (
-                          <option key={s} value={s}>{humanize(s)}</option>
+            {ordersLoading ? (
+              <p className={styles.emptyState}>Loading orders…</p>
+            ) : customersWithOrders.length === 0 ? (
+              <p className={styles.emptyState}>No orders yet.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                {/* One table with a group row per customer, rather than a separate
+                    table each — five repeated header rows was most of the visual
+                    noise on this tab. */}
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Order</th><th>Items</th><th className={styles.alignRight}>Total</th>
+                      <th>Status</th><th>Set status</th><th>Damage claim</th><th>Delivery</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customersWithOrders.map((cust) => (
+                      <Fragment key={cust.customer_id}>
+                        <tr className={styles.groupRow}>
+                          <td colSpan={8}>
+                            <span className={styles.groupName}>{cust.name}</span>
+                            <span className={styles.groupId}>{cust.customer_id}</span>
+                            <span className={styles.groupMeta}>
+                              {cust.orders.length} order{cust.orders.length === 1 ? '' : 's'}
+                            </span>
+                          </td>
+                        </tr>
+                        {cust.orders.map((o) => (
+                          <tr key={o.order_id}>
+                            <td className={styles.idCell}>{o.order_id}</td>
+                            <td className={styles.itemsCell}>
+                              {(o.items || []).map((i) => `${i.product_name} ×${i.qty}`).join(', ')}
+                            </td>
+                            <td className={`${styles.alignRight} ${styles.nowrapCell}`}>{formatRs(o.price_total)}</td>
+                            <td>
+                              <span className={`status-pill status-pill--${o.status}`}>
+                                {o.status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td>
+                              <select
+                                className={styles.select}
+                                value={o.status}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/orders/${o.order_id}/set-status`,
+                                    { status: e.target.value },
+                                    `${o.order_id} → ${humanize(e.target.value)}`,
+                                    loadOrders
+                                  )
+                                }
+                              >
+                                {VALID_STATUSES.map((s) => (
+                                  <option key={s} value={s}>{humanize(s)}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <label className={styles.flagLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={o.damage_claim_active}
+                                  onChange={(e) =>
+                                    post(
+                                      `/api/admin/orders/${o.order_id}/flags`,
+                                      { damage_claim_active: e.target.checked },
+                                      `${o.order_id} damage claim ${e.target.checked ? 'opened' : 'cleared'}`,
+                                      loadOrders
+                                    )
+                                  }
+                                />
+                                <span>{o.damage_claim_active ? 'Active' : 'None'}</span>
+                              </label>
+                            </td>
+                            <td className={styles.nowrapCell}>
+                              <div className={styles.inputGroup}>
+                                <input
+                                  className={styles.dateInput}
+                                  type="date"
+                                  value={deliveryInputs[o.order_id] ?? ''}
+                                  onChange={(e) =>
+                                    setDeliveryInputs((s) => ({ ...s, [o.order_id]: e.target.value }))
+                                  }
+                                />
+                                <button
+                                  className={styles.saveBtn}
+                                  onClick={() =>
+                                    post(
+                                      `/api/admin/orders/${o.order_id}/flags`,
+                                      { estimated_delivery: deliveryInputs[o.order_id] || null },
+                                      `${o.order_id} delivery date saved`,
+                                      loadOrders
+                                    )
+                                  }
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </td>
+                            <td className={styles.alignRight}>
+                              {o.is_seed ? (
+                                <span className={styles.seedTag} title="Seeded demo order — cannot be deleted">
+                                  seed
+                                </span>
+                              ) : (
+                                <button className={styles.deleteBtn} onClick={() => deleteOrder(o.order_id)}>
+                                  Delete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
                         ))}
-                      </select>
-                    </label>
-
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Damage claim</span>
-                      <span className={styles.checkWrap}>
-                        <input
-                          type="checkbox"
-                          checked={selOrder.damage_claim_active}
-                          onChange={(e) =>
-                            post(
-                              `/api/admin/orders/${selOrder.order_id}/flags`,
-                              { damage_claim_active: e.target.checked },
-                              `${selOrder.order_id} damage claim ${e.target.checked ? 'opened' : 'cleared'}`,
-                              loadOrders
-                            )
-                          }
-                        />
-                        <span className={styles.muted}>
-                          {selOrder.damage_claim_active
-                            ? 'active — free return, refund held'
-                            : 'none'}
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Delivery date</span>
-                      <span className={styles.inputRow}>
-                        <input
-                          className={styles.input}
-                          type="date"
-                          value={deliveryInput}
-                          onChange={(e) => setDeliveryInput(e.target.value)}
-                        />
-                        <button
-                          className={styles.btnPrimary}
-                          onClick={() =>
-                            post(
-                              `/api/admin/orders/${selOrder.order_id}/flags`,
-                              { estimated_delivery: deliveryInput || null },
-                              `${selOrder.order_id} delivery date saved`,
-                              loadOrders
-                            )
-                          }
-                        >
-                          Save
-                        </button>
-                      </span>
-                    </label>
-                    <p className={styles.controlHint}>
-                      Backdate more than 30 days to expire the return window.
-                    </p>
-
-                    {!selOrder.is_seed && (
-                      <button className={styles.btnDangerGhost} onClick={() => deleteOrder(selOrder.order_id)}>
-                        Delete order
-                      </button>
-                    )}
-                  </section>
-                </div>
-              )}
-            </aside>
-          </div>
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
 
         {/* ── RETURNS ───────────────────────────────────────────────────────── */}
         {tab === 'returns' && (
-          <div className={styles.split}>
-            <div className={styles.listPane}>
-              <div className={styles.paneHead}>
-                <h2 className={styles.paneTitle}>Returns</h2>
-                <span className={styles.paneHint}>Pick one to edit it</span>
-              </div>
-              <div className={styles.scroll}>
-                {loading.returns && <Placeholder>Loading…</Placeholder>}
-                {!loading.returns && returns.length === 0 && (
-                  <Placeholder>No returns yet. File one through the API and it appears here.</Placeholder>
-                )}
-                {!loading.returns &&
-                  returns.map((r) => (
-                    <button
-                      key={r.return_id}
-                      className={`${styles.row} ${selReturnId === r.return_id ? styles.rowActive : ''}`}
-                      onClick={() => setSelReturnId(r.return_id)}
-                    >
-                      <span className={styles.rowMain}>
-                        <span className={styles.rowId}>
-                          {r.return_id}
-                          {(r.refund_locked || r.requires_agent_escalation) && (
-                            <span className={styles.flagDot} title="Refund locked or escalated" />
-                          )}
-                        </span>
-                        <span className={styles.rowSub}>{r.item_name}</span>
-                      </span>
-                      <span className={styles.rowSide}>
-                        <Pill tone={RETURN_TONE[r.status]}>{r.status.replace(/_/g, ' ')}</Pill>
-                        <Pill tone={REFUND_TONE[r.refund_status]}>{r.refund_status}</Pill>
-                      </span>
-                    </button>
-                  ))}
-              </div>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <h1 className={styles.panelTitle}>Returns &amp; Refunds</h1>
+              <p className={styles.panelNote}>
+                Drives what <code>GET /api/returns/:id</code> reports. <strong>Locked</strong> and{' '}
+                <strong>Escalate</strong> are the two cases an agent handles worst — a refund it must not
+                promise a date for, and a case it should hand to a human.
+              </p>
             </div>
 
-            <aside className={styles.detailPane}>
-              {!selReturn ? (
-                <Placeholder>Select a return on the left to move it through its lifecycle.</Placeholder>
-              ) : (
-                <div className={styles.scroll}>
-                  <div className={styles.detailHead}>
-                    <h2 className={styles.detailTitle}>{selReturn.return_id}</h2>
-                    <p className={styles.detailSub}>
-                      {selReturn.order_id} · {customerName(selReturn.customer_id)}
-                      {selReturn.is_seed && <span className={styles.seedTag}>seed</span>}
-                    </p>
-                  </div>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Return</h3>
-                    <Field label="Item">{selReturn.item_name}</Field>
-                    <Field label="Reason">{humanize(selReturn.reason)}</Field>
-                    <Field label="Refund">{selReturn.refund_amount || <span className={styles.muted}>not set</span>}</Field>
-                    <Field label="Initiated">{selReturn.return_initiated || '—'}</Field>
-                    <Field label="Received">{selReturn.return_received_date || <span className={styles.muted}>—</span>}</Field>
-                    <Field label="Refund ETA">{selReturn.refund_estimated_date || <span className={styles.muted}>—</span>}</Field>
-                    <Field label="Paid out">{selReturn.refund_issued_date || <span className={styles.muted}>—</span>}</Field>
-                  </section>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Controls</h3>
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Return status</span>
-                      <select
-                        className={styles.select}
-                        value={selReturn.status}
-                        onChange={(e) =>
-                          post(
-                            `/api/admin/returns/${selReturn.return_id}/set-status`,
-                            { status: e.target.value },
-                            `${selReturn.return_id} → ${humanize(e.target.value)}`,
-                            loadReturns
-                          )
-                        }
-                      >
-                        {RETURN_STATUSES.map((s) => (
-                          <option key={s} value={s}>{humanize(s)}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Refund</span>
-                      <select
-                        className={styles.select}
-                        value={selReturn.refund_status}
-                        onChange={(e) =>
-                          post(
-                            `/api/admin/returns/${selReturn.return_id}/set-status`,
-                            { refund_status: e.target.value },
-                            `${selReturn.return_id} refund → ${humanize(e.target.value)}`,
-                            loadReturns
-                          )
-                        }
-                      >
-                        {REFUND_STATUSES.map((s) => (
-                          <option key={s} value={s}>{humanize(s)}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Refund locked</span>
-                      <span className={styles.checkWrap}>
-                        <input
-                          type="checkbox"
-                          checked={selReturn.refund_locked}
-                          onChange={(e) =>
-                            post(
-                              `/api/admin/returns/${selReturn.return_id}/flags`,
-                              { refund_locked: e.target.checked },
-                              `${selReturn.return_id} refund ${e.target.checked ? 'locked' : 'unlocked'}`,
-                              loadReturns
-                            )
-                          }
-                        />
-                        <span className={styles.muted}>
-                          {selReturn.refund_locked
-                            ? humanize(selReturn.refund_locked_reason || 'held')
-                            : 'not locked'}
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className={styles.control}>
-                      <span className={styles.controlLabel}>Escalate</span>
-                      <span className={styles.checkWrap}>
-                        <input
-                          type="checkbox"
-                          checked={selReturn.requires_agent_escalation}
-                          onChange={(e) =>
-                            post(
-                              `/api/admin/returns/${selReturn.return_id}/flags`,
-                              { requires_agent_escalation: e.target.checked },
-                              `${selReturn.return_id} ${e.target.checked ? 'escalated' : 'escalation cleared'}`,
-                              loadReturns
-                            )
-                          }
-                        />
-                        <span className={styles.muted}>
-                          {selReturn.requires_agent_escalation
-                            ? humanize(selReturn.escalation_reason || 'needs a human')
-                            : 'no escalation'}
-                        </span>
-                      </span>
-                    </label>
-                    <p className={styles.controlHint}>
-                      These two are what an agent handles worst: a refund it must not promise a date for,
-                      and a case it should hand to a human.
-                    </p>
-
-                    <button className={styles.btnDangerGhost} onClick={() => deleteReturn(selReturn.return_id)}>
-                      {selReturn.is_seed ? 'Revert seeded return' : 'Delete return'}
-                    </button>
-                  </section>
-                </div>
-              )}
-            </aside>
-          </div>
+            {returnsLoading ? (
+              <p className={styles.emptyState}>Loading returns…</p>
+            ) : returns.length === 0 ? (
+              <p className={styles.emptyState}>No returns yet. File one through the API to see it here.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Return</th><th>Order</th><th>Item</th><th>Reason</th>
+                      <th>Return status</th><th>Refund</th><th>Flags</th><th>Dates</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {returns.map((ret) => (
+                      <tr key={ret.return_id}>
+                        {/* Customer folded in here as a second line: as its own
+                            column it pushed this table past the viewport and clipped
+                            the delete control off the right edge. */}
+                        <td className={styles.idCell}>
+                          <div className={styles.idStack}>
+                            <span>
+                              {ret.return_id}
+                              {ret.is_seed && <span className={styles.seedTag}>seed</span>}
+                            </span>
+                            <span className={styles.idSub}>
+                              {customerNames[ret.customer_id] || ret.customer_id}
+                            </span>
+                          </div>
+                        </td>
+                        <td className={styles.idCell}>{ret.order_id}</td>
+                        <td className={styles.itemsCell}>{ret.item_name}</td>
+                        {/* Sentence case, not uppercase: "ITEM NOT AS DESCRIBED" was
+                            one of the widest columns in a table with no room. */}
+                        <td className={styles.reasonCell}>{humanize(ret.reason)}</td>
+                        <td>
+                          <select
+                            className={styles.select}
+                            value={ret.status}
+                            onChange={(e) =>
+                              post(
+                                `/api/admin/returns/${ret.return_id}/set-status`,
+                                { status: e.target.value },
+                                `${ret.return_id} → ${humanize(e.target.value)}`,
+                                loadReturns
+                              )
+                            }
+                          >
+                            {RETURN_STATUSES.map((s) => (
+                              <option key={s} value={s}>{humanize(s)}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          {/* Select only, no pill beside it: the select already shows
+                              the current value, and the duplicate cost enough width to
+                              squeeze the Flags labels onto four lines each. Colour
+                              comes from the select's own accent instead. */}
+                          <select
+                            className={`${styles.select} ${styles[REFUND_PILL_CLASS[ret.refund_status]] || ''}`}
+                            value={ret.refund_status}
+                            onChange={(e) =>
+                              post(
+                                `/api/admin/returns/${ret.return_id}/set-status`,
+                                { refund_status: e.target.value },
+                                `${ret.return_id} refund → ${humanize(e.target.value)}`,
+                                loadReturns
+                              )
+                            }
+                          >
+                            {REFUND_STATUSES.map((s) => (
+                              <option key={s} value={s}>{humanize(s)}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          {/* Inner div does the stacking. Setting display:flex on the
+                              <td> itself takes the cell out of table layout, so it
+                              stops filling the row height and draws its border early. */}
+                          <div className={`${styles.stackTight} ${styles.flagStack}`}>
+                            <label className={styles.flagLabel}>
+                              <input
+                                type="checkbox"
+                                checked={ret.refund_locked}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/returns/${ret.return_id}/flags`,
+                                    { refund_locked: e.target.checked },
+                                    `${ret.return_id} refund ${e.target.checked ? 'locked' : 'unlocked'}`,
+                                    loadReturns
+                                  )
+                                }
+                              />
+                              <span>
+                                {flagLabelText('Locked', 'Not locked', ret.refund_locked, ret.refund_locked_reason)}
+                              </span>
+                            </label>
+                            <label className={styles.flagLabel}>
+                              <input
+                                type="checkbox"
+                                checked={ret.requires_agent_escalation}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/returns/${ret.return_id}/flags`,
+                                    { requires_agent_escalation: e.target.checked },
+                                    `${ret.return_id} ${e.target.checked ? 'escalated' : 'escalation cleared'}`,
+                                    loadReturns
+                                  )
+                                }
+                              />
+                              <span>
+                                {flagLabelText(
+                                  'Escalate',
+                                  'No escalation',
+                                  ret.requires_agent_escalation,
+                                  ret.escalation_reason
+                                )}
+                              </span>
+                            </label>
+                          </div>
+                        </td>
+                        <td className={styles.datesCell}>
+                          <div><span>Init</span><span>{ret.return_initiated || '—'}</span></div>
+                          <div><span>Recv</span><span>{ret.return_received_date || '—'}</span></div>
+                          <div><span>ETA</span><span>{ret.refund_estimated_date || '—'}</span></div>
+                          <div><span>Paid</span><span>{ret.refund_issued_date || '—'}</span></div>
+                        </td>
+                        <td className={styles.nowrapCell}>
+                          {/* Inline, like every other control on the row: deleting a
+                              return used to need a full Reset Demo. A seeded return
+                              can't be deleted, only reverted to its seeded state. */}
+                          {/* Icon-width, not a "Delete"/"Revert" label: the word
+                              pushed this 10-column table past the viewport and
+                              clipped the button itself. Title carries the meaning. */}
+                          <button
+                            className={styles.iconBtn}
+                            aria-label={ret.is_seed ? `Revert ${ret.return_id}` : `Delete ${ret.return_id}`}
+                            title={
+                              ret.is_seed
+                                ? 'Discard edits and restore this seeded return'
+                                : 'Delete this return'
+                            }
+                            onClick={() => deleteReturn(ret)}
+                          >
+                            {ret.is_seed ? '⤺' : '×'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
 
-        {/* ── INVENTORY ─────────────────────────────────────────────────────────
-            Left as a plain table: one control per row is not clutter, and a
-            detail pane for a single number would be worse than the table.     */}
+        {/* ── INVENTORY ─────────────────────────────────────────────────────── */}
         {tab === 'inventory' && (
-          <div className={styles.single}>
-            <div className={styles.paneHead}>
-              <h2 className={styles.paneTitle}>Inventory</h2>
-              <span className={styles.paneHint}>
-                0 makes cart-add and checkout fail with out_of_stock · 1–3 reports as low_stock
-              </span>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <h1 className={styles.panelTitle}>Inventory</h1>
+              <p className={styles.panelNote}>
+                Set stock to <code>0</code> to make cart-add and checkout fail with <code>out_of_stock</code>.
+                1–3 units reports as <code>low_stock</code>.
+              </p>
             </div>
-            <div className={styles.scroll}>
-              {loading.stock && <Placeholder>Loading…</Placeholder>}
-              {!loading.stock &&
-                products.map((p) => (
-                  <div key={p.product_id} className={styles.stockRow}>
-                    <span className={styles.stockName}>{p.name}</span>
-                    <span className={styles.stockCat}>{p.category}</span>
-                    <span className={styles.stockPrice}>{formatRs(p.price)}</span>
-                    <Pill tone={STOCK_TONE[p.stock_status]}>
-                      {STOCK_LABELS[p.stock_status] || p.stock_status}
-                    </Pill>
-                    <span className={styles.inputRow}>
-                      <input
-                        className={styles.input}
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={stockInputs[p.product_id] ?? ''}
-                        onChange={(e) => setStockInputs((s) => ({ ...s, [p.product_id]: e.target.value }))}
-                      />
-                      <button className={styles.btnPrimary} onClick={() => setStock(p)}>Save</button>
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </div>
+
+            {stockLoading ? (
+              <p className={styles.emptyState}>Loading inventory…</p>
+            ) : products.length === 0 ? (
+              <p className={styles.emptyState}>No products found.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Product</th><th>Category</th><th className={styles.alignRight}>Price</th>
+                      <th className={styles.alignRight}>Stock</th><th>Status</th><th>Set stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => (
+                      <tr key={p.product_id}>
+                        <td className={styles.nameCell}>{p.name}</td>
+                        <td className={styles.mutedCell}>{p.category}</td>
+                        <td className={`${styles.alignRight} ${styles.nowrapCell}`}>{formatRs(p.price)}</td>
+                        <td className={`${styles.alignRight} ${styles.stockCount}`}>{p.stock}</td>
+                        <td>
+                          <span className={`${styles.pill} ${styles[STOCK_PILL_CLASS[p.stock_status]] || ''}`}>
+                            {STOCK_LABELS[p.stock_status] || p.stock_status}
+                          </span>
+                        </td>
+                        <td className={styles.nowrapCell}>
+                          <div className={styles.inputGroup}>
+                            <input
+                              className={styles.stockInput}
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={stockInputs[p.product_id] ?? ''}
+                              onChange={(e) => setStockInputs((s) => ({ ...s, [p.product_id]: e.target.value }))}
+                            />
+                            <button className={styles.saveBtn} onClick={() => setStock(p)}>Save</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
 
         {/* ── REQUEST LOG ───────────────────────────────────────────────────── */}
         {tab === 'log' && (
-          <div className={styles.split}>
-            <div className={styles.listPane}>
-              <div className={styles.paneHead}>
-                <h2 className={styles.paneTitle}>Request log</h2>
-                <div className={styles.headerActions}>
-                  <button className={styles.btnGhost} onClick={clearLog}>Clear</button>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div className={styles.panelHeadRow}>
+                <h1 className={styles.panelTitle}>Request Log</h1>
+                <div className={styles.headActions}>
+                  {log.length > LOG_PREVIEW_COUNT && (
+                    <button className={styles.ghostBtn} onClick={() => setLogExpanded((v) => !v)}>
+                      {logExpanded ? `Latest ${LOG_PREVIEW_COUNT}` : `Show all ${log.length}`}
+                    </button>
+                  )}
+                  <button className={styles.ghostBtn} onClick={clearLog}>Clear</button>
                 </div>
               </div>
-              {!logEnabled && (
-                <p className={styles.warnNote}>
-                  Logging is off. Set <code>REQUEST_LOG=1</code> and restart to record requests.
-                </p>
-              )}
-              <div className={styles.scroll}>
-                {loading.log && <Placeholder>Loading…</Placeholder>}
-                {!loading.log && log.length === 0 && (
-                  <Placeholder>
-                    {logEnabled ? 'No requests recorded yet.' : 'Nothing to show while logging is off.'}
-                  </Placeholder>
-                )}
-                {!loading.log &&
-                  log.map((e, i) => {
-                    const key = `${e.ts}-${i}`;
-                    // A 200 carrying ok:false is a business refusal, not a transport
-                    // failure — the case an agent most often misreads as success.
-                    const declined = e.status === 200 && e.ok === false;
-                    return (
-                      <button
-                        key={key}
-                        className={`${styles.row} ${styles.logRow} ${selLogKey === key ? styles.rowActive : ''} ${declined ? styles.rowFlagged : ''}`}
-                        onClick={() => setSelLogKey(key)}
-                      >
-                        <span className={styles.logTime}>{e.ts.slice(11, 19)}</span>
-                        <span className={styles.logMethod}>{e.method}</span>
-                        <span className={styles.logPath}>{e.path}</span>
-                        <span className={e.status >= 400 ? styles.logBad : styles.logCode}>{e.status}</span>
-                        {declined && <span className={styles.declinedDot} title="Declined with HTTP 200" />}
-                      </button>
-                    );
-                  })}
-              </div>
-              <p className={styles.paneFoot}>
-                External callers only, newest first, capped at {LOG_CAP}. This panel&apos;s own requests are
-                excluded, so what you see is the agent.
+              <p className={styles.panelNote}>
+                External callers only, newest first, capped at {LOG_CAP} — this panel&apos;s own requests are
+                excluded, so what you see is the agent. Highlighted rows returned HTTP 200 with{' '}
+                <code>ok: false</code>: a refusal an agent may report to the customer as success.
               </p>
             </div>
 
-            <aside className={styles.detailPane}>
-              {!selLog ? (
-                <Placeholder>Select a request to see its body and outcome.</Placeholder>
-              ) : (
-                <div className={styles.scroll}>
-                  <div className={styles.detailHead}>
-                    <h2 className={styles.detailTitle}>
-                      {selLog.method} {selLog.status}
-                    </h2>
-                    <p className={styles.detailSub}>{selLog.ts.replace('T', ' ').replace('Z', ' UTC')}</p>
-                  </div>
+            {!logEnabled && (
+              <p className={styles.warnNote}>
+                Logging is off, so this stays empty even while the agent is calling the API. Set{' '}
+                <code>REQUEST_LOG=1</code> and restart to enable it.
+              </p>
+            )}
 
-                  {selLog.status === 200 && selLog.ok === false && (
-                    <div className={styles.calloutWarn}>
-                      <strong>Declined with HTTP 200.</strong> The request succeeded at the transport level but
-                      the action was refused. An agent branching on the status code alone reports this to the
-                      customer as done.
-                    </div>
-                  )}
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Request</h3>
-                    <Field label="Path"><span className={styles.mono}>{selLog.path}</span></Field>
-                    <Field label="Duration">{selLog.ms} ms</Field>
-                    <Field label="Body">
-                      {selLog.body !== undefined ? (
-                        <pre className={styles.codeBlock}>{JSON.stringify(selLog.body, null, 2)}</pre>
-                      ) : (
-                        <span className={styles.muted}>none</span>
-                      )}
-                    </Field>
-                  </section>
-
-                  <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Outcome</h3>
-                    <Field label="HTTP">{selLog.status}</Field>
-                    <Field label="ok">
-                      {selLog.ok === null ? (
-                        <span className={styles.muted}>not JSON</span>
-                      ) : (
-                        <span className={selLog.ok ? styles.okTrue : styles.okFalse}>{String(selLog.ok)}</span>
-                      )}
-                    </Field>
-                    {selLog.error && <Field label="Error"><span className={styles.mono}>{selLog.error}</span></Field>}
-                    {selLog.reason && <Field label="Reason">{selLog.reason}</Field>}
-                  </section>
-                </div>
-              )}
-            </aside>
-          </div>
+            {logLoading ? (
+              <p className={styles.emptyState}>Loading log…</p>
+            ) : log.length === 0 ? (
+              <p className={styles.emptyState}>
+                {logEnabled ? 'No requests recorded yet.' : 'Nothing to show while logging is off.'}
+              </p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Time</th><th>Method</th><th>Path</th><th className={styles.alignRight}>HTTP</th>
+                      <th>ok</th><th>Detail</th><th className={styles.alignRight}>ms</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleLog.map((e, i) => {
+                      // A 200 carrying ok:false is a business refusal, not a transport
+                      // failure — the case an agent most often misreads as success.
+                      const declined = e.status === 200 && e.ok === false;
+                      return (
+                        <tr key={`${e.ts}-${i}`} className={declined ? styles.rowDeclined : undefined}>
+                          <td className={styles.monoMuted}>{e.ts.slice(11, 23)}</td>
+                          <td className={styles.methodCell}>{e.method}</td>
+                          <td className={styles.pathCell}>{e.path}</td>
+                          <td className={`${styles.alignRight} ${e.status >= 400 ? styles.statusErr : styles.monoMuted}`}>
+                            {e.status}
+                          </td>
+                          <td>
+                            {e.ok === null ? (
+                              <span className={styles.monoMuted}>—</span>
+                            ) : (
+                              <span className={e.ok ? styles.okTrue : styles.okFalse}>{String(e.ok)}</span>
+                            )}
+                          </td>
+                          <td className={styles.detailCell}>
+                            {declined && <div className={styles.declinedTag}>declined with HTTP 200</div>}
+                            {e.error && <div className={styles.errorCode}>{e.error}</div>}
+                            {e.reason && <div>{e.reason}</div>}
+                            {e.body !== undefined && (
+                              <div className={styles.bodyPreview}>{JSON.stringify(e.body)}</div>
+                            )}
+                          </td>
+                          <td className={`${styles.alignRight} ${styles.monoMuted}`}>{e.ms}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
       </main>
 
