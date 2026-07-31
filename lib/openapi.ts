@@ -1006,7 +1006,8 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "File a return",
         description:
-          "Creates a return and issues a shipping label. **An ineligible order returns HTTP 200 with `ok: false`** — check the field, not the status code. Call /return-eligibility first. Filing with `return_reason: 'damaged on arrival'` opens a damage claim on the order, which holds the refund under review.",
+          "Creates a return and issues a shipping label. **An ineligible order returns HTTP 200 with `ok: false`** — check the field, not the status code. Call /return-eligibility first. " +
+          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1050,7 +1051,22 @@ export const OPENAPI_SPEC = {
                           type: "string",
                           description: "'free', or '₹200–₹500 (customer pays)' for change of mind.",
                         },
-                        estimated_refund_date: { type: "string", format: "date" },
+                        estimated_refund_date: {
+                          type: "string",
+                          format: "date",
+                          nullable: true,
+                          description: "Null when the refund is locked — there is no date to give yet.",
+                        },
+                        refund_locked: {
+                          type: "boolean",
+                          description:
+                            "Present only when true (damaged on arrival). The refund is held pending inspection.",
+                        },
+                        refund_locked_reason: { type: "string", example: "damage_claim_under_review" },
+                        refund_note: {
+                          type: "string",
+                          description: "Customer-ready explanation of the hold. Present only alongside refund_locked.",
+                        },
                       },
                     },
                     {
