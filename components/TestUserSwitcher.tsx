@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { CUSTOMERS } from '@/lib/data';
 import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustomer';
 
@@ -9,6 +10,14 @@ import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustome
  * whole site. Runs once on mount, on every page, via _app.tsx.
  */
 const AGENT_ID = 'agent_2401kwbf2gwwe6e8w10gnkbntctt';
+
+/**
+ * Routes where the switcher panel is hidden. It's fixed at bottom-left and
+ * covers table rows on the admin page, which has no active-customer concept of
+ * its own. The ElevenLabs widget still boots everywhere, so the agent stays
+ * reachable while you watch the admin request log.
+ */
+const HIDE_SWITCHER_ON = ['/admin'];
 
 function bootElevenLabs(userId: string) {
   const customer = CUSTOMERS[userId];
@@ -105,11 +114,27 @@ function buildSwitcher() {
 }
 
 export default function TestUserSwitcher() {
+  const { pathname } = useRouter();
+
   useEffect(() => {
     const activeId = getActiveCustomerId();
     bootElevenLabs(activeId);
     buildSwitcher();
   }, []);
+
+  /**
+   * Toggles visibility per route rather than skipping the build on admin.
+   *
+   * This component is mounted by _app.tsx, outside the page, so it does not
+   * remount on client-side navigation — a build-time check would leave the panel
+   * on screen when moving from the storefront to /admin, and never bring it back
+   * when moving away. The panel is also appended straight to document.body, so
+   * React can't unmount it; setting display is what actually works.
+   */
+  useEffect(() => {
+    const panel = document.getElementById('nk-user-switcher');
+    if (panel) panel.style.display = HIDE_SWITCHER_ON.includes(pathname) ? 'none' : '';
+  }, [pathname]);
 
   return null;
 }
