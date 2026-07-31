@@ -24,6 +24,17 @@ export const ENABLED = process.env.REQUEST_LOG === "1" || process.env.REQUEST_LO
 export const LOG_KEY = "nestkart_request_log";
 
 /**
+ * Requests carrying this header are not logged.
+ *
+ * The admin panel polls /api/admin/orders, /api/admin/returns and /api/products
+ * on every load and every action, so without this the log fills with the panel's
+ * own instrumentation — three rows per Refresh — and the agent traffic it exists
+ * to show gets buried. The panel is the surface you are already looking at; its
+ * own calls tell you nothing you did not just do.
+ */
+export const SKIP_HEADER = "x-admin-panel";
+
+/**
  * ~96 KB at the observed average entry size, and 50-150 agent conversations at
  * 3-10 tool calls each — more than one debugging session, still a single fast
  * LRANGE for the admin panel.

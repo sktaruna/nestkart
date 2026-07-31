@@ -275,7 +275,8 @@ export function withState(handler: ApiHandler): ApiHandler {
 
         // Built before the save so `ms` covers the handler, and so the append can
         // be pipelined into that save rather than costing its own round trip.
-        const entry = requestLog.ENABLED
+        const skipLog = Boolean(req.headers[requestLog.SKIP_HEADER]);
+        const entry = requestLog.ENABLED && !skipLog
           ? requestLog.buildEntry({
               method: req.method || "?",
               path: req.url || "?",
