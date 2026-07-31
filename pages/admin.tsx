@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '@/styles/Admin.module.css';
 import { formatRs } from '@/lib/format';
 import type { AdminCustomerOrders, AdminReturn, Product, RequestLogEntry } from '@/lib/types';
@@ -23,6 +23,13 @@ const STOCK_PILL_CLASS: Record<string, string> = {
   in_stock: 'stockPillInStock',
   low_stock: 'stockPillLowStock',
   out_of_stock: 'stockPillOutOfStock',
+};
+/** Refund progress gets the same colour language as order status. */
+const REFUND_PILL_CLASS: Record<string, string> = {
+  pending: 'pillNeutral',
+  processing: 'pillWarn',
+  issued: 'pillGood',
+  rejected: 'pillBad',
 };
 
 type Tab = 'orders' | 'returns' | 'inventory' | 'log';
@@ -102,20 +109,24 @@ export default function AdminPage() {
   const [logLoading, setLogLoading] = useState(true);
   const [logExpanded, setLogExpanded] = useState(false);
 
-  // One keyed map for every transient "Saved"/"Error" note on the page, so each
-  // new control doesn't bring its own piece of flash state along with it.
-  const [flash, setFlash] = useState<Record<string, { text: string; err: boolean }>>({});
+  /**
+   * One toast, rather than a per-row status column.
+   *
+   * Every table previously carried a trailing column that existed only to hold a
+   * transient "Saved" note and was empty the rest of the time — dead width in
+   * four tables. The toast names the row it refers to, so nothing is lost.
+   */
+  const [toast, setToast] = useState<{ text: string; err: boolean } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showFlash = useCallback((key: string, text: string, err = false) => {
-    setFlash((f) => ({ ...f, [key]: { text, err } }));
-    setTimeout(() => {
-      setFlash((f) => {
-        if (f[key]?.text !== text) return f; // a newer note replaced this one
-        const next = { ...f };
-        delete next[key];
-        return next;
-      });
-    }, err ? 2500 : 2000);
+  const showToast = useCallback((text: string, err = false) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ text, err });
+    toastTimer.current = setTimeout(() => setToast(null), err ? 4000 : 2200);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
   const loadOrders = useCallback(async () => {
@@ -198,9 +209,9 @@ export default function AdminPage() {
     loadLog();
   }, [loadOrders, loadReturns, loadStock, loadLog]);
 
-  /** POST a JSON body and reload on success, flashing the outcome under `key`. */
+  /** POST a JSON body, reload on success, and report the outcome as a toast. */
   const post = useCallback(
-    async (url: string, body: unknown, key: string, reload: () => Promise<void>, okText = 'Saved') => {
+    async (url: string, body: unknown, label: string, reload: () => Promise<void>) => {
       try {
         const r = await fetch(url, {
           method: 'POST',
@@ -210,43 +221,53 @@ export default function AdminPage() {
         });
         const d = await r.json();
         if (d.ok) {
-          showFlash(key, okText);
+          showToast(label);
           await reload();
         } else {
-          showFlash(key, d.message || 'Error', true);
+          showToast(d.message || `${label} failed`, true);
         }
       } catch {
-        showFlash(key, 'Failed', true);
+        showToast(`${label} failed`, true);
       }
     },
-    [showFlash]
+    [showToast]
   );
 
   async function deleteOrder(orderId: string) {
     if (!window.confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
     try {
-      const r = await fetch(`/api/admin/orders/${orderId}`, { method: 'DELETE', headers: PANEL_HEADERS, cache: 'no-store' });
+      const r = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: PANEL_HEADERS,
+        cache: 'no-store',
+      });
       const d = await r.json();
       if (d.ok) {
-        // Remove immediately from local state...
         setCustomers((prev) =>
           prev.map((c) => ({ ...c, orders: c.orders.filter((o) => o.order_id !== orderId) }))
         );
-        // ...and re-fetch to stay perfectly in sync with the server.
+        showToast(`${orderId} deleted`);
         await loadOrders();
+      } else {
+        showToast(d.message || 'Delete failed', true);
       }
     } catch {
-      /* ignore */
+      showToast('Delete failed', true);
     }
   }
 
-  function setStock(productId: string) {
-    const val = parseInt(stockInputs[productId], 10);
+  function setStock(product: Product) {
+    const val = parseInt(stockInputs[product.product_id], 10);
     if (isNaN(val) || val < 0) {
-      showFlash(`stock:${productId}`, 'Invalid value', true);
+      showToast('Stock must be a whole number, 0 or more', true);
       return;
     }
-    return post(`/api/admin/products/${productId}/stock`, { stock: val }, `stock:${productId}`, loadStock);
+    return post(
+      `/api/admin/products/${product.product_id}/stock`,
+      { stock: val },
+      `${product.name} → ${val} in stock`,
+      loadStock
+    );
   }
 
   async function doReset() {
@@ -254,9 +275,12 @@ export default function AdminPage() {
     try {
       const r = await fetch('/api/admin/reset', { method: 'POST', headers: PANEL_HEADERS, cache: 'no-store' });
       const d = await r.json();
-      if (d.ok) await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
+      if (d.ok) {
+        showToast('Demo data reset');
+        await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
+      }
     } catch {
-      /* ignore */
+      showToast('Reset failed', true);
     }
   }
 
@@ -266,9 +290,12 @@ export default function AdminPage() {
   async function clearLog() {
     try {
       const r = await fetch('/api/admin/log', { method: 'DELETE', headers: PANEL_HEADERS, cache: 'no-store' });
-      if ((await r.json()).ok) await loadLog();
+      if ((await r.json()).ok) {
+        showToast('Request log cleared');
+        await loadLog();
+      }
     } catch {
-      /* ignore */
+      showToast('Could not clear log', true);
     }
   }
 
@@ -297,12 +324,7 @@ export default function AdminPage() {
     [ordersLoading, orderCount, returnsLoading, returns.length, stockLoading, products.length, logLoading, log.length]
   );
 
-  /** Renders the transient Saved/Error note for a row. */
-  const flashFor = (key: string) => {
-    const f = flash[key];
-    if (!f) return null;
-    return <span className={`${styles.flashOk} ${f.err ? styles.flashStockErr : ''}`}>{f.text}</span>;
-  };
+  const visibleLog = logExpanded ? log : log.slice(0, LOG_PREVIEW_COUNT);
 
   return (
     <div className={styles.body}>
@@ -310,15 +332,13 @@ export default function AdminPage() {
         <title>Admin — NestKart</title>
       </Head>
 
-      {/* Header and tabs stay pinned so the controls remain reachable while a
-          long table scrolls underneath. */}
-      <div className={styles.topBar}>
+      <header className={styles.topBar}>
         <div className={styles.adminHeader}>
           <div>
             <p className={styles.adminHeaderTitle}>NestKart Admin</p>
-            <p className={styles.adminHeaderSub}>Demo control panel</p>
+            <p className={styles.adminHeaderSub}>Agent testing control panel</p>
           </div>
-          <div>
+          <div className={styles.headerActions}>
             <button className={styles.refreshBtn} onClick={refreshAll}>Refresh</button>
             <button className={styles.resetBtn} onClick={() => setShowResetConfirm(true)}>Reset Demo</button>
           </div>
@@ -337,99 +357,115 @@ export default function AdminPage() {
             </button>
           ))}
         </nav>
-      </div>
+      </header>
 
       {showResetConfirm && (
         <div className={styles.resetConfirm}>
-          <p className={styles.resetConfirmText}>This will reset all demo data — orders, carts, returns, and stock. The request log is kept. Are you sure?</p>
-          <button className={styles.resetOk} onClick={doReset}>Yes, Reset</button>
+          <p className={styles.resetConfirmText}>
+            Resets orders, carts, returns and stock to their seeded state. The request log is kept.
+          </p>
+          <button className={styles.resetOk} onClick={doReset}>Yes, reset</button>
           <button className={styles.resetCancel} onClick={() => setShowResetConfirm(false)}>Cancel</button>
         </div>
       )}
 
-      <div className={styles.adminMain}>
+      <main className={styles.adminMain}>
         {/* ── ORDERS ────────────────────────────────────────────────────────── */}
         {tab === 'orders' && (
-          <section>
+          <section className={styles.panel}>
             <div className={styles.panelHead}>
               <h1 className={styles.panelTitle}>Orders</h1>
               <p className={styles.panelNote}>
-                Status drives what the agent may do: cancel and address changes need <code>processing</code>,
-                returns need <code>delivered</code>. Backdate <strong>Est. Delivery</strong> past 30 days to
+                Status gates what the agent may do: cancel and address changes need <code>processing</code>,
+                returns need <code>delivered</code>. Backdate <strong>delivery</strong> more than 30 days to
                 expire the return window.
               </p>
             </div>
 
-            {ordersLoading && <p className={styles.loadingNote}>Loading orders…</p>}
-            {!ordersLoading && customersWithOrders.length === 0 && (
-              <p className={styles.loadingNote}>No orders found.</p>
-            )}
-            {!ordersLoading &&
-              customersWithOrders.map((cust) => (
-                <div className={styles.customerSection} key={cust.customer_id}>
-                  <div className={styles.customerSectionHeader}>
-                    <span className={styles.customerSectionName}>{cust.name}</span>
-                    <span className={styles.customerSectionId}>{cust.customer_id}</span>
-                  </div>
-                  <div className={styles.tableScroll}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Set Status</th>
-                          <th>Damage Claim</th><th>Est. Delivery</th><th></th>
+            {ordersLoading ? (
+              <p className={styles.emptyState}>Loading orders…</p>
+            ) : customersWithOrders.length === 0 ? (
+              <p className={styles.emptyState}>No orders yet.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                {/* One table with a group row per customer, rather than a separate
+                    table each — five repeated header rows was most of the visual
+                    noise on this tab. */}
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Order</th><th>Items</th><th className={styles.alignRight}>Total</th>
+                      <th>Status</th><th>Set status</th><th>Damage claim</th><th>Delivery</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customersWithOrders.map((cust) => (
+                      <Fragment key={cust.customer_id}>
+                        <tr className={styles.groupRow}>
+                          <td colSpan={8}>
+                            <span className={styles.groupName}>{cust.name}</span>
+                            <span className={styles.groupId}>{cust.customer_id}</span>
+                            <span className={styles.groupMeta}>
+                              {cust.orders.length} order{cust.orders.length === 1 ? '' : 's'}
+                            </span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {cust.orders.map((o) => {
-                          const items = (o.items || []).map((i) => `${i.product_name} x${i.qty}`).join(', ');
-                          const key = `order:${o.order_id}`;
-                          return (
-                            <tr key={o.order_id}>
-                              <td className={styles.orderIdCell}>{o.order_id}</td>
-                              <td className={styles.itemsCell}>{items}</td>
-                              <td className={styles.nowrapCell}>{formatRs(o.price_total)}</td>
-                              <td>
-                                <span className={`status-pill status-pill--${o.status}`}>
-                                  {o.status.replace('_', ' ')}
-                                </span>
-                              </td>
-                              <td>
-                                <select
-                                  className={styles.statusSelect}
-                                  value={o.status}
+                        {cust.orders.map((o) => (
+                          <tr key={o.order_id}>
+                            <td className={styles.idCell}>{o.order_id}</td>
+                            <td className={styles.itemsCell}>
+                              {(o.items || []).map((i) => `${i.product_name} ×${i.qty}`).join(', ')}
+                            </td>
+                            <td className={`${styles.alignRight} ${styles.nowrapCell}`}>{formatRs(o.price_total)}</td>
+                            <td>
+                              <span className={`status-pill status-pill--${o.status}`}>
+                                {o.status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td>
+                              <select
+                                className={styles.select}
+                                value={o.status}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/orders/${o.order_id}/set-status`,
+                                    { status: e.target.value },
+                                    `${o.order_id} → ${humanize(e.target.value)}`,
+                                    loadOrders
+                                  )
+                                }
+                              >
+                                {VALID_STATUSES.map((s) => (
+                                  <option key={s} value={s}>{humanize(s)}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <label className={styles.flagLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={o.damage_claim_active}
                                   onChange={(e) =>
-                                    post(`/api/admin/orders/${o.order_id}/set-status`, { status: e.target.value }, key, loadOrders, 'Updated')
+                                    post(
+                                      `/api/admin/orders/${o.order_id}/flags`,
+                                      { damage_claim_active: e.target.checked },
+                                      `${o.order_id} damage claim ${e.target.checked ? 'opened' : 'cleared'}`,
+                                      loadOrders
+                                    )
                                   }
-                                >
-                                  {VALID_STATUSES.map((s) => (
-                                    <option key={s} value={s}>{humanize(s)}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td>
-                                <label className={styles.flagLabel}>
-                                  <input
-                                    type="checkbox"
-                                    checked={o.damage_claim_active}
-                                    onChange={(e) =>
-                                      post(
-                                        `/api/admin/orders/${o.order_id}/flags`,
-                                        { damage_claim_active: e.target.checked },
-                                        key,
-                                        loadOrders,
-                                        e.target.checked ? 'Claim on' : 'Claim off'
-                                      )
-                                    }
-                                  />
-                                  <span>{o.damage_claim_active ? 'Active' : 'None'}</span>
-                                </label>
-                              </td>
-                              <td className={styles.nowrapCell}>
+                                />
+                                <span>{o.damage_claim_active ? 'Active' : 'None'}</span>
+                              </label>
+                            </td>
+                            <td className={styles.nowrapCell}>
+                              <div className={styles.inputGroup}>
                                 <input
                                   className={styles.dateInput}
                                   type="date"
                                   value={deliveryInputs[o.order_id] ?? ''}
-                                  onChange={(e) => setDeliveryInputs((s) => ({ ...s, [o.order_id]: e.target.value }))}
+                                  onChange={(e) =>
+                                    setDeliveryInputs((s) => ({ ...s, [o.order_id]: e.target.value }))
+                                  }
                                 />
                                 <button
                                   className={styles.saveBtn}
@@ -437,77 +473,84 @@ export default function AdminPage() {
                                     post(
                                       `/api/admin/orders/${o.order_id}/flags`,
                                       { estimated_delivery: deliveryInputs[o.order_id] || null },
-                                      key,
+                                      `${o.order_id} delivery date saved`,
                                       loadOrders
                                     )
                                   }
                                 >
                                   Save
                                 </button>
-                              </td>
-                              <td className={styles.rowActions}>
-                                {flashFor(key)}
-                                {!o.is_seed && (
-                                  <button className={styles.deleteOrderBtn} onClick={() => deleteOrder(o.order_id)}>
-                                    Delete
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
+                              </div>
+                            </td>
+                            <td className={styles.alignRight}>
+                              {o.is_seed ? (
+                                <span className={styles.seedTag} title="Seeded demo order — cannot be deleted">
+                                  seed
+                                </span>
+                              ) : (
+                                <button className={styles.deleteBtn} onClick={() => deleteOrder(o.order_id)}>
+                                  Delete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
         {/* ── RETURNS ───────────────────────────────────────────────────────── */}
         {tab === 'returns' && (
-          <section>
+          <section className={styles.panel}>
             <div className={styles.panelHead}>
               <h1 className={styles.panelTitle}>Returns &amp; Refunds</h1>
               <p className={styles.panelNote}>
-                Drives what <code>GET /api/returns/:id</code> reports. <strong>Refund Locked</strong> and{' '}
+                Drives what <code>GET /api/returns/:id</code> reports. <strong>Locked</strong> and{' '}
                 <strong>Escalate</strong> are the two cases an agent handles worst — a refund it must not
                 promise a date for, and a case it should hand to a human.
               </p>
             </div>
 
-            <div className={styles.tableScroll}>
-              <table className={styles.table}>
-                <thead>
-                  {/* Refund-locked and escalation share one column: as two they
-                      squeezed the table past the viewport and clipped Dates. */}
-                  <tr>
-                    <th>Return</th><th>Order</th><th>Customer</th><th>Item</th><th>Reason</th>
-                    <th>Status</th><th>Refund</th><th>Flags</th><th>Dates</th><th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {returnsLoading && (
-                    <tr><td colSpan={10} className={styles.loadingNote}>Loading returns…</td></tr>
-                  )}
-                  {!returnsLoading && returns.length === 0 && (
-                    <tr><td colSpan={10} className={styles.loadingNote}>No returns yet.</td></tr>
-                  )}
-                  {!returnsLoading && returns.map((ret) => {
-                    const key = `return:${ret.return_id}`;
-                    return (
+            {returnsLoading ? (
+              <p className={styles.emptyState}>Loading returns…</p>
+            ) : returns.length === 0 ? (
+              <p className={styles.emptyState}>No returns yet. File one through the API to see it here.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Return</th><th>Order</th><th>Customer</th><th>Item</th><th>Reason</th>
+                      <th>Return status</th><th>Refund</th><th>Flags</th><th>Dates</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {returns.map((ret) => (
                       <tr key={ret.return_id}>
-                        <td className={styles.orderIdCell}>{ret.return_id}</td>
-                        <td className={styles.orderIdCell}>{ret.order_id}</td>
+                        <td className={styles.idCell}>
+                          {ret.return_id}
+                          {ret.is_seed && <span className={styles.seedTag}>seed</span>}
+                        </td>
+                        <td className={styles.idCell}>{ret.order_id}</td>
                         <td className={styles.nowrapCell}>{customerNames[ret.customer_id] || ret.customer_id}</td>
                         <td className={styles.itemsCell}>{ret.item_name}</td>
                         <td className={styles.mutedCell}>{ret.reason}</td>
                         <td>
                           <select
-                            className={styles.statusSelect}
+                            className={styles.select}
                             value={ret.status}
                             onChange={(e) =>
-                              post(`/api/admin/returns/${ret.return_id}/set-status`, { status: e.target.value }, key, loadReturns, 'Updated')
+                              post(
+                                `/api/admin/returns/${ret.return_id}/set-status`,
+                                { status: e.target.value },
+                                `${ret.return_id} → ${humanize(e.target.value)}`,
+                                loadReturns
+                              )
                             }
                           >
                             {RETURN_STATUSES.map((s) => (
@@ -516,11 +559,20 @@ export default function AdminPage() {
                           </select>
                         </td>
                         <td>
+                          {/* Select only, no pill beside it: the select already shows
+                              the current value, and the duplicate cost enough width to
+                              squeeze the Flags labels onto four lines each. Colour
+                              comes from the select's own accent instead. */}
                           <select
-                            className={styles.statusSelect}
+                            className={`${styles.select} ${styles[REFUND_PILL_CLASS[ret.refund_status]] || ''}`}
                             value={ret.refund_status}
                             onChange={(e) =>
-                              post(`/api/admin/returns/${ret.return_id}/set-status`, { refund_status: e.target.value }, key, loadReturns, 'Updated')
+                              post(
+                                `/api/admin/returns/${ret.return_id}/set-status`,
+                                { refund_status: e.target.value },
+                                `${ret.return_id} refund → ${humanize(e.target.value)}`,
+                                loadReturns
+                              )
                             }
                           >
                             {REFUND_STATUSES.map((s) => (
@@ -528,188 +580,198 @@ export default function AdminPage() {
                             ))}
                           </select>
                         </td>
-                        {/* Inner div does the stacking. Setting display:flex on the
-                            <td> itself takes the cell out of table layout, so it
-                            stops filling the row height and draws its border early. */}
                         <td>
-                         <div className={styles.flagStack}>
-                          <label className={styles.flagLabel}>
-                            <input
-                              type="checkbox"
-                              checked={ret.refund_locked}
-                              onChange={(e) =>
-                                post(
-                                  `/api/admin/returns/${ret.return_id}/flags`,
-                                  { refund_locked: e.target.checked },
-                                  key,
-                                  loadReturns,
-                                  e.target.checked ? 'Locked' : 'Unlocked'
-                                )
-                              }
-                            />
-                            {/* Reasons are humanized so they wrap at spaces. The raw
-                                snake_case broke mid-word ("non_returnab le_item"). */}
-                            <span>{flagLabelText('Locked', 'Not locked', ret.refund_locked, ret.refund_locked_reason)}</span>
-                          </label>
-                          <label className={styles.flagLabel}>
-                            <input
-                              type="checkbox"
-                              checked={ret.requires_agent_escalation}
-                              onChange={(e) =>
-                                post(
-                                  `/api/admin/returns/${ret.return_id}/flags`,
-                                  { requires_agent_escalation: e.target.checked },
-                                  key,
-                                  loadReturns,
-                                  e.target.checked ? 'Escalated' : 'Cleared'
-                                )
-                              }
-                            />
-                            <span>
-                              {flagLabelText('Escalate', 'No escalation', ret.requires_agent_escalation, ret.escalation_reason)}
-                            </span>
-                          </label>
-                         </div>
+                          {/* Inner div does the stacking. Setting display:flex on the
+                              <td> itself takes the cell out of table layout, so it
+                              stops filling the row height and draws its border early. */}
+                          <div className={`${styles.stackTight} ${styles.flagStack}`}>
+                            <label className={styles.flagLabel}>
+                              <input
+                                type="checkbox"
+                                checked={ret.refund_locked}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/returns/${ret.return_id}/flags`,
+                                    { refund_locked: e.target.checked },
+                                    `${ret.return_id} refund ${e.target.checked ? 'locked' : 'unlocked'}`,
+                                    loadReturns
+                                  )
+                                }
+                              />
+                              <span>
+                                {flagLabelText('Locked', 'Not locked', ret.refund_locked, ret.refund_locked_reason)}
+                              </span>
+                            </label>
+                            <label className={styles.flagLabel}>
+                              <input
+                                type="checkbox"
+                                checked={ret.requires_agent_escalation}
+                                onChange={(e) =>
+                                  post(
+                                    `/api/admin/returns/${ret.return_id}/flags`,
+                                    { requires_agent_escalation: e.target.checked },
+                                    `${ret.return_id} ${e.target.checked ? 'escalated' : 'escalation cleared'}`,
+                                    loadReturns
+                                  )
+                                }
+                              />
+                              <span>
+                                {flagLabelText(
+                                  'Escalate',
+                                  'No escalation',
+                                  ret.requires_agent_escalation,
+                                  ret.escalation_reason
+                                )}
+                              </span>
+                            </label>
+                          </div>
                         </td>
                         <td className={styles.datesCell}>
-                          <div>Init <span>{ret.return_initiated || '—'}</span></div>
-                          <div>Recv <span>{ret.return_received_date || '—'}</span></div>
-                          <div>ETA <span>{ret.refund_estimated_date || '—'}</span></div>
-                          <div>Paid <span>{ret.refund_issued_date || '—'}</span></div>
+                          <div><span>Init</span><span>{ret.return_initiated || '—'}</span></div>
+                          <div><span>Recv</span><span>{ret.return_received_date || '—'}</span></div>
+                          <div><span>ETA</span><span>{ret.refund_estimated_date || '—'}</span></div>
+                          <div><span>Paid</span><span>{ret.refund_issued_date || '—'}</span></div>
                         </td>
-                        <td>{flashFor(key)}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
         {/* ── INVENTORY ─────────────────────────────────────────────────────── */}
         {tab === 'inventory' && (
-          <section>
+          <section className={styles.panel}>
             <div className={styles.panelHead}>
               <h1 className={styles.panelTitle}>Inventory</h1>
               <p className={styles.panelNote}>
-                Set stock to 0 to make checkout and cart-add fail with <code>out_of_stock</code>; 1–3 reports
-                as <code>low_stock</code>.
+                Set stock to <code>0</code> to make cart-add and checkout fail with <code>out_of_stock</code>.
+                1–3 units reports as <code>low_stock</code>.
               </p>
             </div>
 
-            <div className={styles.tableScroll}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Set Stock</th><th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stockLoading && (
-                    <tr><td colSpan={7} className={styles.loadingNote}>Loading inventory…</td></tr>
-                  )}
-                  {!stockLoading && products.length === 0 && (
-                    <tr><td colSpan={7} className={styles.loadingNote}>No products found.</td></tr>
-                  )}
-                  {!stockLoading && products.map((p) => (
-                    <tr key={p.product_id}>
-                      <td className={styles.stockName}>{p.name}</td>
-                      <td className={styles.mutedCell}>{p.category}</td>
-                      <td className={styles.nowrapCell}>{formatRs(p.price)}</td>
-                      <td className={styles.stockCount}>{p.stock}</td>
-                      <td>
-                        <span className={`${styles.stockPill} ${styles[STOCK_PILL_CLASS[p.stock_status]] || ''}`}>
-                          {STOCK_LABELS[p.stock_status] || p.stock_status}
-                        </span>
-                      </td>
-                      <td className={styles.nowrapCell}>
-                        <input
-                          className={styles.stockInput}
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={stockInputs[p.product_id] ?? ''}
-                          onChange={(e) => setStockInputs((s) => ({ ...s, [p.product_id]: e.target.value }))}
-                        />
-                        <button className={styles.saveBtn} onClick={() => setStock(p.product_id)}>Save</button>
-                      </td>
-                      <td>{flashFor(`stock:${p.product_id}`)}</td>
+            {stockLoading ? (
+              <p className={styles.emptyState}>Loading inventory…</p>
+            ) : products.length === 0 ? (
+              <p className={styles.emptyState}>No products found.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Product</th><th>Category</th><th className={styles.alignRight}>Price</th>
+                      <th className={styles.alignRight}>Stock</th><th>Status</th><th>Set stock</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => (
+                      <tr key={p.product_id}>
+                        <td className={styles.nameCell}>{p.name}</td>
+                        <td className={styles.mutedCell}>{p.category}</td>
+                        <td className={`${styles.alignRight} ${styles.nowrapCell}`}>{formatRs(p.price)}</td>
+                        <td className={`${styles.alignRight} ${styles.stockCount}`}>{p.stock}</td>
+                        <td>
+                          <span className={`${styles.pill} ${styles[STOCK_PILL_CLASS[p.stock_status]] || ''}`}>
+                            {STOCK_LABELS[p.stock_status] || p.stock_status}
+                          </span>
+                        </td>
+                        <td className={styles.nowrapCell}>
+                          <div className={styles.inputGroup}>
+                            <input
+                              className={styles.stockInput}
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={stockInputs[p.product_id] ?? ''}
+                              onChange={(e) => setStockInputs((s) => ({ ...s, [p.product_id]: e.target.value }))}
+                            />
+                            <button className={styles.saveBtn} onClick={() => setStock(p)}>Save</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
         {/* ── REQUEST LOG ───────────────────────────────────────────────────── */}
         {tab === 'log' && (
-          <section>
+          <section className={styles.panel}>
             <div className={styles.panelHead}>
               <div className={styles.panelHeadRow}>
                 <h1 className={styles.panelTitle}>Request Log</h1>
-                <div>
+                <div className={styles.headActions}>
                   {log.length > LOG_PREVIEW_COUNT && (
-                    <button className={styles.linkBtn} onClick={() => setLogExpanded((v) => !v)}>
-                      {logExpanded ? `Latest ${LOG_PREVIEW_COUNT}` : `All ${log.length}`}
+                    <button className={styles.ghostBtn} onClick={() => setLogExpanded((v) => !v)}>
+                      {logExpanded ? `Latest ${LOG_PREVIEW_COUNT}` : `Show all ${log.length}`}
                     </button>
                   )}
-                  <button className={styles.linkBtn} onClick={clearLog}>Clear</button>
+                  <button className={styles.ghostBtn} onClick={clearLog}>Clear</button>
                 </div>
               </div>
               <p className={styles.panelNote}>
                 External callers only, newest first, capped at {LOG_CAP} — this panel&apos;s own requests are
-                excluded, so what you see is the agent. Amber rows returned HTTP 200 with{' '}
+                excluded, so what you see is the agent. Highlighted rows returned HTTP 200 with{' '}
                 <code>ok: false</code>: a refusal an agent may report to the customer as success.
               </p>
             </div>
 
             {!logEnabled && (
-              <p className={styles.logDisabledNote}>
+              <p className={styles.warnNote}>
                 Logging is off, so this stays empty even while the agent is calling the API. Set{' '}
                 <code>REQUEST_LOG=1</code> and restart to enable it.
               </p>
             )}
 
-            {logLoading && <p className={styles.loadingNote}>Loading log…</p>}
-            {!logLoading && logEnabled && log.length === 0 && (
-              <p className={styles.loadingNote}>No requests recorded yet.</p>
-            )}
-
-            {!logLoading && log.length > 0 && (
+            {logLoading ? (
+              <p className={styles.emptyState}>Loading log…</p>
+            ) : log.length === 0 ? (
+              <p className={styles.emptyState}>
+                {logEnabled ? 'No requests recorded yet.' : 'Nothing to show while logging is off.'}
+              </p>
+            ) : (
               <div className={styles.tableScroll}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Time</th><th>Method</th><th>Path</th><th>HTTP</th><th>ok</th><th>Detail</th><th>ms</th>
+                      <th>Time</th><th>Method</th><th>Path</th><th className={styles.alignRight}>HTTP</th>
+                      <th>ok</th><th>Detail</th><th className={styles.alignRight}>ms</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(logExpanded ? log : log.slice(0, LOG_PREVIEW_COUNT)).map((e, i) => {
+                    {visibleLog.map((e, i) => {
                       // A 200 carrying ok:false is a business refusal, not a transport
                       // failure — the case an agent most often misreads as success.
                       const declined = e.status === 200 && e.ok === false;
                       return (
-                        <tr key={`${e.ts}-${i}`} className={declined ? styles.logRowDeclined : undefined}>
-                          <td className={styles.logTime}>{e.ts.slice(11, 23)}</td>
-                          <td className={styles.logMethod}>{e.method}</td>
-                          <td className={styles.logPath}>{e.path}</td>
-                          <td className={e.status >= 400 ? styles.logStatusErr : undefined}>{e.status}</td>
+                        <tr key={`${e.ts}-${i}`} className={declined ? styles.rowDeclined : undefined}>
+                          <td className={styles.monoMuted}>{e.ts.slice(11, 23)}</td>
+                          <td className={styles.methodCell}>{e.method}</td>
+                          <td className={styles.pathCell}>{e.path}</td>
+                          <td className={`${styles.alignRight} ${e.status >= 400 ? styles.statusErr : styles.monoMuted}`}>
+                            {e.status}
+                          </td>
                           <td>
-                            {e.ok === null ? '—' : (
-                              <span className={e.ok ? styles.logOkTrue : styles.logOkFalse}>{String(e.ok)}</span>
+                            {e.ok === null ? (
+                              <span className={styles.monoMuted}>—</span>
+                            ) : (
+                              <span className={e.ok ? styles.okTrue : styles.okFalse}>{String(e.ok)}</span>
                             )}
                           </td>
-                          <td className={styles.logDetail}>
-                            {declined && <div className={styles.logDeclinedTag}>declined with HTTP 200</div>}
-                            {e.error && <div><strong>{e.error}</strong></div>}
+                          <td className={styles.detailCell}>
+                            {declined && <div className={styles.declinedTag}>declined with HTTP 200</div>}
+                            {e.error && <div className={styles.errorCode}>{e.error}</div>}
                             {e.reason && <div>{e.reason}</div>}
                             {e.body !== undefined && (
-                              <div className={styles.logBody}>{JSON.stringify(e.body)}</div>
+                              <div className={styles.bodyPreview}>{JSON.stringify(e.body)}</div>
                             )}
                           </td>
-                          <td className={styles.logMs}>{e.ms}</td>
+                          <td className={`${styles.alignRight} ${styles.monoMuted}`}>{e.ms}</td>
                         </tr>
                       );
                     })}
@@ -719,7 +781,13 @@ export default function AdminPage() {
             )}
           </section>
         )}
-      </div>
+      </main>
+
+      {toast && (
+        <div className={`${styles.toast} ${toast.err ? styles.toastErr : ''}`} role="status">
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }
