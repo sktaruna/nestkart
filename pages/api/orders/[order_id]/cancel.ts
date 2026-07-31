@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, PRODUCTS } from "../../../../lib/state";
+import { withState, ORDERS, PRODUCTS, openReturnsForOrder } from "../../../../lib/state";
 import { err, ownershipError, getOrderStatus, getBody } from "../../../../lib/helpers";
 
 const ACCEPTED_REASONS = [
@@ -49,6 +49,23 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       cancelled: false,
       reason: "order not cancellable",
       current_status: status,
+    });
+    return;
+  }
+
+  // An order with a return in flight must not also be cancelled: that would
+  // refund the same item twice, once as a cancellation and once as a return.
+  // Reachable because order status and returns are independent — rewinding a
+  // delivered order to `processing` leaves its return open and the order
+  // cancellable again.
+  const openReturns = openReturnsForOrder(orderId);
+  if (openReturns.length > 0) {
+    res.status(200).json({
+      ok: false,
+      cancelled: false,
+      reason: "A return is already in progress for this order, so it cannot be cancelled.",
+      current_status: status,
+      open_return_ids: openReturns.map((ret) => ret.return_id),
     });
     return;
   }

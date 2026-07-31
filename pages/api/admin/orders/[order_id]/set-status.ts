@@ -24,8 +24,26 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  ORDERS[orderId].status = status;
-  ORDERS[orderId].cancelled = status === "cancelled";
+  const order = ORDERS[orderId];
+  order.status = status;
+  order.cancelled = status === "cancelled";
 
-  res.status(200).json({ ok: true, order_id: orderId, status });
+  // A damage claim means "the item arrived damaged", which cannot be true of an
+  // order that is no longer delivered. Left set, rewinding a delivered order
+  // produced an incoherent record — and returnEligibilityCheck tests status
+  // before the damage branch, so the stale claim was silently masked rather
+  // than reported.
+  let damageClaimCleared = false;
+  if (status !== "delivered" && order.damage_claim_active) {
+    order.damage_claim_active = false;
+    damageClaimCleared = true;
+  }
+
+  res.status(200).json({
+    ok: true,
+    order_id: orderId,
+    status,
+    damage_claim_active: order.damage_claim_active,
+    ...(damageClaimCleared ? { damage_claim_cleared: true } : {}),
+  });
 });

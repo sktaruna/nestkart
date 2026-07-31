@@ -29,7 +29,8 @@ Always branch on the \`ok\` field, never on the HTTP status.
 - \`ok: false\` with HTTP 4xx — the request was malformed or the resource is missing.
 - \`ok: false\` with **HTTP 200** — the request was valid but the action was
   *declined for business reasons*. This applies to \`POST /orders/{id}/cancel\`
-  (order past processing) and \`POST /orders/{id}/returns\` (order not eligible).
+  (order past processing, or a return already in flight) and
+  \`POST /orders/{id}/returns\` (order not eligible).
   Treat these as failures and relay the \`reason\` field to the customer.
 
 Errors carry a machine-readable \`error\` code and a human-readable \`message\`
@@ -810,15 +811,23 @@ export const OPENAPI_SPEC = {
                       },
                     },
                     {
-                      title: "Declined — not cancellable",
+                      title: "Declined — not cancellable, or a return is open",
                       type: "object",
                       properties: {
                         ok: { type: "boolean", enum: [false] },
                         cancelled: { type: "boolean", enum: [false] },
-                        reason: { type: "string", example: "order not cancellable" },
-                        current_status: {
+                        reason: {
                           type: "string",
-                          description: "Why it was declined — anything other than 'processing'.",
+                          description:
+                            "Either the order has moved past `processing`, or a return is already in flight for it — cancelling as well would refund the same item twice.",
+                          example: "order not cancellable",
+                        },
+                        current_status: { type: "string" },
+                        open_return_ids: {
+                          type: "array",
+                          items: { type: "string" },
+                          description:
+                            "Present only when the refusal was caused by open returns. Tell the customer their return is already being processed rather than offering to cancel.",
                         },
                       },
                     },
@@ -1180,7 +1189,7 @@ export const OPENAPI_SPEC = {
         tags: ["Admin"],
         summary: "Move an order to any status",
         description:
-          "Bypasses every transition rule — this is how test scenarios are staged. Setting `cancelled` also sets the order's cancelled flag; it does NOT restore stock (unlike the customer-facing cancel).",
+          "Bypasses every transition rule — this is how test scenarios are staged. Setting `cancelled` also sets the order's cancelled flag; it does NOT restore stock (unlike the customer-facing cancel). Moving an order off `delivered` clears any active damage claim, since that claim cannot apply to an undelivered order.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1195,7 +1204,17 @@ export const OPENAPI_SPEC = {
         responses: {
           ...ok200("Status set.", {
             type: "object",
-            properties: { ok: OK_TRUE, order_id: { type: "string" }, status: { type: "string" } },
+            properties: {
+              ok: OK_TRUE,
+              order_id: { type: "string" },
+              status: { type: "string" },
+              damage_claim_active: { type: "boolean" },
+              damage_claim_cleared: {
+                type: "boolean",
+                description:
+                  "Present when moving off `delivered` dropped an active damage claim, which cannot apply to an undelivered order.",
+              },
+            },
           }),
           ...errRes(400, "Missing status, or not a valid status.", ["invalid_status"]),
           ...errRes(404, "No such order.", ["order_not_found"]),
@@ -1268,6 +1287,35 @@ export const OPENAPI_SPEC = {
               },
             },
           }),
+          ...NOT_ALLOWED,
+        },
+      },
+    },
+    "/api/admin/returns/{return_id}": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete a return",
+        description:
+          "Removes a return filed through the API, so undoing one test does not need a full reset. Also clears the order's damage claim if no other open damaged-on-arrival return justifies it. A seeded return cannot be deleted: if it has been edited the edit is reverted (`reverted: true`), otherwise this is a 400.",
+        parameters: [RETURN_ID_PARAM],
+        responses: {
+          ...ok200("Deleted, or a seeded return reverted to its original state.", {
+            type: "object",
+            properties: {
+              ok: OK_TRUE,
+              return_id: { type: "string" },
+              deleted: { type: "boolean", description: "False when a seeded return was reverted instead." },
+              reverted: { type: "boolean", description: "Present when an edited seeded return was restored." },
+              order_id: { type: "string" },
+              damage_claim_cleared: {
+                type: "boolean",
+                description: "Present when the order's damage claim was dropped as a result.",
+              },
+              message: { type: "string" },
+            },
+          }),
+          ...errRes(400, "Seeded return with no edits to revert.", ["delete_not_allowed"]),
+          ...errRes(404, "No such return.", ["return_not_found"]),
           ...NOT_ALLOWED,
         },
       },
@@ -1528,6 +1576,7 @@ const OPERATION_IDS: Record<string, string> = {
 
   "GET /api/admin/orders": "adminListOrders",
   "DELETE /api/admin/orders/{order_id}": "adminDeleteOrder",
+  "DELETE /api/admin/returns/{return_id}": "adminDeleteReturn",
   "POST /api/admin/orders/{order_id}/set-status": "adminSetOrderStatus",
   "POST /api/admin/orders/{order_id}/flags": "adminSetOrderFlags",
   "GET /api/admin/returns": "adminListReturns",

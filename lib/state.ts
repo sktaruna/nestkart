@@ -48,6 +48,19 @@ export function findReturn(returnId: string): ReturnRecord | undefined {
   return DYNAMIC_RETURNS[returnId] || RETURNS[returnId];
 }
 
+/**
+ * Return statuses that mean the return is finished and no longer blocks anything.
+ * Anything else is "open" — the item is still in flight or under review.
+ */
+const CLOSED_RETURN_STATUSES = new Set(["completed", "rejected"]);
+
+/** Open returns against `orderId`, newest first. Empty when nothing is in flight. */
+export function openReturnsForOrder(orderId: string): ReturnRecord[] {
+  return allReturns().filter(
+    (ret) => ret.order_id === orderId && !CLOSED_RETURN_STATUSES.has(ret.status)
+  );
+}
+
 /** Every return, newest-initiated first, with seed overrides already applied. */
 export function allReturns(): ReturnRecord[] {
   const merged: Record<string, ReturnRecord> = { ...RETURNS, ...DYNAMIC_RETURNS };

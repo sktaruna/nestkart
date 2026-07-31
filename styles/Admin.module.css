@@ -1,369 +1,322 @@
-/* ── APP SHELL ────────────────────────────────────────────────────────────────
-   The page itself does not scroll: header and tabs are fixed height, and the
-   active panel's table scrolls inside its own box. That keeps Refresh/Reset, the
-   tabs, and the column headers on screen no matter how long the table gets —
-   with 500 log rows, page-level scrolling loses all three.
-   Reverted to normal document flow on small or short viewports (see bottom).   */
+/* ── SHELL ────────────────────────────────────────────────────────────────────
+   Fixed-height app shell: the page never scrolls, each pane scrolls itself. That
+   keeps the tabs, the pane headers and the detail controls on screen regardless
+   of how long a list gets. Falls back to normal flow on small screens (bottom). */
 .body {
-  background: #f4f2ef;
+  background: #f2efea;
   height: 100vh;
   display: flex; flex-direction: column;
   overflow: hidden;
+  color: var(--dark);
 }
 
 .topBar { flex: 0 0 auto; }
-
-.adminHeader {
+.headerRow {
   background: var(--dark);
-  padding: 18px 40px;
-  display: flex; align-items: center;
-  justify-content: space-between; gap: 16px;
+  padding: 16px 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
-.adminHeaderTitle {
+.brand {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 1.3rem; font-weight: 600;
-  color: #fff; letter-spacing: 0.02em;
+  font-size: 1.25rem; font-weight: 600; color: #fff;
 }
-.adminHeaderSub {
-  font-size: 0.72rem; color: rgba(255,255,255,0.45);
-  letter-spacing: 0.08em; margin-top: 2px;
+.brandSub {
+  font-size: 0.7rem; color: rgba(255,255,255,0.45);
+  letter-spacing: 0.08em; margin-top: 1px;
 }
-.headerActions { display: flex; gap: 10px; flex-shrink: 0; }
+.headerActions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 
-.resetBtn, .refreshBtn {
-  padding: 9px 20px; font-family: inherit;
-  font-size: 0.7rem; font-weight: 500;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  cursor: pointer; border-radius: 3px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.resetBtn { background: #c62828; color: #fff; border: 1px solid #c62828; }
-.resetBtn:hover { background: #b71c1c; border-color: #b71c1c; }
-.refreshBtn { background: none; color: #fff; border: 1px solid rgba(255,255,255,0.28); }
-.refreshBtn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.55); }
-
-/* ── TABS ─────────────────────────────────────────────────────────────────── */
 .tabBar {
   background: var(--white);
   border-bottom: 1px solid var(--border);
-  padding: 0 40px;
-  display: flex; gap: 2px;
-  overflow-x: auto;
+  padding: 0 32px;
+  display: flex; gap: 2px; overflow-x: auto;
 }
 .tab {
-  background: none; border: none;
-  border-bottom: 2px solid transparent;
+  background: none; border: none; border-bottom: 2px solid transparent;
   font-family: inherit; font-size: 0.7rem; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase;
+  letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--muted); cursor: pointer;
-  padding: 15px 16px 13px;
-  display: flex; align-items: center; gap: 8px;
-  white-space: nowrap;
+  padding: 14px 15px 12px;
+  display: flex; align-items: center; gap: 7px; white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
 .tab:hover { color: var(--dark); }
 .tabActive { color: var(--dark); border-bottom-color: var(--dark); }
 .tabCount {
-  font-size: 0.64rem; font-weight: 700; letter-spacing: 0;
+  font-size: 0.63rem; font-weight: 700; letter-spacing: 0;
   background: var(--surface); color: var(--muted);
-  border-radius: 999px; padding: 2px 7px; min-width: 20px;
-  text-align: center;
+  border-radius: 999px; padding: 2px 7px; min-width: 19px; text-align: center;
 }
 .tabActive .tabCount { background: var(--dark); color: #fff; }
 
-/* ── RESET CONFIRM ────────────────────────────────────────────────────────── */
-.resetConfirm {
+.banner {
   flex: 0 0 auto;
-  background: #fff3e0;
-  border-bottom: 1px solid #ffb74d;
-  padding: 12px 40px;
-  font-size: 0.84rem; color: var(--dark);
+  background: #fff3e0; border-bottom: 1px solid #ffcc80;
+  padding: 11px 32px; font-size: 0.83rem;
   display: flex; align-items: center; gap: 12px;
 }
-.resetConfirmText { flex: 1; }
-.resetConfirm button {
-  padding: 7px 16px; font-family: inherit;
-  font-size: 0.7rem; font-weight: 500;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  cursor: pointer; border-radius: 3px;
-}
-.resetOk { background: #c62828; color: #fff; border: 1px solid #c62828; }
-.resetCancel { background: var(--white); border: 1px solid var(--border); color: var(--dark); }
+.banner p { flex: 1; }
 
-/* ── PANEL ────────────────────────────────────────────────────────────────── */
-.adminMain {
+/* ── LAYOUT ───────────────────────────────────────────────────────────────────
+   Two panes: a scannable list, and a detail pane holding every control for the
+   selected record. This is the point of the layout — rows used to carry a select,
+   two checkboxes, a date field and two buttons each, which is what made the
+   tables feel dense.                                                           */
+.main {
   flex: 1 1 auto; min-height: 0;
-  display: flex; flex-direction: column;
-  width: 100%; max-width: 1440px; margin: 0 auto;
-  padding: 26px 40px 0;
+  padding: 20px 32px;
+  width: 100%; max-width: 1500px; margin: 0 auto;
 }
-/* min-height:0 lets the scroll box shrink instead of pushing the panel taller
-   than its parent, which is what makes the inner scroll work at all. */
-.panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.split {
+  height: 100%;
+  display: grid; grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 20px; min-height: 0;
+}
+.single { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 
-.panelHead { flex: 0 0 auto; margin-bottom: 18px; }
-.panelHeadRow {
-  display: flex; align-items: flex-start;
-  justify-content: space-between; gap: 16px;
-}
-.headActions { display: flex; gap: 8px; flex-shrink: 0; }
-.panelTitle {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 1.6rem; font-weight: 400; color: var(--dark);
-  line-height: 1.2;
-}
-/* The one-line explanation of what a tab's controls actually affect. */
-.panelNote {
-  font-size: 0.79rem; color: var(--muted);
-  line-height: 1.65; margin-top: 6px; max-width: 820px;
-}
-.panelNote code, .warnNote code {
-  font-family: monospace; font-size: 0.74rem;
-  background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 2px;
-}
-.panelNote strong { color: var(--dark); font-weight: 600; }
-
-.emptyState {
-  color: var(--muted); font-size: 0.86rem;
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: 4px; padding: 28px; text-align: center;
-}
-.warnNote {
-  flex: 0 0 auto;
-  background: #fff8e1; border-left: 3px solid #f57f17;
-  padding: 11px 15px; font-size: 0.8rem; color: var(--dark);
-  margin-bottom: 14px; border-radius: 0 3px 3px 0;
-}
-
-/* ── SHARED TABLE ─────────────────────────────────────────────────────────────
-   One style for orders, returns, inventory and the log. These were four
-   near-identical rule sets whose padding and font sizes had drifted apart.     */
-.tableScroll {
-  /* flex-grow 0: a 3-row table hugs its content instead of stretching into a
-     mostly-empty full-height box. flex-shrink 1 still lets a long table be
-     capped by the available space and scroll inside it. */
-  flex: 0 1 auto; min-height: 0;
-  overflow: auto;
+.listPane, .detailPane, .single {
   background: var(--white);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  margin-bottom: 26px;
+  border-radius: 5px;
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
 }
-.table { width: 100%; border-collapse: separate; border-spacing: 0; }
-.table th {
-  position: sticky; top: 0; z-index: 2;
-  background: var(--surface);
-  font-size: 0.62rem; font-weight: 700;
-  letter-spacing: 0.11em; text-transform: uppercase;
-  color: var(--muted); padding: 11px 14px;
-  text-align: left; white-space: nowrap;
+
+.paneHead {
+  flex: 0 0 auto;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.paneTitle {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.15rem; font-weight: 500;
+}
+.paneHint { font-size: 0.7rem; color: var(--muted); text-align: right; }
+.paneFoot {
+  flex: 0 0 auto;
+  padding: 9px 16px; border-top: 1px solid var(--border);
+  font-size: 0.68rem; color: var(--muted); line-height: 1.5;
+}
+/* The only scrolling region in the app. */
+.scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.placeholder {
+  padding: 30px 24px; color: var(--muted);
+  font-size: 0.83rem; line-height: 1.6; text-align: center;
+}
+
+/* ── LIST ROWS ────────────────────────────────────────────────────────────── */
+.groupLabel {
+  position: sticky; top: 0; z-index: 1;
+  background: #faf8f5;
+  padding: 7px 16px;
+  font-size: 0.74rem; font-weight: 600;
   border-bottom: 1px solid var(--border);
 }
-.table td {
-  padding: 11px 14px;
-  border-bottom: 1px solid #f0ede8;
-  font-size: 0.82rem; color: var(--dark);
-  vertical-align: middle;
-}
-.table tbody tr:last-child td { border-bottom: none; }
-.table tbody tr:hover td { background: #fbfaf8; }
+.groupId { font-family: monospace; font-size: 0.67rem; color: var(--muted); margin-left: 8px; font-weight: 400; }
 
-/* Customer separator inside the orders table. */
-.groupRow td {
-  background: #f7f5f1 !important;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border);
-  border-top: 1px solid var(--border);
+.row {
+  width: 100%; text-align: left;
+  background: none; border: none; border-bottom: 1px solid #f2efe9;
+  border-left: 3px solid transparent;
+  font-family: inherit; color: inherit; cursor: pointer;
+  padding: 11px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  transition: background 0.12s, border-color 0.12s;
 }
-.groupRow:first-child td { border-top: none; }
-.groupName { font-size: 0.85rem; font-weight: 600; color: var(--dark); }
-.groupId {
-  font-family: monospace; font-size: 0.7rem;
-  color: var(--muted); margin-left: 10px;
+.row:hover { background: #faf9f7; }
+.rowActive { background: #f4f1ec; border-left-color: var(--dark); }
+.rowMain { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rowId {
+  font-family: monospace; font-size: 0.78rem; font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
 }
-.groupMeta { font-size: 0.7rem; color: var(--muted); margin-left: 10px; }
-
-/* One column per table absorbs leftover width. Without it, a table at width:100%
-   shares the slack out evenly and narrow columns end up padded with dead space. */
-.itemsCell { width: 100%; min-width: 170px; line-height: 1.45; }
-.nameCell { width: 100%; min-width: 170px; font-weight: 500; }
-.detailCell { min-width: 200px; max-width: 400px; font-size: 0.73rem; line-height: 1.5; }
-
-.idCell { font-family: monospace; font-size: 0.77rem; white-space: nowrap; }
-.mutedCell {
-  font-size: 0.68rem; color: var(--muted);
-  letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+.rowSub {
+  font-size: 0.75rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch;
 }
-.nowrapCell { white-space: nowrap; }
-.alignRight { text-align: right; }
-.monoMuted { font-family: monospace; font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
-.stockCount { font-family: monospace; font-size: 0.86rem; font-weight: 700; }
+.rowSide { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.rowAmount { font-family: monospace; font-size: 0.75rem; min-width: 8ch; text-align: right; }
 
-.seedTag {
-  font-family: inherit; font-size: 0.6rem; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted); margin-left: 8px; white-space: nowrap;
+/* A dot rather than a label: the list is for scanning, the detail pane explains. */
+.flagDot, .declinedDot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #f9a825; flex-shrink: 0;
 }
 
 /* ── PILLS ────────────────────────────────────────────────────────────────── */
 .pill {
   display: inline-block;
-  font-size: 0.62rem; font-weight: 600;
-  letter-spacing: 0.09em; text-transform: uppercase;
-  padding: 4px 9px; border-radius: 2px; white-space: nowrap;
-}
-.pillNeutral { background: var(--surface); color: var(--muted); }
-.pillGood    { background: #e6f4ea; color: #2e7d32; }
-.pillWarn    { background: #fff8e1; color: #f57f17; }
-.pillBad     { background: #fbe9e7; color: #bf360c; }
-.stockPillInStock    { background: #e6f4ea; color: #2e7d32; }
-.stockPillLowStock   { background: #fff8e1; color: #f57f17; }
-.stockPillOutOfStock { background: #fbe9e7; color: #bf360c; }
-
-/* ── CONTROLS ─────────────────────────────────────────────────────────────── */
-.select {
-  padding: 6px 8px; font-family: inherit; font-size: 0.77rem;
-  border: 1px solid var(--border); background: var(--white);
-  color: var(--dark); outline: none; cursor: pointer;
-  border-radius: 3px; transition: border-color 0.15s;
-}
-.select:focus { border-color: var(--accent); }
-/* Tint the refund select by its value, for scanning a column of them at a glance.
-   Needs the combined selector: `.pillGood` alone is the same specificity as
-   `.select` and loses to it on source order, so the tint silently did nothing. */
-.select.pillNeutral { background: var(--surface); }
-.select.pillGood    { background: #e9f5ec; border-color: #bcdcc4; color: #2e7d32; }
-.select.pillWarn    { background: #fff8e6; border-color: #eddcae; color: #a86612; }
-.select.pillBad     { background: #fceeeb; border-color: #eec4bb; color: #bf360c; }
-
-.inputGroup { display: inline-flex; align-items: center; gap: 6px; }
-.stockInput, .dateInput {
-  padding: 6px 8px; font-family: inherit; font-size: 0.78rem;
-  border: 1px solid var(--border); outline: none;
-  color: var(--dark); background: var(--white);
-  border-radius: 3px; transition: border-color 0.15s;
-}
-.stockInput { width: 66px; }
-.stockInput:focus, .dateInput:focus { border-color: var(--accent); }
-
-.saveBtn {
-  padding: 6px 12px; font-family: inherit;
-  font-size: 0.66rem; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  background: var(--dark); color: #fff;
-  border: none; border-radius: 3px;
-  cursor: pointer; transition: background 0.15s;
-}
-.saveBtn:hover { background: #2c2c2c; }
-
-.deleteBtn {
-  padding: 5px 11px; font-family: inherit;
-  font-size: 0.64rem; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  background: none; color: #c62828;
-  border: 1px solid #efc0c0; border-radius: 3px;
-  cursor: pointer; transition: background 0.15s, color 0.15s;
-}
-.deleteBtn:hover { background: #c62828; color: var(--white); border-color: #c62828; }
-
-.ghostBtn {
-  background: var(--white); border: 1px solid var(--border);
-  color: var(--dark); font-family: inherit;
-  font-size: 0.66rem; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  padding: 7px 13px; border-radius: 3px;
-  cursor: pointer; transition: border-color 0.15s;
-}
-.ghostBtn:hover { border-color: var(--accent); }
-
-/* Checkbox + current-state label, for order damage claims and return flags. */
-.flagLabel {
-  display: inline-flex; align-items: center; gap: 6px;
-  cursor: pointer; font-size: 0.71rem; color: var(--muted);
-}
-.flagLabel input { cursor: pointer; margin: 0; flex-shrink: 0; }
-/* No word-break: reasons are humanized before display, so they wrap at spaces.
-   Breaking anywhere produced "non_returnab le_item". */
-.flagLabel span { max-width: 150px; line-height: 1.4; }
-
-/* Two controls stacked in one cell. Applied to an inner div, never the <td>. */
-.stackTight { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-/* Floor for the returns flag column: without it the flexible Item column takes
-   the slack and the labels wrap onto four lines each. */
-.flagStack { min-width: 186px; }
-
-/* ── RETURN DATES ─────────────────────────────────────────────────────────── */
-.datesCell { font-size: 0.68rem; white-space: nowrap; min-width: 130px; }
-.datesCell > div {
-  display: flex; justify-content: space-between; gap: 10px;
-  line-height: 1.75;
-}
-.datesCell > div > span:first-child {
-  color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
-}
-.datesCell > div > span:last-child { font-family: monospace; color: var(--dark); }
-
-/* ── REQUEST LOG ──────────────────────────────────────────────────────────── */
-/* HTTP 200 carrying ok:false — the outcome an agent most often misreads.
-   A left accent instead of a full amber fill: a wall of filled rows fights the
-   pills and reads as an error state rather than a flagged one. */
-.rowDeclined td { background: #fffdf5; }
-.rowDeclined:hover td { background: #fffaeb; }
-.rowDeclined td:first-child { box-shadow: inset 3px 0 0 #f9a825; }
-.declinedTag {
-  font-size: 0.61rem; font-weight: 700;
+  font-size: 0.6rem; font-weight: 700;
   letter-spacing: 0.07em; text-transform: uppercase;
-  color: #ef6c00;
+  padding: 3px 8px; border-radius: 2px; white-space: nowrap;
 }
-.methodCell { font-family: monospace; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
-/* Flexible column, and overflow-wrap rather than break-all: break-all split
-   paths mid-token ("/return\A -eligibility"), which made them hard to read. */
-.pathCell {
-  font-family: monospace; font-size: 0.74rem;
-  width: 100%; min-width: 240px; overflow-wrap: anywhere;
+.toneNeutral { background: #efece7; color: #6b6459; }
+.toneInfo    { background: #e8eef5; color: #37536e; }
+.toneGood    { background: #e6f4ea; color: #2e7d32; }
+.toneWarn    { background: #fff4de; color: #a2680f; }
+.toneBad     { background: #fbe9e7; color: #bf360c; }
+
+/* ── DETAIL PANE ──────────────────────────────────────────────────────────── */
+.detailHead { padding: 16px; border-bottom: 1px solid var(--border); }
+.detailTitle { font-family: monospace; font-size: 1rem; font-weight: 700; }
+.detailSub {
+  font-size: 0.74rem; color: var(--muted); margin-top: 3px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
-.statusErr { font-family: monospace; font-size: 0.74rem; color: #c62828; font-weight: 700; }
-.okTrue  { font-family: monospace; font-size: 0.74rem; color: #2e7d32; }
-.okFalse { font-family: monospace; font-size: 0.74rem; color: #c62828; font-weight: 700; }
-.errorCode { font-family: monospace; font-weight: 700; font-size: 0.73rem; }
-.bodyPreview {
-  font-family: monospace; font-size: 0.68rem; color: var(--muted);
-  word-break: break-all; margin-top: 2px;
+.seedTag {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
 }
 
-/* ── TOAST ────────────────────────────────────────────────────────────────────
-   Replaces the per-row "Saved" column that every table used to carry and that
-   was empty the rest of the time. Top-centre, not a corner: bottom-right is
-   where the ElevenLabs widget sits and bottom-left is the test-user switcher.  */
+.section { padding: 14px 16px; border-bottom: 1px solid #f2efe9; }
+.section:last-child { border-bottom: none; }
+.sectionTitle {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
+
+/* Label/value pairs, aligned so the pane reads as one column not a grid. */
+.field { display: flex; gap: 12px; padding: 4px 0; font-size: 0.8rem; line-height: 1.5; }
+.fieldLabel { color: var(--muted); flex: 0 0 88px; font-size: 0.75rem; }
+.fieldValue { flex: 1; min-width: 0; word-break: break-word; }
+.reasonText { color: var(--muted); font-size: 0.74rem; margin-top: 3px; line-height: 1.5; }
+.mono { font-family: monospace; font-size: 0.78rem; }
+.muted { color: var(--muted); }
+
+.control { display: flex; align-items: center; gap: 12px; padding: 5px 0; font-size: 0.8rem; }
+.controlLabel { color: var(--muted); flex: 0 0 88px; font-size: 0.75rem; }
+.checkWrap { display: flex; align-items: center; gap: 7px; font-size: 0.75rem; flex: 1; min-width: 0; }
+.checkWrap input { margin: 0; cursor: pointer; flex-shrink: 0; }
+.controlHint {
+  font-size: 0.7rem; color: var(--muted);
+  line-height: 1.5; margin: 8px 0 0; padding-left: 100px;
+}
+.inputRow { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+
+.calloutWarn {
+  margin: 14px 16px 0;
+  background: #fff8e6; border-left: 3px solid #f9a825;
+  padding: 10px 12px; font-size: 0.75rem; line-height: 1.55;
+  border-radius: 0 3px 3px 0;
+}
+.warnNote {
+  flex: 0 0 auto;
+  background: #fff8e6; border-bottom: 1px solid #ffe0a3;
+  padding: 9px 16px; font-size: 0.76rem;
+}
+.warnNote code { font-family: monospace; background: rgba(0,0,0,0.06); padding: 1px 4px; }
+
+.codeBlock {
+  font-family: monospace; font-size: 0.7rem; line-height: 1.5;
+  background: #faf8f5; border: 1px solid var(--border); border-radius: 3px;
+  padding: 8px 10px; margin-top: 3px;
+  white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+}
+
+/* ── FORM CONTROLS ────────────────────────────────────────────────────────── */
+.select, .input {
+  font-family: inherit; font-size: 0.78rem;
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 3px;
+  background: var(--white); color: var(--dark); outline: none;
+  transition: border-color 0.15s;
+}
+.select { cursor: pointer; flex: 1; min-width: 0; }
+.select:focus, .input:focus { border-color: var(--accent); }
+.input[type='number'] { width: 62px; }
+.input[type='date'] { flex: 1; min-width: 0; }
+
+.btnPrimary, .btnGhost, .btnGhostDark, .btnDanger, .btnDangerGhost {
+  font-family: inherit; font-size: 0.66rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 7px 13px; border-radius: 3px; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btnPrimary { background: var(--dark); color: #fff; border: 1px solid var(--dark); }
+.btnPrimary:hover { background: #2c2c2c; }
+.btnGhost { background: var(--white); color: var(--dark); border: 1px solid var(--border); }
+.btnGhost:hover { border-color: var(--accent); }
+.btnGhostDark { background: none; color: #fff; border: 1px solid rgba(255,255,255,0.28); }
+.btnGhostDark:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.55); }
+.btnDanger { background: #c62828; color: #fff; border: 1px solid #c62828; }
+.btnDanger:hover { background: #b71c1c; }
+.btnDangerGhost {
+  background: none; color: #c62828; border: 1px solid #efc4c4;
+  margin-top: 14px; width: 100%;
+}
+.btnDangerGhost:hover { background: #c62828; color: #fff; border-color: #c62828; }
+
+/* ── INVENTORY ROWS ───────────────────────────────────────────────────────── */
+.stockRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 100px 96px auto;
+  align-items: center; gap: 14px;
+  padding: 10px 16px; border-bottom: 1px solid #f2efe9;
+  font-size: 0.81rem;
+}
+.stockRow:hover { background: #faf9f7; }
+/* A grid item stretches by default, which made the pill a full-width bar rather
+   than a tag sized to its text. */
+.stockRow .pill { justify-self: start; }
+.stockName { font-weight: 500; }
+.stockCat {
+  font-size: 0.67rem; color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.stockPrice { font-family: monospace; font-size: 0.77rem; text-align: right; }
+
+/* ── LOG ROWS ─────────────────────────────────────────────────────────────── */
+.logRow {
+  display: grid;
+  grid-template-columns: 68px 52px minmax(0, 1fr) 40px 10px;
+  align-items: center; gap: 10px;
+}
+.logTime { font-family: monospace; font-size: 0.71rem; color: var(--muted); }
+.logMethod { font-family: monospace; font-size: 0.69rem; font-weight: 700; }
+.logPath {
+  font-family: monospace; font-size: 0.73rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.logCode { font-family: monospace; font-size: 0.72rem; color: var(--muted); text-align: right; }
+.logBad { font-family: monospace; font-size: 0.72rem; color: #c62828; font-weight: 700; text-align: right; }
+/* Tinted background, not a filled row: a wall of amber reads as "everything is
+   broken" rather than "these two need a look". */
+.rowFlagged { background: #fffdf4; }
+.rowFlagged:hover { background: #fffaea; }
+
+.okTrue { font-family: monospace; color: #2e7d32; }
+.okFalse { font-family: monospace; color: #c62828; font-weight: 700; }
+
+/* ── TOAST ────────────────────────────────────────────────────────────────── */
 .toast {
-  /* Below the header rather than over it: a dark toast on the dark header is
-     legible but camouflaged. At 96px it floats over the light content area. */
-  position: fixed; top: 96px; left: 50%;
-  transform: translateX(-50%);
+  position: fixed; top: 88px; left: 50%; transform: translateX(-50%);
   z-index: 100;
   background: #1f2a1f; color: #e8f0e4;
-  font-size: 0.8rem; letter-spacing: 0.01em;
-  padding: 11px 20px; border-radius: 4px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.28);
+  font-size: 0.78rem; padding: 10px 18px; border-radius: 4px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.26);
   max-width: 90vw; text-align: center;
-  animation: toastIn 0.18s ease-out;
+  animation: toastIn 0.16s ease-out;
 }
 .toastErr { background: #3a1f1f; color: #f6e2e2; }
-
 @keyframes toastIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ── NARROW / SHORT VIEWPORTS ─────────────────────────────────────────────────
-   The fixed-height shell needs vertical room. Below that, fall back to normal
-   document flow so the tables can run as long as they like and the page scrolls
-   the way it did before.                                                       */
-@media (max-width: 900px), (max-height: 620px) {
+   The two-pane shell needs width and height. Below that, stack the panes and let
+   the document scroll normally.                                                */
+@media (max-width: 1020px), (max-height: 620px) {
   .body { height: auto; overflow: visible; }
-  .adminMain { padding: 20px 18px 0; }
-  .panel, .tableScroll { min-height: 0; overflow: visible; }
-  .tableScroll { overflow-x: auto; }
-  .adminHeader, .tabBar, .resetConfirm { padding-left: 18px; padding-right: 18px; }
-  .adminHeader { flex-wrap: wrap; }
+  .main { padding: 16px; }
+  .split { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .listPane, .detailPane, .single { max-height: none; }
+  .scroll { overflow-y: visible; }
+  .headerRow, .tabBar, .banner { padding-left: 16px; padding-right: 16px; }
+  .headerRow { flex-wrap: wrap; }
+  .stockRow { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+  .controlHint { padding-left: 0; }
 }
