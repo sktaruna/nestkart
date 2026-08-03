@@ -120,6 +120,11 @@ const ORDER_SCHEMA = {
     order_id: { type: "string", example: "ORD-10101" },
     customer_id: { type: "string", example: "cust_001" },
     items: { type: "array", items: ORDER_ITEM_SCHEMA },
+    item_summary: {
+      type: "string",
+      description: "The items as one line, for reading back to a customer. Empty string if the order has no items.",
+      example: "Linen Cloud Sofa x1, Terracotta Vase x2",
+    },
     price_total: { type: "integer", description: "Rupees.", example: 89999 },
     price_total_formatted: { type: "string", example: "₹89,999" },
     placed_at: { type: "string", format: "date-time" },

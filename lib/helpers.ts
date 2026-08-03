@@ -126,6 +126,7 @@ export function buildOrderResponse(order: Order): Record<string, unknown> {
     order_id: order.order_id,
     customer_id: order.customer_id,
     items: order.items || [],
+    item_summary: (order.items || []).map((i) => `${i.product_name} x${i.qty}`).join(", "),
     price_total: order.price_total,
     price_total_formatted: formatInr(order.price_total),
     placed_at: order.placed_at,
