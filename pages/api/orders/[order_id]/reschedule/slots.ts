@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS } from "../../../../../lib/state";
-import { err, weekdaySlots } from "../../../../../lib/helpers";
+import { err, getOrderStatus, weekdaySlots } from "../../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "GET") {
@@ -9,8 +9,21 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const orderId = req.query.order_id as string;
-  if (!(orderId in ORDERS)) {
+  const order = ORDERS[orderId];
+  if (!order) {
     err(res, "order_not_found", `No order found with ID '${orderId}'.`, 404);
+    return;
+  }
+
+  // Mirrors the check in POST /reschedule, so a caller doesn't get a normal
+  // slot list here only to have every one of them refused on the write.
+  const status = getOrderStatus(order);
+  if (status !== "processing" && status !== "dispatched") {
+    res.status(400).json({
+      ok: false,
+      error: "reschedule_not_allowed",
+      message: `Reschedule is only allowed for processing or dispatched orders (current: ${status}).`,
+    });
     return;
   }
 
