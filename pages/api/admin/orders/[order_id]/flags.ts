@@ -50,10 +50,15 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   if (hasDelivery) {
+    // Pin it: a date set here is the scenario being staged (usually a backdated
+    // delivery to reach the expired-window branch), so the seed-date refresh in
+    // state.ts must not move it back under the caller on the next load.
     if (estimatedDelivery === null || estimatedDelivery === "") {
       order.estimated_delivery = null;
+      order.date_pinned = true;
     } else if (typeof estimatedDelivery === "string" && DATE_ONLY.test(estimatedDelivery)) {
       order.estimated_delivery = estimatedDelivery;
+      order.date_pinned = true;
     } else {
       err(res, "invalid_field", "'estimated_delivery' must be a YYYY-MM-DD date or null.", 400);
       return;

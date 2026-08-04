@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, mutableReturn } from "../../../../../lib/state";
+import { withState, mutableReturn, ORDERS, openReturnsForOrder } from "../../../../../lib/state";
 import { err, getBody, addBusinessDays, dateOnly, today } from "../../../../../lib/helpers";
 import { RETURN_STATUSES, REFUND_STATUSES } from "../../../../../lib/data";
 
@@ -47,6 +47,23 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
+  // Closing a return (completed / rejected) has to release the order's damage
+  // claim, the same way deleting the return does. Left set, the claim outlived
+  // the return that opened it: returnEligibilityCheck tests the flag before the
+  // 30-day window, so a rejected damage claim kept the order returnable forever
+  // with free shipping and a permanently locked refund.
+  let damageClaimCleared = false;
+  const order = ORDERS[ret.order_id];
+  if (order?.damage_claim_active) {
+    const stillClaimed = openReturnsForOrder(ret.order_id).some(
+      (r) => r.reason === "damaged on arrival"
+    );
+    if (!stillClaimed) {
+      order.damage_claim_active = false;
+      damageClaimCleared = true;
+    }
+  }
+
   if (refundStatus !== undefined) {
     ret.refund_status = refundStatus;
     if (refundStatus === "processing" && !ret.refund_estimated_date) {
@@ -74,5 +91,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return_received_date: ret.return_received_date,
     refund_estimated_date: ret.refund_estimated_date,
     refund_issued_date: ret.refund_issued_date,
+    ...(damageClaimCleared ? { damage_claim_cleared: true } : {}),
   });
 });

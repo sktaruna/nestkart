@@ -41,7 +41,9 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // The customer picked this date, so it outranks the seed-date refresh.
   order.estimated_delivery = newDate;
+  order.date_pinned = true;
   res.status(200).json({
     ok: true,
     order_id: orderId,

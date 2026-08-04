@@ -97,6 +97,29 @@ function seedOrders(): void {
   SEED_ORDER_IDS = new Set([...SEED_ORDER_IDS, ...Object.keys(seeded)]);
 }
 
+/**
+ * Re-anchors the seeded orders' dates to today.
+ *
+ * buildSeedOrders() computes every date relative to `now`, but a persisted
+ * snapshot carries whatever `now` was when it was first written — so seeded
+ * dates froze on the first run and drifted staler every day the store survived.
+ * The visible symptom was the 30-day return window silently expiring on orders
+ * that are supposed to be returnable, which had to be undone by hand.
+ *
+ * Only the two date fields move. Status, damage claims, addresses and every
+ * other staged edit are left exactly as they were, so a scenario set up
+ * yesterday still reads the same today. Orders with `date_pinned` opt out.
+ */
+function refreshSeedOrderDates(): void {
+  const fresh = buildSeedOrders(new Date());
+  for (const [oid, seed] of Object.entries(fresh)) {
+    const order = ORDERS[oid];
+    if (!order || order.date_pinned) continue;
+    order.placed_at = seed.placed_at;
+    order.estimated_delivery = seed.estimated_delivery;
+  }
+}
+
 function resetAllState(): void {
   ORDERS = {};
   CARTS = {};
@@ -166,6 +189,10 @@ function applyState(state: Partial<Snapshot>): void {
       order.status = (legacyOverrides?.[oid] as Order["status"]) || "processing";
     }
   }
+
+  // Seed dates come from whenever the snapshot was written, so re-anchor them to
+  // today before anything reads them.
+  refreshSeedOrderDates();
 
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};

@@ -76,6 +76,13 @@ export interface Order {
   cancelled: boolean;
   tracking_number: string | null;
   stock_decremented?: boolean;
+  /**
+   * Set when someone chooses `estimated_delivery` deliberately — an admin
+   * backdating a delivery to reach the expired-window branch, or a customer
+   * rescheduling. Those dates are the point of the scenario, so the seed-date
+   * refresh leaves them alone. Cleared by admin/reset, which rebuilds the seeds.
+   */
+  date_pinned?: boolean;
 }
 
 export interface ReturnRecord {
