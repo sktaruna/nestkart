@@ -4,74 +4,17 @@ import { CUSTOMERS } from '@/lib/data';
 import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustomer';
 
 /**
- * Ported from elevenlabs-init.js. Boots the ElevenLabs conversational-AI
- * widget and renders the floating "test user" switcher panel used to
- * change the active customer (localStorage 'nk_active_user') across the
- * whole site. Runs once on mount, on every page, via _app.tsx.
+ * Renders the floating "test user" switcher panel used to change the active
+ * customer (localStorage 'nk_active_user') across the whole site. Runs once on
+ * mount, on every page, via _app.tsx.
  */
-/**
- * ElevenLabs agent to mount, from NEXT_PUBLIC_ELEVENLABS_AGENT_ID.
- *
- * Was hardcoded to `agent_2401kwbf2gwwe6e8w10gnkbntctt`, which ElevenLabs now
- * answers for with `agent_not_found` — so every page load fetched a 404 and
- * logged "Cannot fetch config for agent", and no widget ever appeared. A dead id
- * in source is worse than no id: it can only be fixed by editing code, and it
- * makes the console noisy enough to hide real errors.
- *
- * Unset means the widget is skipped entirely — no third-party script, no 404.
- */
-const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || '';
-
-let warnedNoAgent = false;
 
 /**
  * Routes where the switcher panel is hidden. It's fixed at bottom-left and
  * covers table rows on the admin page, which has no active-customer concept of
- * its own. The ElevenLabs widget still boots everywhere, so the agent stays
- * reachable while you watch the admin request log.
+ * its own.
  */
 const HIDE_SWITCHER_ON = ['/admin'];
-
-function bootElevenLabs(userId: string) {
-  const customer = CUSTOMERS[userId];
-  if (!customer) return;
-  if (!AGENT_ID) {
-    // info, not error: an unconfigured widget is a valid state for this demo,
-    // and shouting about it buries genuine console errors. Once only — this runs
-    // again on every customer switch.
-    if (!warnedNoAgent) {
-      warnedNoAgent = true;
-      console.info(
-        '[NestKart] Voice agent disabled. Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID to enable the ElevenLabs widget.'
-      );
-    }
-    return;
-  }
-
-  const existing = document.querySelector('elevenlabs-convai');
-  if (existing) existing.parentNode?.removeChild(existing);
-
-  const widget = document.createElement('elevenlabs-convai');
-  widget.setAttribute('agent-id', AGENT_ID);
-  widget.setAttribute(
-    'dynamic-variables',
-    JSON.stringify({
-      customer_id: userId,
-      customer_name: customer.name,
-      customer_email: customer.email,
-    })
-  );
-  document.body.appendChild(widget);
-
-  if (!document.getElementById('elevenlabs-convai-script')) {
-    const s = document.createElement('script');
-    s.id = 'elevenlabs-convai-script';
-    s.type = 'text/javascript';
-    s.async = true;
-    s.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
-    document.body.appendChild(s);
-  }
-}
 
 function updateInfoPanel(userId: string) {
   const c = CUSTOMERS[userId];
@@ -134,7 +77,6 @@ function buildSwitcher() {
     const newId = (e.target as HTMLSelectElement).value;
     setActiveCustomerId(newId);
     updateInfoPanel(newId);
-    bootElevenLabs(newId);
   });
 }
 
@@ -142,8 +84,6 @@ export default function TestUserSwitcher() {
   const { pathname } = useRouter();
 
   useEffect(() => {
-    const activeId = getActiveCustomerId();
-    bootElevenLabs(activeId);
     buildSwitcher();
   }, []);
 

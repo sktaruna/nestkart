@@ -345,7 +345,7 @@
 /* ── TOAST ────────────────────────────────────────────────────────────────────
    Replaces the per-row "Saved" column that every table used to carry and that
    was empty the rest of the time. Top-centre, not a corner: bottom-right is
-   where the ElevenLabs widget sits and bottom-left is the test-user switcher.  */
+   where the chat widget sits and bottom-left is the test-user switcher.  */
 .toast {
   /* Below the header rather than over it: a dark toast on the dark header is
      legible but camouflaged. At 96px it floats over the light content area. */
