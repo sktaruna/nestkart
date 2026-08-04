@@ -44,10 +44,11 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const status = getOrderStatus(order);
   if (status !== "processing") {
-    res.status(200).json({
+    res.status(400).json({
       ok: false,
+      error: "order_not_cancellable",
       cancelled: false,
-      reason: "order not cancellable",
+      reason: `Order can only be cancelled while it is processing (current: ${status}).`,
       current_status: status,
     });
     return;
@@ -60,8 +61,9 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   // cancellable again.
   const openReturns = openReturnsForOrder(orderId);
   if (openReturns.length > 0) {
-    res.status(200).json({
+    res.status(400).json({
       ok: false,
+      error: "return_in_progress",
       cancelled: false,
       reason: "A return is already in progress for this order, so it cannot be cancelled.",
       current_status: status,
@@ -73,12 +75,16 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   order.cancelled = true;
   order.status = "cancelled";
 
-  // Restore stock only for orders that went through checkout (not seeded orders)
+  // Restore stock only for orders that went through checkout (not seeded orders).
+  // Clearing the flag is what makes this restore happen at most once: the return
+  // path restores from the same flag, and a cancel after a closed return would
+  // otherwise put the same units back a second time.
   if (order.stock_decremented) {
     for (const item of order.items || []) {
       const p = PRODUCTS[item.product_id];
       if (p) p.stock += item.qty;
     }
+    order.stock_decremented = false;
   }
 
   res.status(200).json({

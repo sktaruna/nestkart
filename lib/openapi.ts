@@ -6,16 +6,14 @@
  * from the route files, so a new or changed endpoint under pages/api must be
  * reflected here too or the agent will keep calling the old shape.
  *
- * Two conventions matter more than anything else here, and both are spelled out
- * in the top-level `description` because an agent reading only the schemas would
- * get them wrong:
- *
- *  1. Every response carries a boolean `ok`. It is the authoritative
- *     success signal — NOT the HTTP status.
- *  2. Several business refusals return HTTP 200 with `ok: false`. A cancel on a
- *     dispatched order and a return on an ineligible order both "succeed" at the
- *     HTTP level while declining the action. An agent that branches on the
- *     status code alone will report these to the customer as done.
+ * One convention matters more than anything else here, and is spelled out in the
+ * top-level `description` because an agent reading only the schemas would get it
+ * wrong: every response carries a boolean `ok`, and every refusal — whether the
+ * request was malformed or the action was declined for business reasons (order
+ * not cancellable, return not eligible, a return already open) — is a 4xx
+ * carrying an `error` code. `ok` and the HTTP status always agree here; still
+ * branch on `ok`, not the status, since the two used to disagree and older
+ * client code may assume they still do.
  */
 
 const DESCRIPTION = `Mock e-commerce backend for NestKart, a furniture and home-goods retailer.
@@ -23,18 +21,15 @@ Used to exercise AI support agents against realistic order, return, and refund f
 
 ## Reading responses
 
-Always branch on the \`ok\` field, never on the HTTP status.
+Branch on the \`ok\` field. In this API it always agrees with the HTTP status —
+\`ok: true\` is 200, \`ok: false\` is always a 4xx — but check \`ok\` anyway rather
+than assuming that holds.
 
-- \`ok: true\` — the action was performed.
-- \`ok: false\` with HTTP 4xx — the request was malformed or the resource is missing.
-- \`ok: false\` with **HTTP 200** — the request was valid but the action was
-  *declined for business reasons*. This applies to \`POST /orders/{id}/cancel\`
-  (order past processing, or a return already in flight) and
-  \`POST /orders/{id}/returns\` (order not eligible).
-  Treat these as failures and relay the \`reason\` field to the customer.
-
-Errors carry a machine-readable \`error\` code and a human-readable \`message\`
-suitable for paraphrasing to a customer.
+Every refusal, whether the request was malformed or the action was declined for
+business reasons (order not cancellable, a return already in flight, an order
+not eligible for return), carries a machine-readable \`error\` code and either a
+\`message\` or \`reason\` field with prose suitable for relaying to the customer.
+Treat any \`ok: false\` as a failure.
 
 Any write can return **503 \`state_unavailable\`** if the backing store could not
 be read. Nothing was changed — the call is safe to retry, and must be retried
@@ -786,7 +781,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Cancel an order",
         description:
-          "Only works while the order is `processing`. **An order past processing returns HTTP 200 with `ok: false` and `cancelled: false`** — check the field, not the status code. Restores stock for orders placed through checkout.",
+          "Only works while the order is `processing`, and only if no return is open against the order. A refusal is a **400** carrying an `error` code — `order_not_cancellable` or `return_in_progress`. Restores stock for orders placed through checkout, once.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -802,57 +797,68 @@ export const OPENAPI_SPEC = {
         }),
         responses: {
           200: {
-            description:
-              "Two outcomes, distinguished by `ok`. `ok: true` — cancelled. `ok: false` — declined because the order is no longer cancellable.",
+            description: "Cancelled.",
             content: {
               "application/json": {
                 schema: {
-                  oneOf: [
-                    {
-                      title: "Cancelled",
-                      type: "object",
-                      properties: {
-                        ok: OK_TRUE,
-                        cancelled: { type: "boolean", enum: [true] },
-                        order_id: { type: "string" },
-                        refund_method: { type: "string", example: "original_payment_method" },
-                        refund_timeline: {
-                          type: "string",
-                          example:
-                            "5–7 business days to your original payment method, plus 2–5 business days for your bank to process.",
-                        },
-                      },
+                  title: "Cancelled",
+                  type: "object",
+                  properties: {
+                    ok: OK_TRUE,
+                    cancelled: { type: "boolean", enum: [true] },
+                    order_id: { type: "string" },
+                    refund_method: { type: "string", example: "original_payment_method" },
+                    refund_timeline: {
+                      type: "string",
+                      example:
+                        "5–7 business days to your original payment method, plus 2–5 business days for your bank to process.",
                     },
-                    {
-                      title: "Declined — not cancellable, or a return is open",
-                      type: "object",
-                      properties: {
-                        ok: { type: "boolean", enum: [false] },
-                        cancelled: { type: "boolean", enum: [false] },
-                        reason: {
-                          type: "string",
-                          description:
-                            "Either the order has moved past `processing`, or a return is already in flight for it — cancelling as well would refund the same item twice.",
-                          example: "order not cancellable",
-                        },
-                        current_status: { type: "string" },
-                        open_return_ids: {
-                          type: "array",
-                          items: { type: "string" },
-                          description:
-                            "Present only when the refusal was caused by open returns. Tell the customer their return is already being processed rather than offering to cancel.",
-                        },
-                      },
-                    },
-                  ],
+                  },
                 },
               },
             },
           },
-          ...errRes(400, "Missing customer_id or reason, or reason not in the accepted list.", [
-            "missing_field",
-            "invalid_reason",
-          ]),
+          400: {
+            description:
+              "Rejected. `missing_field` / `invalid_reason` mean the request was malformed. `order_not_cancellable` means the order has moved past `processing`; `return_in_progress` means a return is already in flight for it, and cancelling as well would refund the same item twice.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", enum: [false] },
+                    error: {
+                      type: "string",
+                      enum: [
+                        "missing_field",
+                        "invalid_reason",
+                        "order_not_cancellable",
+                        "return_in_progress",
+                      ],
+                    },
+                    message: { type: "string", description: "Present on the malformed-request errors." },
+                    cancelled: {
+                      type: "boolean",
+                      enum: [false],
+                      description: "Present on the two business refusals.",
+                    },
+                    reason: {
+                      type: "string",
+                      description: "Prose for the customer. Present on the two business refusals.",
+                      example: "Order can only be cancelled while it is processing (current: delivered).",
+                    },
+                    current_status: { type: "string" },
+                    open_return_ids: {
+                      type: "array",
+                      items: { type: "string" },
+                      description:
+                        "Present only on `return_in_progress`. Tell the customer their return is already being processed rather than offering to cancel.",
+                    },
+                  },
+                },
+              },
+            },
+          },
           ...errRes(403, "customer_id does not own this order.", ["ownership_mismatch"]),
           ...errRes(404, "No such order.", ["order_not_found"]),
           ...NOT_ALLOWED,
@@ -1015,7 +1021,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "File a return",
         description:
-          "Creates a return and issues a shipping label. **An ineligible order returns HTTP 200 with `ok: false`** — check the field, not the status code. Call /return-eligibility first. " +
+          "Creates a return and issues a shipping label. An ineligible order, or one with a return already open, is refused with a **400** and an `error` code (`return_not_eligible` or `return_already_open`). Call /return-eligibility first. " +
           "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
@@ -1041,52 +1047,72 @@ export const OPENAPI_SPEC = {
         }),
         responses: {
           200: {
+            description: "Return filed.",
+            content: {
+              "application/json": {
+                schema: {
+                  title: "Return filed",
+                  type: "object",
+                  properties: {
+                    ok: OK_TRUE,
+                    return_id: { type: "string", example: "RET-2210" },
+                    status: { type: "string", enum: ["return_requested"] },
+                    instructions: { type: "string", description: "Packing and drop-off instructions." },
+                    return_shipping_label_url: { type: "string", format: "uri" },
+                    return_shipping_cost: {
+                      type: "string",
+                      description: "'free', or '₹200–₹500 (customer pays)' for change of mind.",
+                    },
+                    refund_amount: {
+                      type: "string",
+                      example: "₹8,400",
+                      description:
+                        "The order total, formatted. This is what the customer gets back; return shipping is not deducted from it and is charged separately.",
+                    },
+                    refund_status: {
+                      type: "string",
+                      enum: ["pending"],
+                      description:
+                        "Always 'pending' on a new return. Nothing is paid out until an operator moves it to processing and then issued — filing a return does not refund anything.",
+                    },
+                    estimated_refund_date: {
+                      type: "string",
+                      format: "date",
+                      nullable: true,
+                      description: "Null when the refund is locked — there is no date to give yet.",
+                    },
+                    refund_locked: {
+                      type: "boolean",
+                      description:
+                        "Present only when true (damaged on arrival). The refund is held pending inspection.",
+                    },
+                    refund_locked_reason: { type: "string", example: "damage_claim_under_review" },
+                    refund_note: {
+                      type: "string",
+                      description: "Customer-ready explanation of the hold. Present only alongside refund_locked.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
             description:
-              "Two outcomes, distinguished by `ok`. `ok: true` — return filed. `ok: false` — the order is not eligible.",
+              "Rejected. `missing_field` / `invalid_reason` / `invalid_condition` mean the request was malformed. `return_not_eligible` means the order fails /return-eligibility; `return_already_open` means a return is already in flight for it.",
             content: {
               "application/json": {
                 schema: {
                   oneOf: [
                     {
-                      title: "Return filed",
+                      title: "Malformed request",
                       type: "object",
                       properties: {
-                        ok: OK_TRUE,
-                        return_id: { type: "string", example: "RET-2210" },
-                        status: { type: "string", enum: ["return_requested"] },
-                        instructions: { type: "string", description: "Packing and drop-off instructions." },
-                        return_shipping_label_url: { type: "string", format: "uri" },
-                        return_shipping_cost: {
+                        ok: { type: "boolean", enum: [false] },
+                        error: { type: "string", enum: ["missing_field", "invalid_reason", "invalid_condition"] },
+                        message: {
                           type: "string",
-                          description: "'free', or '₹200–₹500 (customer pays)' for change of mind.",
-                        },
-                        refund_amount: {
-                          type: "string",
-                          example: "₹8,400",
                           description:
-                            "The order total, formatted. This is what the customer gets back; return shipping is not deducted from it and is charged separately.",
-                        },
-                        refund_status: {
-                          type: "string",
-                          enum: ["pending"],
-                          description:
-                            "Always 'pending' on a new return. Nothing is paid out until an operator moves it to processing and then issued — filing a return does not refund anything.",
-                        },
-                        estimated_refund_date: {
-                          type: "string",
-                          format: "date",
-                          nullable: true,
-                          description: "Null when the refund is locked — there is no date to give yet.",
-                        },
-                        refund_locked: {
-                          type: "boolean",
-                          description:
-                            "Present only when true (damaged on arrival). The refund is held pending inspection.",
-                        },
-                        refund_locked_reason: { type: "string", example: "damage_claim_under_review" },
-                        refund_note: {
-                          type: "string",
-                          description: "Customer-ready explanation of the hold. Present only alongside refund_locked.",
+                            "Missing one of the four required fields (names them all), or reason/condition not in the accepted list.",
                         },
                       },
                     },
@@ -1095,6 +1121,7 @@ export const OPENAPI_SPEC = {
                       type: "object",
                       properties: {
                         ok: { type: "boolean", enum: [false] },
+                        error: { type: "string", enum: ["return_not_eligible"] },
                         eligible: { type: "boolean", enum: [false] },
                         reason: {
                           type: "string",
@@ -1128,11 +1155,6 @@ export const OPENAPI_SPEC = {
               },
             },
           },
-          ...errRes(
-            400,
-            "Missing one of the four required fields (the message names them all), or reason/condition not in the accepted list.",
-            ["missing_field", "invalid_reason", "invalid_condition"]
-          ),
           ...errRes(403, "customer_id does not own this order.", ["ownership_mismatch"]),
           ...errRes(404, "No such order.", ["order_not_found"]),
           ...NOT_ALLOWED,
@@ -1144,7 +1166,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Request a replacement instead of a refund",
         description:
-          "Requires the same eligibility as a return. Unlike /returns, an ineligible order gets a **400**, not a 200 with `ok: false`. Does not create a trackable record — the returned `replacement_id` cannot be looked up afterwards.",
+          "Requires the same eligibility as a return; an ineligible order gets a **400**, same as /returns. Does not create a trackable record — the returned `replacement_id` cannot be looked up afterwards.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1544,11 +1566,10 @@ export const OPENAPI_SPEC = {
                     ok: {
                       type: "boolean",
                       nullable: true,
-                      description:
-                        "The response body's `ok`, not the HTTP status. `status: 200` with `ok: false` is a business refusal.",
+                      description: "The response body's `ok`. Agrees with `status` here: false means a 4xx.",
                     },
                     error: { type: "string", description: "Present when the response carried an error code." },
-                    reason: { type: "string", description: "Present on a 200 business refusal." },
+                    reason: { type: "string", description: "Present on a business refusal." },
                     body: {
                       type: "object",
                       description: "Request body, for mutations only. Truncated to a string past 500 characters.",

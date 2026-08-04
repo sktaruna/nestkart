@@ -75,7 +75,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const openReturns = openReturnsForOrder(orderId);
   if (openReturns.length > 0) {
     const existing = openReturns[0];
-    res.status(200).json({
+    res.status(400).json({
       ok: false,
       error: "return_already_open",
       message:
@@ -92,7 +92,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const elig = returnEligibilityCheck(orderId);
   if (!elig.eligible) {
-    res.status(200).json({ ok: false, eligible: false, reason: elig.reason });
+    res.status(400).json({ ok: false, error: "return_not_eligible", eligible: false, reason: elig.reason });
     return;
   }
 
@@ -115,12 +115,16 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     order.damage_claim_active = true;
   }
 
-  // Restore stock when return is initiated (only if this order decremented it)
+  // Restore stock when return is initiated (only if this order decremented it).
+  // The flag is cleared so the units go back exactly once: a rejected return can
+  // be re-filed (see the open-return check above), and without this each re-file
+  // invented another unit of every item on the order.
   if (order.stock_decremented) {
     for (const item of order.items || []) {
       const p = PRODUCTS[item.product_id];
       if (p) p.stock += item.qty;
     }
+    order.stock_decremented = false;
   }
 
   const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
