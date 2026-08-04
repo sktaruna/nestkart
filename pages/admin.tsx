@@ -62,8 +62,8 @@ function humanize(value: string): string {
 
 /**
  * Label for a flag checkbox: "Locked: Damage claim under review" when there's a
- * reason, plain "Locked" when there isn't. Seeded returns can carry a flag with
- * no reason (RET-2203 escalates without one), which rendered as a bare
+ * reason, plain "Locked" when there isn't. A return can carry a flag with no
+ * reason (escalated with no escalation_reason), which rendered as a bare
  * "Escalate:" dangling a colon.
  */
 function flagLabelText(on: string, off: string, active: boolean, reason?: string | null): string {

@@ -422,18 +422,6 @@ export function seedReturns(): Record<string, ReturnRecord> {
       return_shipping: "₹200 estimated", refund_locked: true,
       refund_locked_reason: "non_returnable_item",
     },
-    "RET-2203": {
-      return_id: "RET-2203", order_id: "ORD-10201", customer_id: "cust_002",
-      item_name: "Teak Slab Dining Table",
-      reason: "damaged on arrival", status: "under_review",
-      return_initiated: "2025-06-06", return_received_date: null,
-      refund_status: "pending", refund_amount: "₹1,24,000",
-      refund_includes_shipping: true, refund_estimated_date: null,
-      refund_issued_date: null, refund_method: "original_payment_method",
-      return_shipping: "free", refund_locked: true,
-      refund_locked_reason: "damage_claim_under_review",
-      requires_agent_escalation: true,
-    },
   };
 }
 
@@ -516,7 +504,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_002"),
-      damage_claim_active: true, cancelled: false, tracking_number: "NK10201TRACK",
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10201TRACK",
     },
     "ORD-10202": {
       order_id: "ORD-10202", customer_id: "cust_002",
