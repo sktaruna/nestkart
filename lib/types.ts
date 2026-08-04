@@ -56,7 +56,6 @@ export interface Order {
   estimated_delivery: string | null;
   delivery_address?: Record<string, string>;
   damage_claim_active: boolean;
-  cancellable: boolean;
   tracking_number: string | null;
   tracking_url: string | null;
   is_seed: boolean;
@@ -73,7 +72,6 @@ export interface Customer {
   state: string;
   address?: { street: string; city: string; state: string; pincode: string };
   orders: string[];
-  ak_hi_customer: boolean;
   account_status: string;
 }
 

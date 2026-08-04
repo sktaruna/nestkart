@@ -20,7 +20,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const orderIds = Object.values(ORDERS)
     .filter((o) => o.customer_id === customerId)
     .map((o) => o.order_id);
-  const akHi = cust.state === "AK" || cust.state === "HI";
 
   res.status(200).json({
     ok: true,
@@ -33,7 +32,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     state: cust.state,
     address: cust.address ?? null,
     orders: orderIds,
-    ak_hi_customer: akHi,
     account_status: "active",
     payment_method: payment
       ? {

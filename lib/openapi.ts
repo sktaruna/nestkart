@@ -144,10 +144,6 @@ const ORDER_SCHEMA = {
       description:
         "An item was reported damaged on arrival. Makes the order return-eligible regardless of the 30-day window, with free return shipping, but holds the refund under review.",
     },
-    cancellable: {
-      type: "boolean",
-      description: "True only while status is 'processing'. Check before offering to cancel.",
-    },
     tracking_number: {
       type: "string", nullable: true,
       description: "Null until the order is dispatched.",
@@ -553,10 +549,6 @@ export const OPENAPI_SPEC = {
                 items: { type: "string" },
                 description: "Order IDs. Use /api/customers/{id}/orders for the full records.",
               },
-              ak_hi_customer: {
-                type: "boolean",
-                description: "Remote-region flag (state AK or HI). Affects shipping expectations.",
-              },
               account_status: { type: "string", example: "active" },
               payment_method: {
                 type: "object", nullable: true,
@@ -780,7 +772,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Get an order",
         description:
-          "The primary order lookup: status, items, tracking, delivery address, and the `cancellable` flag.",
+          "The primary order lookup: status, items, tracking, and delivery address. Cancellability follows from `status` — see POST /api/orders/{order_id}/cancel.",
         parameters: [ORDER_ID_PARAM],
         responses: {
           ...ok200("Order details.", ORDER_SCHEMA),

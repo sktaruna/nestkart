@@ -35,10 +35,6 @@ export function getOrderStatus(order: Order): string {
   return order.status || "processing";
 }
 
-export function isCancellable(order: Order): boolean {
-  return getOrderStatus(order) === "processing";
-}
-
 export function trackingInfo(order: Order): [string | null, string | null] {
   const status = getOrderStatus(order);
   if (status === "dispatched" || status === "in_transit" || status === "delivered") {
@@ -135,7 +131,6 @@ export function buildOrderResponse(order: Order): Record<string, unknown> {
     estimated_delivery: order.estimated_delivery ?? null,
     delivery_address: order.delivery_address ?? null,
     damage_claim_active: order.damage_claim_active ?? false,
-    cancellable: status === "processing",
     tracking_number: tn,
     tracking_url: tUrl,
     is_seed: SEED_ORDER_IDS.has(order.order_id),
