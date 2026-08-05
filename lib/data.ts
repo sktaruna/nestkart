@@ -488,12 +488,16 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       order_id: "ORD-10102", customer_id: "cust_001",
       items: [{ product_id: "prod_008", product_name: "Ceramic Vessel Set", qty: 2, unit_price: 4200, line_total: 8400 }],
       price_total: 8400,
-      placed_at: daysAgoIso(now, 1, 12),
-      status: "dispatched",
+      // Delivered, because RET-2202 hangs off this order and a return is only
+      // valid after confirmed delivery (returnEligibilityCheck rejects
+      // processing/dispatched/in_transit). Dated like the other delivered seeds
+      // so "delivered" doesn't sit on an order placed a day and a half ago.
+      placed_at: daysAgoIso(now, 5),
+      status: "delivered",
       shipping_method: "standard",
-      estimated_delivery: addDaysDateOnly(now, 5),
+      estimated_delivery: minus5daysPlus10(),
       delivery_address: addr("cust_001"),
-      damage_claim_active: false, cancelled: false, tracking_number: null,
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
     },
     "ORD-10103": {
       order_id: "ORD-10103", customer_id: "cust_001",
