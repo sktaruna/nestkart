@@ -14,7 +14,6 @@ export interface Customer {
   phone: string;
   account_created: string;
   marketing_opt_in: boolean;
-  state: string;
   address: Address;
 }
 
@@ -122,7 +121,13 @@ export const RETURN_STATUSES = [
 /** Refund progress, tracked independently of the return's physical journey. */
 export const REFUND_STATUSES = ["pending", "processing", "issued", "rejected"] as const;
 
-export const CUSTOMERS: Record<string, Customer> = {
+/**
+ * A fresh copy every call, same as seedProducts() — customer records are now
+ * mutable (see the profile-update endpoint) and persisted, so state.ts needs
+ * an unmutated original to fall back to on admin/reset.
+ */
+export function seedCustomers(): Record<string, Customer> {
+  return {
   cust_001: {
     customer_id: "cust_001",
     name: "Priya Sharma",
@@ -130,7 +135,6 @@ export const CUSTOMERS: Record<string, Customer> = {
     phone: "+91 98100 12345",
     account_created: "2024-03-10",
     marketing_opt_in: true,
-    state: "NY",
     address: {
       street: "14, Lodhi Colony",
       city: "New Delhi",
@@ -145,7 +149,6 @@ export const CUSTOMERS: Record<string, Customer> = {
     phone: "+91 90220 67890",
     account_created: "2023-11-22",
     marketing_opt_in: false,
-    state: "CA",
     address: {
       street: "42, Bandra West, Linking Road",
       city: "Mumbai",
@@ -160,7 +163,6 @@ export const CUSTOMERS: Record<string, Customer> = {
     phone: "+91 94430 55678",
     account_created: "2025-01-05",
     marketing_opt_in: true,
-    state: "TX",
     address: {
       street: "8, Indiranagar, 100 Feet Road",
       city: "Bengaluru",
@@ -175,7 +177,6 @@ export const CUSTOMERS: Record<string, Customer> = {
     phone: "+91 98765 43210",
     account_created: "2024-08-19",
     marketing_opt_in: false,
-    state: "AK",
     address: {
       street: "22, Sector 17, Chandigarh",
       city: "Chandigarh",
@@ -190,7 +191,6 @@ export const CUSTOMERS: Record<string, Customer> = {
     phone: "+91 91000 88888",
     account_created: "2024-12-01",
     marketing_opt_in: true,
-    state: "CA",
     address: {
       street: "5, Alipore Road",
       city: "Kolkata",
@@ -198,7 +198,8 @@ export const CUSTOMERS: Record<string, Customer> = {
       pincode: "700027",
     },
   },
-};
+  };
+}
 
 export const PAYMENT_METHODS: Record<string, PaymentMethod> = {
   cust_001: { type: "Visa", last_four: "4242", expiry_month: "09", expiry_year: "2027", is_expired: false },
@@ -450,7 +451,11 @@ function addDaysDateOnly(now: Date, days: number): string {
 
 /** Builds the seed orders exactly as Flask's _seed_orders() does, relative to `now`. */
 export function buildSeedOrders(now: Date): Record<string, Order> {
-  const addr = (custId: string): Address => ({ ...CUSTOMERS[custId].address });
+  // The pristine seed address, not whatever the customer has edited it to —
+  // rebuilding seed orders (admin/reset) should not retroactively change an
+  // already-placed order's delivery_address just because the profile moved.
+  const pristineCustomers = seedCustomers();
+  const addr = (custId: string): Address => ({ ...pristineCustomers[custId].address });
 
   const minus5daysPlus10 = (): string => {
     // (now - 5 days) + 10 days, date only

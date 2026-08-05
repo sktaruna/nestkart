@@ -537,7 +537,6 @@ export const OPENAPI_SPEC = {
               phone: { type: "string", nullable: true },
               account_created: { type: "string", format: "date" },
               marketing_opt_in: { type: "boolean" },
-              state: { type: "string", description: "Two-letter state code.", example: "MH" },
               address: ADDRESS_SCHEMA,
               orders: {
                 type: "array",
@@ -558,6 +557,45 @@ export const OPENAPI_SPEC = {
               },
             },
           }),
+          ...errRes(404, "No such customer.", ["customer_not_found"]),
+          ...NOT_ALLOWED,
+        },
+      },
+    },
+    "/api/customers/{customer_id}/update": {
+      post: {
+        tags: ["Customer"],
+        summary: "Update customer profile",
+        description:
+          "Updates name, email, phone, and/or the saved address. Partial — only fields present in the body change; provide at least one. `address`, when given, replaces the whole object and all four of its sub-fields (street, city, state, pincode) are required together, same as /orders/{order_id}/address.\n\nThis is the customer's own profile address only. It is independent of any order's `delivery_address`, which is a separate snapshot taken at checkout — updating a profile address here never changes an address already on an order. Use /orders/{order_id}/address for that.",
+        parameters: [CUSTOMER_ID_PARAM],
+        requestBody: jsonBody({
+          type: "object",
+          properties: {
+            name: { type: "string", example: "Priya Sharma" },
+            email: { type: "string", format: "email" },
+            phone: { type: "string" },
+            address: ADDRESS_SCHEMA,
+          },
+        }),
+        responses: {
+          ...ok200("Profile updated. Echoes the current values of every profile field.", {
+            type: "object",
+            properties: {
+              ok: OK_TRUE,
+              customer_id: { type: "string" },
+              name: { type: "string" },
+              email: { type: "string" },
+              phone: { type: "string", nullable: true },
+              address: ADDRESS_SCHEMA,
+              message: { type: "string", example: "Profile updated successfully." },
+            },
+          }),
+          ...errRes(
+            400,
+            "No fields provided, or one of the provided fields is empty/wrong type — 'address' needs all four sub-fields non-empty.",
+            ["missing_field", "invalid_field"]
+          ),
           ...errRes(404, "No such customer.", ["customer_not_found"]),
           ...NOT_ALLOWED,
         },
@@ -1641,6 +1679,7 @@ const OPERATION_IDS: Record<string, string> = {
   "GET /api/products/{product_id}/reviews": "getProductReviews",
 
   "GET /api/customers/{customer_id}": "getCustomer",
+  "POST /api/customers/{customer_id}/update": "updateCustomerProfile",
   "GET /api/customers/{customer_id}/orders": "listCustomerOrders",
   "GET /api/customers/{customer_id}/returns": "listCustomerReturns",
   "GET /api/customers/{customer_id}/addresses": "listCustomerAddresses",

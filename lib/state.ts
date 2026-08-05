@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
-  CUSTOMERS,
+  seedCustomers,
   seedProducts,
   seedReturns,
   buildSeedOrders,
@@ -8,6 +8,7 @@ import {
   Product,
   ReturnRecord,
   OrderItem,
+  Customer,
 } from "./data";
 import * as store from "./store";
 import * as requestLog from "./requestLog";
@@ -29,6 +30,7 @@ export let ORDERS: Record<string, Order> = {};
 export let CARTS: Record<string, CartItem[]> = {};
 export let DYNAMIC_RETURNS: Record<string, ReturnRecord> = {};
 export let PRODUCTS: Record<string, Product> = seedProducts();
+export let CUSTOMERS: Record<string, Customer> = seedCustomers();
 export const RETURNS: Record<string, ReturnRecord> = seedReturns();
 
 // runtime order IDs start at ORD-20000, well clear of seeded ORD-1xxxx IDs
@@ -125,6 +127,7 @@ function resetAllState(): void {
   CARTS = {};
   DYNAMIC_RETURNS = {};
   PRODUCTS = seedProducts();
+  CUSTOMERS = seedCustomers();
   orderCounter.value = 20000;
   returnCounter.value = 2210;
   SEED_ORDER_IDS = new Set();
@@ -148,6 +151,9 @@ export function adminReset(): void {
   for (const [pid, originalStock] of Object.entries(_ORIGINAL_STOCK)) {
     if (PRODUCTS[pid]) PRODUCTS[pid].stock = originalStock;
   }
+  // Reverts any profile edit made through the update endpoint, same as every
+  // other piece of staged state this resets.
+  CUSTOMERS = seedCustomers();
   seedOrders();
 }
 
@@ -161,6 +167,7 @@ interface Snapshot {
   order_counter: number;
   return_counter: number;
   product_stock: Record<string, number>;
+  customers: Record<string, Customer>;
 }
 
 function snapshotState(): Snapshot {
@@ -171,6 +178,7 @@ function snapshotState(): Snapshot {
     order_counter: orderCounter.value,
     return_counter: returnCounter.value,
     product_stock: Object.fromEntries(Object.entries(PRODUCTS).map(([pid, p]) => [pid, p.stock])),
+    customers: CUSTOMERS,
   };
 }
 
@@ -196,6 +204,11 @@ function applyState(state: Partial<Snapshot>): void {
 
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};
+
+  // Seed customers first so a customer added in code after this snapshot was
+  // written still exists; the stored copy then overlays it so an edit made
+  // through the update endpoint survives across requests and instances.
+  CUSTOMERS = { ...seedCustomers(), ...(state.customers as Record<string, Customer> | undefined) };
   orderCounter.value = state.order_counter ?? orderCounter.value;
   returnCounter.value = state.return_counter ?? returnCounter.value;
   const productStock = state.product_stock || {};
@@ -388,5 +401,4 @@ export function withState(handler: ApiHandler): ApiHandler {
   };
 }
 
-export type { Order, Product, ReturnRecord, OrderItem };
-export { CUSTOMERS };
+export type { Order, Product, ReturnRecord, OrderItem, Customer };

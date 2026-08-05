@@ -69,7 +69,6 @@ export interface Customer {
   phone: string | null;
   account_created: string;
   marketing_opt_in: boolean;
-  state: string;
   address?: { street: string; city: string; state: string; pincode: string };
   orders: string[];
   account_status: string;

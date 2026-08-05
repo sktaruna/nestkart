@@ -29,7 +29,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     phone: cust.phone ?? null,
     account_created: cust.account_created,
     marketing_opt_in: cust.marketing_opt_in,
-    state: cust.state,
     address: cust.address ?? null,
     orders: orderIds,
     account_status: "active",

@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { CUSTOMERS } from '@/lib/data';
+import { seedCustomers } from '@/lib/data';
 import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustomer';
 
 /**
  * Renders the floating "test user" switcher panel used to change the active
  * customer (localStorage 'nk_active_user') across the whole site. Runs once on
  * mount, on every page, via _app.tsx.
+ *
+ * Uses the seed list, not the live server-side CUSTOMERS — this is a static,
+ * client-bundled dropdown of who's available to switch to, not a display of
+ * any one customer's current (possibly edited) profile.
  */
+const CUSTOMERS = seedCustomers();
 
 /**
  * Routes where the switcher panel is hidden. It's fixed at bottom-left and
@@ -19,7 +24,7 @@ const HIDE_SWITCHER_ON = ['/admin'];
 function updateInfoPanel(userId: string) {
   const c = CUSTOMERS[userId];
   const el = document.getElementById('nk-user-info');
-  if (el && c) el.innerHTML = `${c.email}<br>${c.state}`;
+  if (el && c) el.innerHTML = `${c.email}<br>${c.address.city}, ${c.address.state}`;
 }
 
 function buildSwitcher() {
