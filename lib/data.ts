@@ -587,45 +587,9 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_004"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
-    "ORD-10501": {
-      order_id: "ORD-10501", customer_id: "cust_005",
-      items: [
-        { product_id: "prod_001", product_name: "Linen Cloud Sofa", qty: 1, unit_price: 89999, line_total: 89999 },
-        { product_id: "prod_006", product_name: "Walnut Platform Bed", qty: 1, unit_price: 68000, line_total: 68000 },
-      ],
-      price_total: 157999,
-      placed_at: daysAgoIso(now, 5),
-      status: "delivered",
-      shipping_method: "large_item",
-      estimated_delivery: minus5daysPlus10(),
-      delivery_address: addr("cust_005"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10501TRACK",
-    },
-    "ORD-10502": {
-      order_id: "ORD-10502", customer_id: "cust_005",
-      items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
-      price_total: 21500,
-      placed_at: daysAgoIso(now, 1, 12),
-      status: "dispatched",
-      shipping_method: "large_item",
-      estimated_delivery: addDaysDateOnly(now, 10),
-      delivery_address: addr("cust_005"),
-      damage_claim_active: false, cancelled: false, tracking_number: null,
-    },
-    "ORD-10503": {
-      order_id: "ORD-10503", customer_id: "cust_005",
-      items: [
-        { product_id: "prod_008", product_name: "Ceramic Vessel Set", qty: 1, unit_price: 4200, line_total: 4200 },
-        { product_id: "prod_012", product_name: "Terracotta Planter Trio", qty: 1, unit_price: 3600, line_total: 3600 },
-      ],
-      price_total: 7800,
-      placed_at: daysAgoIso(now, 0, 0, 5),
-      status: "processing",
-      shipping_method: "standard",
-      estimated_delivery: addDaysDateOnly(now, 5),
-      delivery_address: addr("cust_005"),
-      damage_claim_active: false, cancelled: false, tracking_number: null,
-    },
+    // cust_005 (Anika Rossi) has no orders — deliberately. Their customer record
+    // and expired payment method remain, so the panel still has a customer whose
+    // order history is empty.
   };
 
   return seeded;
