@@ -36,14 +36,5 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     refund_issued_date: ret.refund_issued_date ?? null,
   };
 
-  if (ret.refund_locked) {
-    resp.refund_locked = true;
-    resp.refund_locked_reason = ret.refund_locked_reason;
-  }
-  if (ret.requires_agent_escalation) {
-    resp.requires_agent_escalation = true;
-    resp.escalation_reason = ret.escalation_reason;
-  }
-
   res.status(200).json(resp);
 });

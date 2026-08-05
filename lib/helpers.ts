@@ -147,8 +147,6 @@ export interface EligibilityResult {
   return_window_expires_on: string | null;
   days_remaining: number | null;
   return_shipping_cost: string | null;
-  refund_locked?: boolean;
-  refund_locked_reason?: string;
 }
 
 export function returnEligibilityCheck(orderId: string): EligibilityResult {
@@ -185,8 +183,6 @@ export function returnEligibilityCheck(orderId: string): EligibilityResult {
       return_window_expires_on: null,
       days_remaining: null,
       return_shipping_cost: "free",
-      refund_locked: true,
-      refund_locked_reason: "damage_claim_under_review",
     };
   }
 

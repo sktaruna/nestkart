@@ -273,26 +273,6 @@ const RETURN_SCHEMA = {
       format: "date",
       description: "Set only once refund_status is 'issued'.",
     },
-    refund_locked: {
-      type: "boolean",
-      description:
-        "PRESENT ONLY WHEN TRUE. The refund is held and will not progress until review completes — do not promise the customer a date. See refund_locked_reason.",
-    },
-    refund_locked_reason: {
-      type: "string",
-      enum: ["damage_claim_under_review", "non_returnable_item", "manual_review_requested"],
-      description: "Present only alongside refund_locked.",
-    },
-    requires_agent_escalation: {
-      type: "boolean",
-      description:
-        "PRESENT ONLY WHEN TRUE. This case needs a human. Hand off rather than attempting to resolve it.",
-    },
-    escalation_reason: {
-      type: "string",
-      example: "refund_overdue",
-      description: "Present only alongside requires_agent_escalation.",
-    },
   },
 };
 
@@ -1061,12 +1041,6 @@ export const OPENAPI_SPEC = {
                   type: "string", nullable: true,
                   description: "Free for defective/damaged, ₹200–₹500 for change of mind.",
                 },
-                refund_locked: {
-                  type: "boolean",
-                  description:
-                    "Present only when true: eligible to return, but the refund is held pending review of an active damage claim.",
-                },
-                refund_locked_reason: { type: "string", example: "damage_claim_under_review" },
               },
             }
           ),
@@ -1081,7 +1055,7 @@ export const OPENAPI_SPEC = {
         summary: "File a return",
         description:
           "Creates a return and issues a shipping label. An ineligible order, one with a return already open, or one with a replacement already requested, is refused with a **400** and an `error` code (`return_not_eligible`, `return_already_open`, or `replacement_already_requested`). Call /return-eligibility first. " +
-          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
+          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim on the order, which earns free return shipping.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1137,18 +1111,8 @@ export const OPENAPI_SPEC = {
                     estimated_refund_date: {
                       type: "string",
                       format: "date",
-                      nullable: true,
-                      description: "Null when the refund is locked — there is no date to give yet.",
-                    },
-                    refund_locked: {
-                      type: "boolean",
                       description:
-                        "Present only when true (damaged on arrival). The refund is held pending inspection.",
-                    },
-                    refund_locked_reason: { type: "string", example: "damage_claim_under_review" },
-                    refund_note: {
-                      type: "string",
-                      description: "Customer-ready explanation of the hold. Present only alongside refund_locked.",
+                        "Seven business days out. An estimate for the refund once approved, not a promise that it has been.",
                     },
                   },
                 },
@@ -1281,10 +1245,10 @@ export const OPENAPI_SPEC = {
         tags: ["Returns"],
         summary: "Get a return and its refund status",
         description:
-          "Use /api/customers/{customer_id}/returns first if you do not have the return ID. Check `refund_locked` before promising a refund date, and `requires_agent_escalation` before attempting to resolve the case.",
+          "Use /api/customers/{customer_id}/returns first if you do not have the return ID. `refund_status` is the refund signal: nothing is paid out until it reads `issued`.",
         parameters: [RETURN_ID_PARAM],
         responses: {
-          ...ok200("Return and refund detail. `refund_locked` and `requires_agent_escalation` are absent unless true.", RETURN_SCHEMA),
+          ...ok200("Return and refund detail.", RETURN_SCHEMA),
           ...errRes(404, "No such return.", ["return_not_found"]),
           ...NOT_ALLOWED,
         },
@@ -1518,52 +1482,6 @@ export const OPENAPI_SPEC = {
             "missing_field",
             "invalid_status",
             "invalid_refund_status",
-          ]),
-          ...errRes(404, "No such return.", ["return_not_found"]),
-          ...NOT_ALLOWED,
-        },
-      },
-    },
-    "/api/admin/returns/{return_id}/flags": {
-      post: {
-        tags: ["Admin"],
-        summary: "Set refund lock and escalation",
-        description:
-          "Stages the two hardest cases for a support agent: a refund held under review, and a case needing human handoff. Send either field or both. Setting a flag false clears its reason.",
-        parameters: [RETURN_ID_PARAM],
-        requestBody: jsonBody({
-          type: "object",
-          minProperties: 1,
-          properties: {
-            refund_locked: { type: "boolean" },
-            refund_locked_reason: {
-              type: "string",
-              enum: ["damage_claim_under_review", "non_returnable_item", "manual_review_requested"],
-              description: "Only with refund_locked: true. Defaults to damage_claim_under_review.",
-            },
-            requires_agent_escalation: { type: "boolean" },
-            escalation_reason: {
-              type: "string",
-              example: "refund_overdue",
-              description: "Only with requires_agent_escalation: true. Defaults to manual_review_requested.",
-            },
-          },
-        }),
-        responses: {
-          ...ok200("Flags updated. Reasons are null when their flag is false.", {
-            type: "object",
-            properties: {
-              ok: OK_TRUE,
-              return_id: { type: "string" },
-              refund_locked: { type: "boolean" },
-              refund_locked_reason: { type: "string", nullable: true },
-              requires_agent_escalation: { type: "boolean" },
-              escalation_reason: { type: "string", nullable: true },
-            },
-          }),
-          ...errRes(400, "Neither flag supplied, or a value is not a boolean.", [
-            "missing_field",
-            "invalid_field",
           ]),
           ...errRes(404, "No such return.", ["return_not_found"]),
           ...NOT_ALLOWED,

@@ -71,10 +71,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     }
     if (refundStatus === "issued") {
       ret.refund_issued_date = dateOnly(today());
-      // An issued refund cannot still be held for review; leaving the lock on
-      // would let the agent read "refunded" and "refund_locked" at once.
-      ret.refund_locked = false;
-      ret.refund_locked_reason = undefined;
     } else {
       ret.refund_issued_date = null;
     }

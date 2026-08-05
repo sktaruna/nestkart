@@ -24,7 +24,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const returns = allReturns()
     .filter((ret) => ret.customer_id === customerId)
     .map((ret) => {
-      const out: Record<string, unknown> = {
+      return {
         return_id: ret.return_id,
         order_id: ret.order_id,
         item_name: ret.item_name,
@@ -37,17 +37,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
         refund_estimated_date: ret.refund_estimated_date ?? null,
         refund_issued_date: ret.refund_issued_date ?? null,
       };
-      // Same convention as GET /api/returns/:id — the flags appear only when
-      // set, so their presence alone is the signal.
-      if (ret.refund_locked) {
-        out.refund_locked = true;
-        out.refund_locked_reason = ret.refund_locked_reason;
-      }
-      if (ret.requires_agent_escalation) {
-        out.requires_agent_escalation = true;
-        out.escalation_reason = ret.escalation_reason;
-      }
-      return out;
     });
 
   res.status(200).json({

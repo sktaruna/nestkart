@@ -88,7 +88,7 @@ export interface RequestLogEntry {
   ms: number;
 }
 
-/** Shape of GET /api/admin/returns — every flag present, never omitted. */
+/** Shape of GET /api/admin/returns — the raw record plus the seed marker. */
 export interface AdminReturn {
   return_id: string;
   order_id: string;
@@ -102,10 +102,6 @@ export interface AdminReturn {
   refund_amount: string | null;
   refund_estimated_date: string | null;
   refund_issued_date: string | null;
-  refund_locked: boolean;
-  refund_locked_reason: string | null;
-  requires_agent_escalation: boolean;
-  escalation_reason: string | null;
   is_seed: boolean;
 }
 

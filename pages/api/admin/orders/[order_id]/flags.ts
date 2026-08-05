@@ -6,8 +6,11 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Sets the two order fields that steer return eligibility but had no admin
- * control: `damage_claim_active` (free return, refund held under review) and
- * `estimated_delivery` (the start of the 30-day return window).
+ * control: `damage_claim_active` (free return shipping, and eligibility ahead of
+ * the window) and `estimated_delivery` (the start of the 30-day return window).
+ *
+ * damage_claim_active has no panel control — it is API-only, set by filing a
+ * 'damaged on arrival' return and cleared when that return closes.
  *
  * estimated_delivery matters most: seed orders are built relative to `now`, so
  * the "return window expired" branch of returnEligibilityCheck could not be

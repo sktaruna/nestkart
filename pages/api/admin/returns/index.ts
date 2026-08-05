@@ -7,15 +7,10 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  // Unlike the public GET /api/returns/:id, this returns the raw record with
-  // every flag present (not omitted when false) so the admin panel can render
-  // and toggle them without guessing at absent keys.
+  // The raw record plus is_seed, which the panel uses to mark which returns a
+  // reset will bring back.
   const returns = allReturns().map((ret) => ({
     ...ret,
-    refund_locked: ret.refund_locked ?? false,
-    refund_locked_reason: ret.refund_locked_reason ?? null,
-    requires_agent_escalation: ret.requires_agent_escalation ?? false,
-    escalation_reason: ret.escalation_reason ?? null,
     is_seed: SEED_RETURN_IDS.has(ret.return_id),
   }));
 

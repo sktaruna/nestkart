@@ -116,13 +116,10 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   );
   const inclShipping = freeReturn;
 
-  // A damage claim holds the refund pending inspection. Recorded on the RETURN as
-  // well as the order: the order flag is what /return-eligibility reads, the
-  // return record is what /returns/{id} reads, and writing only the first made
-  // the two endpoints contradict each other about the same refund — eligibility
-  // reported a hold while the return looked like a normal refund in progress.
-  const damageClaim = reason === "damaged on arrival";
-  if (damageClaim) {
+  // Damage claims are tracked on the ORDER, which is what /return-eligibility
+  // reads to give free return shipping. The refund itself is not held — refund_status
+  // is the only refund signal, and it stays 'pending' until an operator moves it.
+  if (reason === "damaged on arrival") {
     order.damage_claim_active = true;
   }
 
@@ -139,10 +136,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
-  // No promised date while the refund is held — the seeded locked returns carry a
-  // null ETA for the same reason. Quoting a date and "under review" at once is
-  // exactly the contradiction an agent repeats to the customer.
-  const refundEtaIso = damageClaim ? null : dateOnly(refundEta);
+  const refundEtaIso = dateOnly(refundEta);
   // The order total, formatted like the seeded returns (RET-2201 carries the
   // ₹89,999 of ORD-10101). Left null before, so every agent-filed return had no
   // answer to "how much do I get back?" while the amount was sitting on the
@@ -168,9 +162,6 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return_shipping: freeReturn ? "free" : "₹200–₹500 (customer pays)",
     condition: condition as string,
     has_original_packaging: Boolean(hasPkg),
-    ...(damageClaim
-      ? { refund_locked: true, refund_locked_reason: "damage_claim_under_review" }
-      : {}),
   };
 
   res.status(200).json({
@@ -184,13 +175,5 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     refund_amount: refundAmount,
     refund_status: "pending",
     estimated_refund_date: refundEtaIso,
-    ...(damageClaim
-      ? {
-          refund_locked: true,
-          refund_locked_reason: "damage_claim_under_review",
-          refund_note:
-            "The refund is held while the damage claim is reviewed, so no refund date can be given yet.",
-        }
-      : {}),
   });
 });

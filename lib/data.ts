@@ -109,10 +109,6 @@ export interface ReturnRecord {
   refund_issued_date: string | null;
   refund_method: string;
   return_shipping: string;
-  requires_agent_escalation?: boolean;
-  escalation_reason?: string;
-  refund_locked?: boolean;
-  refund_locked_reason?: string;
   condition?: string;
   has_original_packaging?: boolean;
 }
@@ -418,8 +414,7 @@ export function seedReturns(): Record<string, ReturnRecord> {
       refund_status: "processing", refund_amount: "₹89,999",
       refund_includes_shipping: true, refund_estimated_date: "2025-06-06",
       refund_issued_date: null, refund_method: "original_payment_method",
-      return_shipping: "free", requires_agent_escalation: true,
-      escalation_reason: "refund_overdue",
+      return_shipping: "free",
     },
     "RET-2202": {
       return_id: "RET-2202", order_id: "ORD-10102", customer_id: "cust_001",
@@ -429,8 +424,7 @@ export function seedReturns(): Record<string, ReturnRecord> {
       refund_status: "pending", refund_amount: null,
       refund_includes_shipping: false, refund_estimated_date: null,
       refund_issued_date: null, refund_method: "original_payment_method",
-      return_shipping: "₹200 estimated", refund_locked: true,
-      refund_locked_reason: "non_returnable_item",
+      return_shipping: "₹200 estimated",
     },
   };
 }
