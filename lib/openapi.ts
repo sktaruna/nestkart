@@ -67,7 +67,15 @@ string (\`"₹89,999"\`). Dates are \`YYYY-MM-DD\`; \`placed_at\` is ISO 8601 da
 ## Admin endpoints
 
 Everything under \`/api/admin\` is demo tooling for staging test scenarios, not
-customer-facing. An AI support agent should not be given these as tools.`;
+customer-facing. An AI support agent should not be given these as tools.
+
+## Cart and Catalog
+
+The \`Cart\` and \`Catalog\` tags are shopping — browsing and building a cart,
+which the storefront UI handles directly. A support agent's job is order,
+return, and refund flows *after* a purchase, so it should not be given these
+as tools either, same as \`Admin\`. Give it \`Customer\`, \`Orders\`, and
+\`Returns\`.`;
 
 const OK_TRUE = { type: "boolean", enum: [true], description: "Always true on success." };
 
@@ -355,9 +363,17 @@ export const OPENAPI_SPEC = {
   // requirement list is how OpenAPI says "this API takes no credentials".
   security: [],
   tags: [
-    { name: "Catalog", description: "Products and reviews. Public, no customer context." },
+    {
+      name: "Catalog",
+      description:
+        "Products and reviews. Public, no customer context. Browsing is handled by the storefront UI directly — a support agent has no reason to call these.",
+    },
     { name: "Customer", description: "Account details, order history, returns history." },
-    { name: "Cart", description: "Cart contents and checkout." },
+    {
+      name: "Cart",
+      description:
+        "Cart contents and checkout. Shopping is handled by the storefront UI directly — a support agent's job is order/return/refund flows after a purchase, not building a cart, so it has no reason to call these either.",
+    },
     { name: "Orders", description: "Order lookup and customer-initiated changes." },
     { name: "Returns", description: "Return and refund status." },
     {
