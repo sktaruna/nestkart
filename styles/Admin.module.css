@@ -287,33 +287,6 @@
 }
 .ghostBtn:hover { border-color: var(--accent); }
 
-/* Checkbox + current-state label, for order damage claims and return flags. */
-.flagLabel {
-  display: inline-flex; align-items: center; gap: 6px;
-  cursor: pointer; font-size: 0.71rem; color: var(--muted);
-}
-.flagLabel input { cursor: pointer; margin: 0; flex-shrink: 0; }
-/* No word-break: reasons are humanized before display, so they wrap at spaces.
-   Breaking anywhere produced "non_returnab le_item". */
-.flagLabel span { max-width: 150px; line-height: 1.4; }
-
-/* Two controls stacked in one cell. Applied to an inner div, never the <td>. */
-.stackTight { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-/* Floor for the returns flag column: without it the flexible Item column takes
-   the slack and the labels wrap onto four lines each. */
-.flagStack { min-width: 186px; }
-
-/* ── RETURN DATES ─────────────────────────────────────────────────────────── */
-.datesCell { font-size: 0.68rem; white-space: nowrap; min-width: 130px; }
-.datesCell > div {
-  display: flex; justify-content: space-between; gap: 10px;
-  line-height: 1.75;
-}
-.datesCell > div > span:first-child {
-  color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
-}
-.datesCell > div > span:last-child { font-family: monospace; color: var(--dark); }
-
 /* ── REQUEST LOG ──────────────────────────────────────────────────────────── */
 /* HTTP 200 carrying ok:false — the outcome an agent most often misreads.
    A left accent instead of a full amber fill: a wall of filled rows fights the
@@ -388,9 +361,3 @@
 /* Sentence case and wrappable — the uppercase version was one of the widest
    columns in a table that had none to spare. */
 .reasonCell { font-size: 0.78rem; color: var(--muted); min-width: 110px; line-height: 1.4; }
-/* The refund figure above its status select — an operator moving a refund to
-   'issued' should see the amount they are approving without opening the API. */
-.amount {
-  font-size: 0.78rem; font-weight: 600; white-space: nowrap;
-  margin-bottom: 4px;
-}

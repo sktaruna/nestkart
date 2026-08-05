@@ -60,17 +60,6 @@ function humanize(value: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/**
- * Label for a flag checkbox: "Locked: Damage claim under review" when there's a
- * reason, plain "Locked" when there isn't. A return can carry a flag with no
- * reason (escalated with no escalation_reason), which rendered as a bare
- * "Escalate:" dangling a colon.
- */
-function flagLabelText(on: string, off: string, active: boolean, reason?: string | null): string {
-  if (!active) return off;
-  return reason ? `${on}: ${humanize(reason)}` : on;
-}
-
 export default function AdminPage() {
   // Tab lives in the URL hash so a reload keeps your place and a tab can be
   // linked to (/admin#log). Initialised to 'orders' rather than read from the
@@ -421,7 +410,7 @@ export default function AdminPage() {
                   <thead>
                     <tr>
                       <th>Order</th><th>Items</th><th className={styles.alignRight}>Total</th>
-                      <th>Status</th><th>Set status</th><th>Damage claim</th><th>Delivery</th><th></th>
+                      <th>Status</th><th>Set status</th><th>Delivery</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -465,23 +454,6 @@ export default function AdminPage() {
                                   <option key={s} value={s}>{humanize(s)}</option>
                                 ))}
                               </select>
-                            </td>
-                            <td>
-                              <label className={styles.flagLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={o.damage_claim_active}
-                                  onChange={(e) =>
-                                    post(
-                                      `/api/admin/orders/${o.order_id}/flags`,
-                                      { damage_claim_active: e.target.checked },
-                                      `${o.order_id} damage claim ${e.target.checked ? 'opened' : 'cleared'}`,
-                                      loadOrders
-                                    )
-                                  }
-                                />
-                                <span>{o.damage_claim_active ? 'Active' : 'None'}</span>
-                              </label>
                             </td>
                             <td className={styles.nowrapCell}>
                               <div className={styles.inputGroup}>
@@ -551,8 +523,8 @@ export default function AdminPage() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Return</th><th>Order</th><th>Item</th><th>Reason</th>
-                      <th>Return status</th><th>Refund</th><th>Flags</th><th>Dates</th><th></th>
+                      <th>Return</th><th>Reason</th>
+                      <th>Return status</th><th>Refund status</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -572,8 +544,6 @@ export default function AdminPage() {
                             </span>
                           </div>
                         </td>
-                        <td className={styles.idCell}>{ret.order_id}</td>
-                        <td className={styles.itemsCell}>{ret.item_name}</td>
                         {/* Sentence case, not uppercase: "ITEM NOT AS DESCRIBED" was
                             one of the widest columns in a table with no room. */}
                         <td className={styles.reasonCell}>{humanize(ret.reason)}</td>
@@ -597,10 +567,7 @@ export default function AdminPage() {
                         </td>
                         <td>
                           {/* Select only, no pill beside it: the select already shows
-                              the current value, and the duplicate cost enough width to
-                              squeeze the Flags labels onto four lines each. Colour
-                              comes from the select's own accent instead. */}
-                          <div className={styles.amount}>{ret.refund_amount ?? '—'}</div>
+                              the current value. Colour comes from its own accent. */}
                           <select
                             className={`${styles.select} ${styles[REFUND_PILL_CLASS[ret.refund_status]] || ''}`}
                             value={ret.refund_status}
@@ -618,65 +585,13 @@ export default function AdminPage() {
                             ))}
                           </select>
                         </td>
-                        <td>
-                          {/* Inner div does the stacking. Setting display:flex on the
-                              <td> itself takes the cell out of table layout, so it
-                              stops filling the row height and draws its border early. */}
-                          <div className={`${styles.stackTight} ${styles.flagStack}`}>
-                            <label className={styles.flagLabel}>
-                              <input
-                                type="checkbox"
-                                checked={ret.refund_locked}
-                                onChange={(e) =>
-                                  post(
-                                    `/api/admin/returns/${ret.return_id}/flags`,
-                                    { refund_locked: e.target.checked },
-                                    `${ret.return_id} refund ${e.target.checked ? 'locked' : 'unlocked'}`,
-                                    loadReturns
-                                  )
-                                }
-                              />
-                              <span>
-                                {flagLabelText('Locked', 'Not locked', ret.refund_locked, ret.refund_locked_reason)}
-                              </span>
-                            </label>
-                            <label className={styles.flagLabel}>
-                              <input
-                                type="checkbox"
-                                checked={ret.requires_agent_escalation}
-                                onChange={(e) =>
-                                  post(
-                                    `/api/admin/returns/${ret.return_id}/flags`,
-                                    { requires_agent_escalation: e.target.checked },
-                                    `${ret.return_id} ${e.target.checked ? 'escalated' : 'escalation cleared'}`,
-                                    loadReturns
-                                  )
-                                }
-                              />
-                              <span>
-                                {flagLabelText(
-                                  'Escalate',
-                                  'No escalation',
-                                  ret.requires_agent_escalation,
-                                  ret.escalation_reason
-                                )}
-                              </span>
-                            </label>
-                          </div>
-                        </td>
-                        <td className={styles.datesCell}>
-                          <div><span>Init</span><span>{ret.return_initiated || '—'}</span></div>
-                          <div><span>Recv</span><span>{ret.return_received_date || '—'}</span></div>
-                          <div><span>ETA</span><span>{ret.refund_estimated_date || '—'}</span></div>
-                          <div><span>Paid</span><span>{ret.refund_issued_date || '—'}</span></div>
-                        </td>
                         <td className={styles.nowrapCell}>
                           {/* Inline, like every other control on the row: deleting a
                               return used to need a full Reset Demo. A seeded return
                               can't be deleted, only reverted to its seeded state. */}
                           {/* Icon-width, not a "Delete"/"Revert" label: the word
-                              pushed this 10-column table past the viewport and
-                              clipped the button itself. Title carries the meaning. */}
+                              carries no more meaning than the glyph, and the title
+                              attribute spells it out on hover. */}
                           <button
                             className={styles.iconBtn}
                             aria-label={ret.is_seed ? `Revert ${ret.return_id}` : `Delete ${ret.return_id}`}
