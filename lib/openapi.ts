@@ -1064,7 +1064,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "File a return",
         description:
-          "Creates a return and issues a shipping label. An ineligible order, or one with a return already open, is refused with a **400** and an `error` code (`return_not_eligible` or `return_already_open`). Call /return-eligibility first. " +
+          "Creates a return and issues a shipping label. An ineligible order, one with a return already open, or one with a replacement already requested, is refused with a **400** and an `error` code (`return_not_eligible`, `return_already_open`, or `replacement_already_requested`). Call /return-eligibility first. " +
           "Filing with `return_reason: 'damaged on arrival'` opens a damage claim: the return comes back `refund_locked: true` with **`estimated_refund_date: null`**, because the refund is held pending inspection and no date can honestly be quoted. Do not offer the customer a refund date for these — relay `refund_note` instead. Every other reason gets a date and no lock.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
@@ -1141,7 +1141,7 @@ export const OPENAPI_SPEC = {
           },
           400: {
             description:
-              "Rejected. `missing_field` / `invalid_reason` / `invalid_condition` mean the request was malformed. `return_not_eligible` means the order fails /return-eligibility; `return_already_open` means a return is already in flight for it.",
+              "Rejected. `missing_field` / `invalid_reason` / `invalid_condition` mean the request was malformed. `return_not_eligible` means the order fails /return-eligibility; `return_already_open` means a return is already in flight for it; `replacement_already_requested` means a replacement was requested for this order and a return cannot also be filed on top of it.",
             content: {
               "application/json": {
                 schema: {
@@ -1193,6 +1193,19 @@ export const OPENAPI_SPEC = {
                         existing_refund_status: { type: "string", example: "pending" },
                       },
                     },
+                    {
+                      title: "Declined — a replacement was already requested",
+                      type: "object",
+                      properties: {
+                        ok: { type: "boolean", enum: [false] },
+                        error: { type: "string", enum: ["replacement_already_requested"] },
+                        message: {
+                          type: "string",
+                          description:
+                            "Customer-ready. A replacement already covers this order; a full return cannot also be filed.",
+                        },
+                      },
+                    },
                   ],
                 },
               },
@@ -1209,7 +1222,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Request a replacement instead of a refund",
         description:
-          "Requires the same eligibility as a return; an ineligible order gets a **400**, same as /returns. Does not create a trackable record — the returned `replacement_id` cannot be looked up afterwards.",
+          "Requires the same eligibility as a return; an ineligible order gets a **400**, same as /returns. Also refused if a return is already open on the order (`return_in_progress`) or a replacement was already requested for it (`replacement_already_requested`) — a replacement gives a new unit on top of the order, so it cannot stack with a return, which refunds the order in full, or with a second replacement. Does not create a trackable record — the returned `replacement_id` cannot be looked up afterwards, and nothing but this one-request check remembers it happened.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1236,8 +1249,8 @@ export const OPENAPI_SPEC = {
           }),
           ...errRes(
             400,
-            "Missing customer_id, or the order is not return-eligible (`replacement_not_eligible` — the message includes the eligibility reason).",
-            ["missing_field", "replacement_not_eligible"]
+            "Missing customer_id; the order is not return-eligible (`replacement_not_eligible` — the message includes the eligibility reason); a return is already open on it (`return_in_progress`); or a replacement was already requested for it (`replacement_already_requested`).",
+            ["missing_field", "replacement_not_eligible", "return_in_progress", "replacement_already_requested"]
           ),
           ...errRes(403, "customer_id does not own this order.", ["ownership_mismatch"]),
           ...errRes(404, "No such order.", ["order_not_found"]),

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, returnCounter } from "../../../../lib/state";
+import { withState, ORDERS, returnCounter, openReturnsForOrder } from "../../../../lib/state";
 import {
   err,
   ownershipError,
@@ -44,9 +44,32 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // A return already covers the whole order and refunds it in full, so a
+  // replacement on top would give the customer both the item and the money.
+  const openReturns = openReturnsForOrder(orderId);
+  if (openReturns.length > 0) {
+    res.status(400).json({
+      ok: false,
+      error: "return_in_progress",
+      message: `A return is already in progress for order ${orderId} (${openReturns[0].return_id}). A replacement cannot be requested while it is open.`,
+      open_return_ids: openReturns.map((ret) => ret.return_id),
+    });
+    return;
+  }
+
+  if (order.replacement_requested) {
+    res.status(400).json({
+      ok: false,
+      error: "replacement_already_requested",
+      message: `A replacement has already been requested for order ${orderId}.`,
+    });
+    return;
+  }
+
   const replacementId = `REP-${returnCounter.value}`;
   returnCounter.value += 1;
   const dispatchDate = addBusinessDays(today(), 5);
+  order.replacement_requested = true;
 
   res.status(200).json({
     ok: true,

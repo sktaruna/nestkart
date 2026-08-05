@@ -90,6 +90,17 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // A replacement already promises the customer a new unit for this order; a
+  // return on top would refund the whole order as well, giving them both.
+  if (order.replacement_requested) {
+    res.status(400).json({
+      ok: false,
+      error: "replacement_already_requested",
+      message: `A replacement has already been requested for order ${orderId}. A return cannot be filed while it is outstanding.`,
+    });
+    return;
+  }
+
   const elig = returnEligibilityCheck(orderId);
   if (!elig.eligible) {
     res.status(400).json({ ok: false, error: "return_not_eligible", eligible: false, reason: elig.reason });

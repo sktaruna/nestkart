@@ -82,6 +82,15 @@ export interface Order {
    * refresh leaves them alone. Cleared by admin/reset, which rebuilds the seeds.
    */
   date_pinned?: boolean;
+  /**
+   * Set once a replacement is requested. Replacements aren't a trackable
+   * resource — nothing persists the REP- id anywhere — so this flag is the only
+   * memory of the request, and it exists solely to block a return being filed
+   * on the same order afterward (and vice versa, via openReturnsForOrder in
+   * replacement.ts). It never clears: there is no "replacement closed" event to
+   * clear it on.
+   */
+  replacement_requested?: boolean;
 }
 
 export interface ReturnRecord {
