@@ -27,5 +27,5 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  res.status(200).json({ ok: true, slots: weekdaySlots() });
+  res.status(200).json({ ok: true, slots: weekdaySlots(order.estimated_delivery) });
 });

@@ -945,7 +945,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "List available delivery slots",
         description:
-          "Up to 7 weekday dates starting tomorrow, within the next 14 days. Call this before /reschedule — dates outside this list are rejected. Refuses with the same `reschedule_not_allowed` as the POST if the order is not `processing` or `dispatched`, so a slot list is never offered for an order that can't actually be rescheduled.",
+          "Up to 7 weekday dates, within 14 days of where they start. Slots begin the day after the order's current `estimated_delivery` — a delivery can be pushed back but not pulled forward — falling back to tomorrow if that date is missing or already past. Call this before /reschedule — dates outside this list are rejected. Refuses with the same `reschedule_not_allowed` as the POST if the order is not `processing` or `dispatched`, so a slot list is never offered for an order that can't actually be rescheduled.",
         parameters: [ORDER_ID_PARAM],
         responses: {
           ...ok200("Available dates.", {

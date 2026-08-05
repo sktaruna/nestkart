@@ -460,11 +460,18 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
   const pristineCustomers = seedCustomers();
   const addr = (custId: string): Address => ({ ...pristineCustomers[custId].address });
 
-  const minus5daysPlus10 = (): string => {
-    // (now - 5 days) + 10 days, date only
-    const base = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000 + 10 * 24 * 60 * 60 * 1000);
-    return dateOnlyIso(base);
-  };
+  /**
+   * Delivery date for the delivered seed orders: two days ago, i.e. after they
+   * were placed (5 days ago) and before today.
+   *
+   * Was `(now - 5 days) + 10 days`, which is `now + 5 days` — so every delivered
+   * order claimed a delivery date five days in the FUTURE. The account page
+   * rendered "Delivered: <date 5 days out>", and returnEligibilityCheck measures
+   * the 30-day window from this field, so a delivered order reported 35 days
+   * remaining on a 30-day window and an expiry 5 days later than the truth.
+   */
+  const deliveredDaysAgo = (): string =>
+    dateOnlyIso(new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000));
 
   const seeded: Record<string, Order> = {
     "ORD-10101": {
@@ -474,7 +481,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       placed_at: daysAgoIso(now, 5),
       status: "delivered",
       shipping_method: "large_item",
-      estimated_delivery: minus5daysPlus10(),
+      estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_001"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10101TRACK",
     },
@@ -489,7 +496,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       placed_at: daysAgoIso(now, 5),
       status: "delivered",
       shipping_method: "standard",
-      estimated_delivery: minus5daysPlus10(),
+      estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_001"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
     },
@@ -514,7 +521,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       placed_at: daysAgoIso(now, 5),
       status: "delivered",
       shipping_method: "large_item",
-      estimated_delivery: minus5daysPlus10(),
+      estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_002"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10201TRACK",
     },
@@ -547,7 +554,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       placed_at: daysAgoIso(now, 5),
       status: "delivered",
       shipping_method: "large_item",
-      estimated_delivery: minus5daysPlus10(),
+      estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_003"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10301TRACK",
     },
@@ -569,7 +576,7 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       placed_at: daysAgoIso(now, 5),
       status: "delivered",
       shipping_method: "large_item",
-      estimated_delivery: minus5daysPlus10(),
+      estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_004"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10401TRACK",
     },

@@ -35,7 +35,9 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  const slots = weekdaySlots();
+  // Same anchor as GET /reschedule/slots, or the write would refuse the very
+  // dates the slot list just offered.
+  const slots = weekdaySlots(order.estimated_delivery);
   if (!newDate || !slots.includes(newDate)) {
     err(res, "invalid_date", `new_date must be one of the available slots: ${slots.join(", ")}.`, 400);
     return;

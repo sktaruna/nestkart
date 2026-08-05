@@ -84,12 +84,35 @@ export function today(): Date {
   return d;
 }
 
-/** Return 7 weekday delivery dates starting tomorrow, within +14 days. */
-export function weekdaySlots(): string[] {
-  const slots: string[] = [];
+/**
+ * 7 weekday delivery slots, within 14 days of wherever they start.
+ *
+ * `currentEta` anchors them: slots begin the day AFTER the delivery already
+ * promised, because a courier cannot bring a delivery forward and there is no
+ * point offering the date the order is already booked for. Without the anchor
+ * this returned "7 weekdays from tomorrow" for every order, so a dispatched
+ * large_item with a 10-day ETA was offered nothing but dates earlier than its
+ * own delivery — every "reschedule" moved the delivery earlier, never later.
+ *
+ * Falls back to starting tomorrow when the ETA is missing or already past, so
+ * an order whose date has slipped can still be rescheduled.
+ */
+export function weekdaySlots(currentEta?: string | null): string[] {
   const base = today();
-  let d = new Date(base.getTime() + 24 * 60 * 60 * 1000);
-  const limit = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const tomorrow = new Date(base.getTime() + 24 * 60 * 60 * 1000);
+
+  let start = tomorrow;
+  if (currentEta) {
+    const eta = new Date(currentEta + "T00:00:00");
+    const dayAfterEta = new Date(eta.getTime() + 24 * 60 * 60 * 1000);
+    if (!Number.isNaN(eta.getTime()) && dayAfterEta.getTime() > tomorrow.getTime()) {
+      start = dayAfterEta;
+    }
+  }
+
+  const slots: string[] = [];
+  let d = start;
+  const limit = new Date(start.getTime() + 14 * 24 * 60 * 60 * 1000);
   while (slots.length < 7 && d.getTime() <= limit.getTime()) {
     const day = d.getDay(); // 0=Sun..6=Sat
     if (day >= 1 && day <= 5) {
