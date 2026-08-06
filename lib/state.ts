@@ -31,7 +31,7 @@ export let CARTS: Record<string, CartItem[]> = {};
 export let DYNAMIC_RETURNS: Record<string, ReturnRecord> = {};
 export let PRODUCTS: Record<string, Product> = seedProducts();
 export let CUSTOMERS: Record<string, Customer> = seedCustomers();
-export const RETURNS: Record<string, ReturnRecord> = seedReturns();
+export const RETURNS: Record<string, ReturnRecord> = seedReturns(new Date());
 
 // runtime order IDs start at ORD-20000, well clear of seeded ORD-1xxxx IDs
 export const orderCounter = { value: 20000 };
@@ -122,6 +122,31 @@ function refreshSeedOrderDates(): void {
   }
 }
 
+/**
+ * The same re-anchoring for the seeded returns, and for the same reason.
+ *
+ * RETURNS is built once when this module loads, but the orders above are moved
+ * forward on every load — so in a process that stays up, the orders advance
+ * daily while their returns stay pinned to boot day, and a return ends up dated
+ * before the delivery that prompted it. That is the drift the fixed 2025 dates
+ * used to cause, just slower.
+ *
+ * Only dates move, and only on returns the admin panel has not edited: an edited
+ * seed lives in DYNAMIC_RETURNS, which wins over RETURNS everywhere and is left
+ * alone here.
+ */
+function refreshSeedReturnDates(): void {
+  const fresh = seedReturns(new Date());
+  for (const [rid, seed] of Object.entries(fresh)) {
+    const ret = RETURNS[rid];
+    if (!ret) continue;
+    ret.return_initiated = seed.return_initiated;
+    ret.return_received_date = seed.return_received_date;
+    ret.refund_estimated_date = seed.refund_estimated_date;
+    ret.refund_issued_date = seed.refund_issued_date;
+  }
+}
+
 function resetAllState(): void {
   ORDERS = {};
   CARTS = {};
@@ -155,6 +180,10 @@ export function adminReset(): void {
   // other piece of staged state this resets.
   CUSTOMERS = seedCustomers();
   seedOrders();
+  // seedOrders() re-dates the orders to today, so the returns have to move with
+  // them — otherwise a reset on a long-running process leaves RET-2201 dated
+  // before the delivery it was filed against.
+  refreshSeedReturnDates();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,8 +228,10 @@ function applyState(state: Partial<Snapshot>): void {
   }
 
   // Seed dates come from whenever the snapshot was written, so re-anchor them to
-  // today before anything reads them.
+  // today before anything reads them. Returns move with the orders, or a return
+  // ends up dated before the delivery it followed.
   refreshSeedOrderDates();
+  refreshSeedReturnDates();
 
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};

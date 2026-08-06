@@ -404,15 +404,27 @@ export const PRODUCT_REVIEWS: Record<string, Review[]> = {
   ],
 };
 
-export function seedReturns(): Record<string, ReturnRecord> {
+/**
+ * The seeded returns, dated relative to `now` like the orders they belong to.
+ *
+ * These carried fixed 2025 dates while buildSeedOrders() computed everything
+ * from `now`, so the gap widened by a day every day: RET-2201 ended up reading
+ * as initiated more than a year *before* the order it was filed against was
+ * placed. Both returns hang off orders delivered two days ago, so both are
+ * initiated on or after that.
+ */
+export function seedReturns(now: Date): Record<string, ReturnRecord> {
   return {
     "RET-2201": {
       return_id: "RET-2201", order_id: "ORD-10101", customer_id: "cust_001",
       item_name: "Linen Cloud Sofa",
       reason: "item not as described", status: "return_received",
-      return_initiated: "2025-05-25", return_received_date: "2025-05-30",
+      // Raised on the delivery day, back with us the next day.
+      return_initiated: addDaysDateOnly(now, -2),
+      return_received_date: addDaysDateOnly(now, -1),
       refund_status: "processing", refund_amount: "₹89,999",
-      refund_includes_shipping: true, refund_estimated_date: "2025-06-06",
+      refund_includes_shipping: true,
+      refund_estimated_date: addDaysDateOnly(now, 5),
       refund_issued_date: null, refund_method: "original_payment_method",
       return_shipping: "free",
     },
@@ -420,7 +432,9 @@ export function seedReturns(): Record<string, ReturnRecord> {
       return_id: "RET-2202", order_id: "ORD-10102", customer_id: "cust_001",
       item_name: "Ceramic Vessel Set",
       reason: "change of mind", status: "return_requested",
-      return_initiated: "2025-06-16", return_received_date: null,
+      // Still only requested, so no received date and no refund date to quote.
+      return_initiated: addDaysDateOnly(now, -1),
+      return_received_date: null,
       refund_status: "pending", refund_amount: null,
       refund_includes_shipping: false, refund_estimated_date: null,
       refund_issued_date: null, refund_method: "original_payment_method",
