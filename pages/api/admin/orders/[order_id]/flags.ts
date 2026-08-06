@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS } from "../../../../../lib/state";
-import { err, getBody, buildOrderResponse } from "../../../../../lib/helpers";
+import { err, getBody, buildAdminOrderResponse } from "../../../../../lib/helpers";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -68,5 +68,5 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  res.status(200).json({ ok: true, order: buildOrderResponse(order) });
+  res.status(200).json({ ok: true, order: buildAdminOrderResponse(order) });
 });

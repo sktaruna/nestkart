@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, ORDERS, CUSTOMERS } from "../../../../lib/state";
-import { buildOrderResponse } from "../../../../lib/helpers";
+import { buildAdminOrderResponse } from "../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "GET") {
@@ -15,7 +15,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return {
       customer_id: custId,
       name: cust.name,
-      orders: orders.map(buildOrderResponse),
+      orders: orders.map(buildAdminOrderResponse),
     };
   });
 

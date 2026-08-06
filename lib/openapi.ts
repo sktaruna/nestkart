@@ -115,13 +115,15 @@ const ORDER_ITEM_SCHEMA = {
   },
 };
 
-/** Shape returned by buildOrderResponse — GET /orders/{id} and both admin order lists. */
+/**
+ * Shape returned by buildOrderResponse — the order itself, with nothing
+ * envelope-shaped on it. GET /orders/{id} adds `ok` and `customer_id`; the
+ * admin order lists add `customer_id` and `is_seed`.
+ */
 const ORDER_SCHEMA = {
   type: "object",
   properties: {
-    ok: OK_TRUE,
     order_id: { type: "string", example: "ORD-10101" },
-    customer_id: { type: "string", example: "cust_001" },
     items: { type: "array", items: ORDER_ITEM_SCHEMA },
     item_summary: {
       type: "string",
@@ -153,6 +155,48 @@ const ORDER_SCHEMA = {
       example: "NK10101TRACK",
     },
     tracking_url: { type: "string", nullable: true, example: "https://track.nestkart.com/NK10101TRACK" },
+    cancellable: {
+      type: "boolean",
+      description:
+        "Whether POST /cancel would be accepted right now. **Check this rather than inferring from `status`** — an open return blocks cancelling too, and that is not visible anywhere else on the order.",
+    },
+    reschedulable: {
+      type: "boolean",
+      description: "Whether POST /reschedule would be accepted right now.",
+    },
+    returnable: {
+      type: "boolean",
+      description:
+        "Whether POST /returns would be accepted right now. Stricter than /return-eligibility, which ignores an already-open return and an already-requested replacement.",
+    },
+    replaceable: {
+      type: "boolean",
+      description:
+        "Whether POST /replacement would be accepted right now. Always identical to `returnable` — both are gated on the same three conditions.",
+    },
+  },
+};
+
+/** ORDER_SCHEMA as GET /orders/{id} returns it: the object is the response. */
+const SINGLE_ORDER_SCHEMA = {
+  type: "object",
+  properties: {
+    ok: OK_TRUE,
+    customer_id: {
+      type: "string",
+      example: "cust_001",
+      description: "The order's owner. Check it before acting on a customer's behalf.",
+    },
+    ...ORDER_SCHEMA.properties,
+  },
+};
+
+/** ORDER_SCHEMA as the admin lists return it. */
+const ADMIN_ORDER_SCHEMA = {
+  type: "object",
+  properties: {
+    ...ORDER_SCHEMA.properties,
+    customer_id: { type: "string", example: "cust_001" },
     is_seed: {
       type: "boolean",
       description: "Demo fixture order (cannot be deleted) rather than one created through checkout.",
@@ -801,10 +845,10 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Get an order",
         description:
-          "The primary order lookup: status, items, tracking, and delivery address. Cancellability follows from `status` — see POST /api/orders/{order_id}/cancel.",
+          "The primary order lookup: status, items, tracking, and delivery address. Read `actions` to find out what you can offer the customer — cancelling, rescheduling, returning or replacing — and the reason when you cannot. Cancellability does **not** follow from `status` alone: an open return blocks it too.",
         parameters: [ORDER_ID_PARAM],
         responses: {
-          ...ok200("Order details.", ORDER_SCHEMA),
+          ...ok200("Order details.", SINGLE_ORDER_SCHEMA),
           ...errRes(404, "No such order.", ["order_not_found"]),
           ...NOT_ALLOWED,
         },
@@ -1014,7 +1058,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Check whether an order can be returned",
         description:
-          "Read-only. Always call this before offering a return — it explains *why* in `reason`, in customer-ready wording. Requires no customer_id.",
+          "Read-only, and narrower than it sounds: this answers whether the order is **within the return window** — delivered, not cancelled, inside 30 days. It does not consider a return that is already open or a replacement already requested, so `eligible: true` here does not guarantee POST /returns will succeed. For the complete answer use `actions.returnable` on the order. Requires no customer_id.",
         parameters: [ORDER_ID_PARAM],
         responses: {
           ...ok200(
@@ -1273,7 +1317,7 @@ export const OPENAPI_SPEC = {
                   properties: {
                     customer_id: { type: "string" },
                     name: { type: "string" },
-                    orders: { type: "array", items: ORDER_SCHEMA },
+                    orders: { type: "array", items: ADMIN_ORDER_SCHEMA },
                   },
                 },
               },
@@ -1367,7 +1411,7 @@ export const OPENAPI_SPEC = {
         responses: {
           ...ok200("Flags updated. Returns the full order.", {
             type: "object",
-            properties: { ok: OK_TRUE, order: ORDER_SCHEMA },
+            properties: { ok: OK_TRUE, order: ADMIN_ORDER_SCHEMA },
           }),
           ...errRes(400, "Neither field supplied, or a value has the wrong type/format.", [
             "missing_field",

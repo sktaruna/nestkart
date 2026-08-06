@@ -1,6 +1,6 @@
 import type { NextApiResponse } from "next";
 import { Order } from "./data";
-import { ORDERS, PRODUCTS, SEED_ORDER_IDS } from "./state";
+import { ORDERS, PRODUCTS, SEED_ORDER_IDS, openReturnsForOrder } from "./state";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERIC RESPONSE HELPERS
@@ -137,13 +137,21 @@ export function addBusinessDays(startDate: Date, days: number): Date {
 // ─────────────────────────────────────────────────────────────────────────────
 // ORDER RESPONSE BUILDER
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * The order itself, with nothing envelope-shaped on it.
+ *
+ * No `ok` and no `customer_id`: both are right for GET /orders/{id}, which adds
+ * them, and both were noise in the list endpoints — `ok` is a per-response flag
+ * that means nothing on an array element, and every order in a customer's list
+ * belongs to the customer already named on the envelope. No `is_seed` either;
+ * that is admin metadata, added by the admin endpoints the same way
+ * /api/admin/returns does it.
+ */
 export function buildOrderResponse(order: Order): Record<string, unknown> {
   const status = getOrderStatus(order);
   const [tn, tUrl] = trackingInfo(order);
   return {
-    ok: true,
     order_id: order.order_id,
-    customer_id: order.customer_id,
     items: order.items || [],
     item_summary: (order.items || []).map((i) => `${i.product_name} x${i.qty}`).join(", "),
     price_total: order.price_total,
@@ -156,6 +164,54 @@ export function buildOrderResponse(order: Order): Record<string, unknown> {
     damage_claim_active: order.damage_claim_active ?? false,
     tracking_number: tn,
     tracking_url: tUrl,
+    ...orderActions(order),
+  };
+}
+
+/**
+ * Whether each customer-initiated action would be accepted right now.
+ *
+ * Only `reschedulable` could previously be worked out from the order — it is
+ * status alone. The other three depend on facts the order does not carry: an
+ * open return (which blocks cancel, return and replacement) and
+ * `replacement_requested` (which is exposed nowhere at all). /return-eligibility
+ * looked like the answer for `returnable` but checks only delivery, cancellation
+ * and the 30-day window, so it reported `eligible: true` on orders where filing
+ * was certain to 400. The agent's only way to find out was to attempt the action
+ * and read the refusal — after it had already told the customer yes.
+ *
+ * Booleans only. The endpoint still explains itself when it refuses, so the
+ * "why" is one failed call away; this is for deciding what to offer.
+ *
+ * These mirror the guards in cancel.ts, reschedule.ts, returns.ts and
+ * replacement.ts. Change one of those and change this.
+ */
+export function orderActions(order: Order): Record<string, boolean> {
+  const status = getOrderStatus(order);
+  const hasOpenReturn = openReturnsForOrder(order.order_id).length > 0;
+
+  // cancel.ts: processing only, and not while a return is in flight — cancelling
+  // then would refund the same item twice.
+  const cancellable = status === "processing" && !hasOpenReturn;
+
+  // reschedule.ts: nothing to reschedule once it has arrived.
+  const reschedulable = status === "processing" || status === "dispatched";
+
+  // returns.ts and replacement.ts share these three gates exactly, so the two
+  // are always the same answer.
+  const returnable =
+    returnEligibilityCheck(order.order_id).eligible &&
+    !hasOpenReturn &&
+    !order.replacement_requested;
+
+  return { cancellable, reschedulable, returnable, replaceable: returnable };
+}
+
+/** buildOrderResponse plus the admin-only seed marker. */
+export function buildAdminOrderResponse(order: Order): Record<string, unknown> {
+  return {
+    ...buildOrderResponse(order),
+    customer_id: order.customer_id,
     is_seed: SEED_ORDER_IDS.has(order.order_id),
   };
 }

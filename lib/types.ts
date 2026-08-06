@@ -43,10 +43,13 @@ export interface OrderItem {
   line_total: number;
 }
 
+/**
+ * An order as the customer-facing endpoints return it. No `ok`, `customer_id`
+ * or `is_seed` — see buildOrderResponse. GET /orders/{id} adds the first two;
+ * the admin lists add the last two (AdminOrder).
+ */
 export interface Order {
-  ok?: boolean;
   order_id: string;
-  customer_id: string;
   items: OrderItem[];
   price_total: number;
   price_total_formatted?: string;
@@ -58,6 +61,11 @@ export interface Order {
   damage_claim_active: boolean;
   tracking_number: string | null;
   tracking_url: string | null;
+}
+
+/** Shape of the orders in GET /api/admin/orders. */
+export interface AdminOrder extends Order {
+  customer_id: string;
   is_seed: boolean;
 }
 
@@ -108,5 +116,5 @@ export interface AdminReturn {
 export interface AdminCustomerOrders {
   customer_id: string;
   name: string;
-  orders: Order[];
+  orders: AdminOrder[];
 }

@@ -11,7 +11,13 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       err(res, "order_not_found", `No order found with ID '${orderId}'.`, 404);
       return;
     }
-    res.status(200).json(buildOrderResponse(order));
+    // ok and customer_id belong to the single-order view: this object IS the
+    // response, and an agent handed an order ID needs to confirm who owns it.
+    res.status(200).json({
+      ok: true,
+      customer_id: order.customer_id,
+      ...buildOrderResponse(order),
+    });
     return;
   }
 
