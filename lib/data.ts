@@ -503,11 +503,15 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       order_id: "ORD-10102", customer_id: "cust_001",
       items: [{ product_id: "prod_008", product_name: "Ceramic Vessel Set", qty: 2, unit_price: 4200, line_total: 8400 }],
       price_total: 8400,
+      // Four days rather than five, so this does not land on the same instant as
+      // ORD-10101 — identical timestamps left the newest-first sort with nothing
+      // to order them by, and the customer's list came back 10103, 10101, 10102.
+      //
       // Delivered, because RET-2202 hangs off this order and a return is only
       // valid after confirmed delivery (returnEligibilityCheck rejects
       // processing/dispatched/in_transit). Dated like the other delivered seeds
       // so "delivered" doesn't sit on an order placed a day and a half ago.
-      placed_at: daysAgoIso(now, 5),
+      placed_at: daysAgoIso(now, 4),
       status: "delivered",
       shipping_method: "standard",
       estimated_delivery: deliveredDaysAgo(),

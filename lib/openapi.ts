@@ -155,12 +155,11 @@ const ORDER_SCHEMA = {
       example: "NK10101TRACK",
     },
     tracking_url: { type: "string", nullable: true, example: "https://track.nestkart.com/NK10101TRACK" },
-    return_ids: {
-      type: "array",
-      items: { type: "string" },
+    return_id: {
+      type: "string",
       description:
-        "Every return filed against this order, newest first — `[]` if none. Includes closed ones. There is no GET on /orders/{order_id}/returns, so this is how you get from an order to its returns; pass an id to GET /api/returns/{return_id} for the detail.",
-      example: ["RET-2201"],
+        "Every return filed against this order, newest first, comma-separated in one string — `\"\"` if none, and more than one when a rejected return was re-filed (`\"RET-2210, RET-2201\"`). Includes closed ones. There is no GET on /orders/{order_id}/returns, so this is how you get from an order to its returns; split on `\", \"` and pass an id to GET /api/returns/{return_id} for the detail.",
+      example: "RET-2201",
     },
     cancellable: {
       type: "boolean",
@@ -673,6 +672,13 @@ export const OPENAPI_SPEC = {
               customer_id: { type: "string" },
               total_orders: { type: "integer" },
               order_ids: { type: "array", items: { type: "string" }, description: "Newest first." },
+              return_ids: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Every return filed across all of these orders, in the same order the orders are listed — `[]` if there are none. Each order's own returns are on it as `return_id`. Pass an id to GET /api/returns/{return_id} for the detail.",
+                example: ["RET-2201", "RET-2202"],
+              },
               orders: { type: "array", items: ORDER_SCHEMA },
             },
           }),

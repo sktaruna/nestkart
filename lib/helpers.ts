@@ -138,6 +138,19 @@ export function addBusinessDays(startDate: Date, days: number): Date {
 // ORDER RESPONSE BUILDER
 // ─────────────────────────────────────────────────────────────────────────────
 /**
+ * Return ids filed against `orderId`, newest-initiated first.
+ *
+ * Read from allReturns() on every call rather than stored on the order, so the
+ * answer follows the returns as they are filed, closed and deleted — an order has
+ * no field of its own that could go stale against DYNAMIC_RETURNS.
+ */
+export function returnIdsForOrder(orderId: string): string[] {
+  return allReturns()
+    .filter((ret) => ret.order_id === orderId)
+    .map((ret) => ret.return_id);
+}
+
+/**
  * The order itself, with nothing envelope-shaped on it.
  *
  * No `ok` and no `customer_id`: both are right for GET /orders/{id}, which adds
@@ -164,15 +177,18 @@ export function buildOrderResponse(order: Order): Record<string, unknown> {
     damage_claim_active: order.damage_claim_active ?? false,
     tracking_number: tn,
     tracking_url: tUrl,
-    // Every return ever filed against this order, newest first, `[]` when there
-    // are none. There is no GET /orders/{id}/returns — that path is POST-only —
-    // so without this the only way to find an order's returns was to list the
-    // customer's and filter by order_id. Closed returns are included: "you
-    // returned this once already" is worth knowing, and `returnable` is what
-    // says whether another one can be filed.
-    return_ids: allReturns()
-      .filter((ret) => ret.order_id === order.order_id)
-      .map((ret) => ret.return_id),
+    // Every return ever filed against this order, newest first, as one flat
+    // string — `""` when there are none. Joined rather than nested because an
+    // order can carry more than one (a rejected return can be re-filed) and this
+    // object is meant to be read straight through; the array form lives on the
+    // customer-orders envelope. Same treatment as `item_summary` above.
+    //
+    // There is no GET /orders/{id}/returns — that path is POST-only — so without
+    // this the only way to find an order's returns was to list the customer's and
+    // filter by order_id. Closed returns are included: "you returned this once
+    // already" is worth knowing, and `returnable` is what says whether another one
+    // can be filed.
+    return_id: returnIdsForOrder(order.order_id).join(", "),
     ...orderActions(order),
   };
 }
