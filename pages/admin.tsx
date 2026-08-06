@@ -322,7 +322,11 @@ export default function AdminPage() {
     await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
   }
 
-  const customersWithOrders = customers.filter((c) => c.orders && c.orders.length > 0);
+  // Every customer, including those with no orders. Filtering them out hid the
+  // fact that they exist at all — a customer with an empty order history is a
+  // scenario worth staging ("I can't find your order"), and /api/admin/orders
+  // deliberately returns them.
+  const customersWithOrders = customers;
   const customerNames: Record<string, string> = {};
   customers.forEach((c) => {
     customerNames[c.customer_id] = c.name;
@@ -425,6 +429,13 @@ export default function AdminPage() {
                             </span>
                           </td>
                         </tr>
+                        {cust.orders.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className={styles.emptyGroupRow}>
+                              No orders.
+                            </td>
+                          </tr>
+                        )}
                         {cust.orders.map((o) => (
                           <tr key={o.order_id}>
                             <td className={styles.idCell}>{o.order_id}</td>

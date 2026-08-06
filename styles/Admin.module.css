@@ -128,6 +128,11 @@
   background: var(--white); border: 1px solid var(--border);
   border-radius: 4px; padding: 28px; text-align: center;
 }
+/* "No orders." under a customer group row. Italic rather than a full empty-state
+   card — it sits inside the table, between two group rows. */
+.emptyGroupRow {
+  color: var(--muted); font-size: 0.78rem; font-style: italic;
+}
 .warnNote {
   flex: 0 0 auto;
   background: #fff8e1; border-left: 3px solid #f57f17;
