@@ -137,7 +137,7 @@ export function seedCustomers(): Record<string, Customer> {
     customer_id: "cust_001",
     name: "Priya Sharma",
     email: "taruna2004126@gmail.com",
-    phone: "+91 98100 12345",
+    phone: "919810012345",
     account_created: "2024-03-10",
     marketing_opt_in: true,
     address: {
@@ -151,7 +151,7 @@ export function seedCustomers(): Record<string, Customer> {
     customer_id: "cust_002",
     name: "Arjun Mehta",
     email: "11182tarunask@gmail.com",
-    phone: "+91 90220 67890",
+    phone: "919022067890",
     account_created: "2023-11-22",
     marketing_opt_in: false,
     address: {
@@ -165,7 +165,7 @@ export function seedCustomers(): Record<string, Customer> {
     customer_id: "cust_003",
     name: "Kavitha Nair",
     email: "tarunask.1806@gmail.com",
-    phone: "+91 94430 55678",
+    phone: "919443055678",
     account_created: "2025-01-05",
     marketing_opt_in: true,
     address: {
@@ -179,7 +179,7 @@ export function seedCustomers(): Record<string, Customer> {
     customer_id: "cust_004",
     name: "Rohit Verma",
     email: "taruna.stockmarket@gmail.com",
-    phone: "+91 98765 43210",
+    phone: "919876543210",
     account_created: "2024-08-19",
     marketing_opt_in: false,
     address: {
@@ -193,7 +193,7 @@ export function seedCustomers(): Record<string, Customer> {
     customer_id: "cust_005",
     name: "Anika Rossi",
     email: "taruna2210569@ssn.edu.in",
-    phone: "+91 91000 88888",
+    phone: "919100088888",
     account_created: "2024-12-01",
     marketing_opt_in: true,
     address: {

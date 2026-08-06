@@ -606,35 +606,44 @@ export const OPENAPI_SPEC = {
     "/api/customers/{customer_id}/update": {
       post: {
         tags: ["Customer"],
-        summary: "Update customer profile",
+        summary: "Update customer contact details",
         description:
-          "Updates name, email, phone, and/or the saved address. Partial — only fields present in the body change; provide at least one. `address`, when given, replaces the whole object and all four of its sub-fields (street, city, state, pincode) are required together, same as /orders/{order_id}/address.\n\nThis is the customer's own profile address only. It is independent of any order's `delivery_address`, which is a separate snapshot taken at checkout — updating a profile address here never changes an address already on an order. Use /orders/{order_id}/address for that.",
+          "Updates name, email and/or phone. Partial — only fields present in the body change; provide at least one.\n\n**Does not change any address.** The customer's profile address is read-only here; to change where an order is going, use POST /orders/{order_id}/address, which edits that order's own `delivery_address`. Those snapshots are taken at checkout and are what actually determines delivery.",
         parameters: [CUSTOMER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
           properties: {
             name: { type: "string", example: "Priya Sharma" },
-            email: { type: "string", format: "email" },
-            phone: { type: "string" },
-            address: ADDRESS_SCHEMA,
+            email: {
+              type: "string",
+              format: "email",
+              example: "priya@example.com",
+              description:
+                "Must look like an address — one @, no whitespace, a dot-suffixed domain. Rejected with `invalid_field` otherwise.",
+            },
+            phone: {
+              type: "string",
+              example: "919810012345",
+              description:
+                "Digits only — no '+', spaces, dashes or brackets. Include the country code as digits. Rejected with `invalid_field` otherwise.",
+            },
           },
         }),
         responses: {
-          ...ok200("Profile updated. Echoes the current values of every profile field.", {
+          ...ok200("Updated. Echoes the current name, email and phone.", {
             type: "object",
             properties: {
               ok: OK_TRUE,
               customer_id: { type: "string" },
               name: { type: "string" },
               email: { type: "string" },
-              phone: { type: "string", nullable: true },
-              address: ADDRESS_SCHEMA,
+              phone: { type: "string", nullable: true, example: "91 98100 12345" },
               message: { type: "string", example: "Profile updated successfully." },
             },
           }),
           ...errRes(
             400,
-            "No fields provided, or one of the provided fields is empty/wrong type — 'address' needs all four sub-fields non-empty.",
+            "No fields provided, or one of the provided fields is empty or the wrong type.",
             ["missing_field", "invalid_field"]
           ),
           ...errRes(404, "No such customer.", ["customer_not_found"]),
@@ -1704,7 +1713,6 @@ const OPERATION_IDS: Record<string, string> = {
   "POST /api/admin/orders/{order_id}/flags": "adminSetOrderFlags",
   "GET /api/admin/returns": "adminListReturns",
   "POST /api/admin/returns/{return_id}/set-status": "adminSetReturnStatus",
-  "POST /api/admin/returns/{return_id}/flags": "adminSetReturnFlags",
   "POST /api/admin/products/{product_id}/stock": "adminSetProductStock",
   "GET /api/admin/log": "adminReadRequestLog",
   "DELETE /api/admin/log": "adminClearRequestLog",
