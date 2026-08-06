@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS } from "../../../../../lib/state";
+import { withState, ORDERS, openReturnsForOrder } from "../../../../../lib/state";
 import { err, getOrderStatus, weekdaySlots } from "../../../../../lib/helpers";
 
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
@@ -23,6 +23,29 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       ok: false,
       error: "reschedule_not_allowed",
       message: `Reschedule is only allowed for processing or dispatched orders (current: ${status}).`,
+    });
+    return;
+  }
+
+  // Both of the POST's cross-state refusals, mirrored for the same reason: an
+  // order with a return or a replacement in flight must not be handed a slot list
+  // it will never be allowed to use.
+  const openReturns = openReturnsForOrder(orderId);
+  if (openReturns.length > 0) {
+    res.status(400).json({
+      ok: false,
+      error: "return_in_progress",
+      message: `A return is already in progress for order ${orderId} (${openReturns[0].return_id}), so its delivery cannot be rescheduled.`,
+      open_return_ids: openReturns.map((ret) => ret.return_id),
+    });
+    return;
+  }
+
+  if (order.replacement_requested) {
+    res.status(400).json({
+      ok: false,
+      error: "replacement_already_requested",
+      message: `A replacement has already been requested for order ${orderId}, so its original delivery cannot be rescheduled.`,
     });
     return;
   }

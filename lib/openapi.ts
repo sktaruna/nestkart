@@ -147,7 +147,7 @@ const ORDER_SCHEMA = {
     damage_claim_active: {
       type: "boolean",
       description:
-        "An item was reported damaged on arrival. Makes the order return-eligible regardless of the 30-day window, with free return shipping, but holds the refund under review.",
+        "An item was reported damaged on arrival. Makes the order return-eligible regardless of the 30-day window, with free return shipping. Set by filing a 'damaged on arrival' return; cleared when that return closes.",
     },
     tracking_number: {
       type: "string", nullable: true,
@@ -162,7 +162,8 @@ const ORDER_SCHEMA = {
     },
     reschedulable: {
       type: "boolean",
-      description: "Whether POST /reschedule would be accepted right now.",
+      description:
+        "Whether POST /reschedule would be accepted right now. **Check this rather than inferring from `status`** — an open return or a requested replacement blocks rescheduling too, and neither is visible anywhere else on the order.",
     },
     returnable: {
       type: "boolean",
@@ -859,7 +860,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Cancel an order",
         description:
-          "Only works while the order is `processing`, and only if no return is open against the order. A refusal is a **400** carrying an `error` code — `order_not_cancellable` or `return_in_progress`. Restores stock for orders placed through checkout, once.",
+          "Only works while the order is `processing`, and only if nothing else has already been promised for it — no open return, no requested replacement. A refusal is a **400** carrying an `error` code — `order_not_cancellable`, `return_in_progress` or `replacement_already_requested`. Check `cancellable` on the order rather than inferring from `status`. Restores stock for orders placed through checkout, once.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -898,7 +899,7 @@ export const OPENAPI_SPEC = {
           },
           400: {
             description:
-              "Rejected. `missing_field` / `invalid_reason` mean the request was malformed. `order_not_cancellable` means the order has moved past `processing`; `return_in_progress` means a return is already in flight for it, and cancelling as well would refund the same item twice.",
+              "Rejected. `missing_field` / `invalid_reason` mean the request was malformed. `order_not_cancellable` means the order has moved past `processing`; `return_in_progress` means a return is already in flight for it, and cancelling as well would refund the same item twice; `replacement_already_requested` means a new unit is already owed, so cancelling would hand over both the goods and the money.",
             content: {
               "application/json": {
                 schema: {
@@ -912,17 +913,19 @@ export const OPENAPI_SPEC = {
                         "invalid_reason",
                         "order_not_cancellable",
                         "return_in_progress",
+                        "replacement_already_requested",
                       ],
                     },
                     message: { type: "string", description: "Present on the malformed-request errors." },
                     cancelled: {
                       type: "boolean",
                       enum: [false],
-                      description: "Present on the two business refusals.",
+                      description: "Present on the business refusals, not on the malformed-request errors.",
                     },
                     reason: {
                       type: "string",
-                      description: "Prose for the customer. Present on the two business refusals.",
+                      description:
+                        "Prose for the customer. Present on the business refusals, not on the malformed-request errors.",
                       example: "Order can only be cancelled while it is processing (current: delivered).",
                     },
                     current_status: { type: "string" },
@@ -989,7 +992,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "List available delivery slots",
         description:
-          "Up to 7 weekday dates, within 14 days of where they start. Slots begin the day after the order's current `estimated_delivery` — a delivery can be pushed back but not pulled forward — falling back to tomorrow if that date is missing or already past. Call this before /reschedule — dates outside this list are rejected. Refuses with the same `reschedule_not_allowed` as the POST if the order is not `processing` or `dispatched`, so a slot list is never offered for an order that can't actually be rescheduled.",
+          "Up to 7 weekday dates, within 14 days of where they start. Slots begin the day after the order's current `estimated_delivery` — a delivery can be pushed back but not pulled forward — falling back to tomorrow if that date is missing or already past. Call this before /reschedule — dates outside this list are rejected. Mirrors every refusal the POST makes (`reschedule_not_allowed`, `return_in_progress`, `replacement_already_requested`), so a slot list is never offered for an order that can't actually be rescheduled.",
         parameters: [ORDER_ID_PARAM],
         responses: {
           ...ok200("Available dates.", {
@@ -1005,8 +1008,8 @@ export const OPENAPI_SPEC = {
           }),
           ...errRes(
             400,
-            "Order already in transit or delivered.",
-            ["reschedule_not_allowed"]
+            "Order already in transit or delivered (`reschedule_not_allowed`); a return is open on it (`return_in_progress`); or a replacement was already requested for it (`replacement_already_requested`).",
+            ["reschedule_not_allowed", "return_in_progress", "replacement_already_requested"]
           ),
           ...errRes(404, "No such order.", ["order_not_found"]),
           ...NOT_ALLOWED,
@@ -1018,7 +1021,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Reschedule delivery",
         description:
-          "Allowed while `processing` or `dispatched`. `new_date` must be one of the dates from /reschedule/slots.",
+          "Allowed while `processing` or `dispatched`, and only if no return is open on the order and no replacement has been requested for it — there is no live delivery to move in either case, and rescheduling would rewrite `estimated_delivery`, which anchors the 30-day return window. Check `reschedulable` on the order rather than inferring from `status`. `new_date` must be one of the dates from /reschedule/slots.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1044,8 +1047,14 @@ export const OPENAPI_SPEC = {
           }),
           ...errRes(
             400,
-            "Missing customer_id; order already in transit or delivered (`reschedule_not_allowed`); or new_date is not an available slot (`invalid_date` — the message lists the valid ones).",
-            ["missing_field", "reschedule_not_allowed", "invalid_date"]
+            "Missing customer_id; order already in transit or delivered (`reschedule_not_allowed`); a return is open on it (`return_in_progress`); a replacement was already requested for it (`replacement_already_requested`); or new_date is not an available slot (`invalid_date` — the message lists the valid ones).",
+            [
+              "missing_field",
+              "reschedule_not_allowed",
+              "return_in_progress",
+              "replacement_already_requested",
+              "invalid_date",
+            ]
           ),
           ...errRes(403, "customer_id does not own this order.", ["ownership_mismatch"]),
           ...errRes(404, "No such order.", ["order_not_found"]),
@@ -1389,18 +1398,14 @@ export const OPENAPI_SPEC = {
     "/api/admin/orders/{order_id}/flags": {
       post: {
         tags: ["Admin"],
-        summary: "Set damage claim and delivery date",
+        summary: "Set the delivery date",
         description:
-          "Stages return-eligibility scenarios. Send either field or both. Backdating `estimated_delivery` more than 30 days is the only way to reach the 'return window expired' branch, since seeded orders are always built relative to today.",
+          "Stages return-eligibility scenarios. Backdating `estimated_delivery` more than 30 days is the only way to reach the 'return window expired' branch, since seeded orders are always built relative to today. `damage_claim_active` is not settable here — it belongs to the return lifecycle, set by filing a 'damaged on arrival' return and cleared when that return closes.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
-          minProperties: 1,
+          required: ["estimated_delivery"],
           properties: {
-            damage_claim_active: {
-              type: "boolean",
-              description: "True makes the order return-eligible with free shipping but holds the refund.",
-            },
             estimated_delivery: {
               type: "string", nullable: true,
               format: "date",
@@ -1413,7 +1418,7 @@ export const OPENAPI_SPEC = {
             type: "object",
             properties: { ok: OK_TRUE, order: ADMIN_ORDER_SCHEMA },
           }),
-          ...errRes(400, "Neither field supplied, or a value has the wrong type/format.", [
+          ...errRes(400, "Field not supplied, or its value has the wrong type/format.", [
             "missing_field",
             "invalid_field",
           ]),

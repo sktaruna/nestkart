@@ -190,19 +190,23 @@ export function orderActions(order: Order): Record<string, boolean> {
   const status = getOrderStatus(order);
   const hasOpenReturn = openReturnsForOrder(order.order_id).length > 0;
 
-  // cancel.ts: processing only, and not while a return is in flight — cancelling
-  // then would refund the same item twice.
-  const cancellable = status === "processing" && !hasOpenReturn;
+  // Both refunds-or-goods already promised for this order. An open return refunds
+  // it in full; a replacement owes a new unit. Cancelling adds a second refund on
+  // top of either, so both block it as well as blocking each other.
+  const alreadyPromised = hasOpenReturn || Boolean(order.replacement_requested);
 
-  // reschedule.ts: nothing to reschedule once it has arrived.
-  const reschedulable = status === "processing" || status === "dispatched";
+  // cancel.ts: processing only, and not while a return or replacement is in
+  // flight — cancelling then pays for the same item twice.
+  const cancellable = status === "processing" && !alreadyPromised;
+
+  // reschedule.ts: nothing to reschedule once it has arrived, once it is on its
+  // way back to us, or once the delivery it would move is not the live one.
+  const reschedulable =
+    (status === "processing" || status === "dispatched") && !alreadyPromised;
 
   // returns.ts and replacement.ts share these three gates exactly, so the two
   // are always the same answer.
-  const returnable =
-    returnEligibilityCheck(order.order_id).eligible &&
-    !hasOpenReturn &&
-    !order.replacement_requested;
+  const returnable = returnEligibilityCheck(order.order_id).eligible && !alreadyPromised;
 
   return { cancellable, reschedulable, returnable, replaceable: returnable };
 }

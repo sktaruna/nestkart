@@ -72,6 +72,21 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // A replacement already promises the customer a new unit for this order, and
+  // cancelling refunds the order in full — together they hand over both the goods
+  // and the money. Same reasoning as the check in returns.ts, which refuses a
+  // return for exactly this reason; cancelling is the other way to get the refund.
+  if (order.replacement_requested) {
+    res.status(400).json({
+      ok: false,
+      error: "replacement_already_requested",
+      cancelled: false,
+      reason: `A replacement has already been requested for order ${orderId}, so it cannot also be cancelled.`,
+      current_status: status,
+    });
+    return;
+  }
+
   order.cancelled = true;
   order.status = "cancelled";
 
