@@ -155,6 +155,13 @@ const ORDER_SCHEMA = {
       example: "NK10101TRACK",
     },
     tracking_url: { type: "string", nullable: true, example: "https://track.nestkart.com/NK10101TRACK" },
+    return_ids: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Every return filed against this order, newest first — `[]` if none. Includes closed ones. There is no GET on /orders/{order_id}/returns, so this is how you get from an order to its returns; pass an id to GET /api/returns/{return_id} for the detail.",
+      example: ["RET-2201"],
+    },
     cancellable: {
       type: "boolean",
       description:

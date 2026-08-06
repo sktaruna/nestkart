@@ -1,6 +1,6 @@
 import type { NextApiResponse } from "next";
 import { Order } from "./data";
-import { ORDERS, PRODUCTS, SEED_ORDER_IDS, openReturnsForOrder } from "./state";
+import { ORDERS, PRODUCTS, SEED_ORDER_IDS, openReturnsForOrder, allReturns } from "./state";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERIC RESPONSE HELPERS
@@ -164,6 +164,15 @@ export function buildOrderResponse(order: Order): Record<string, unknown> {
     damage_claim_active: order.damage_claim_active ?? false,
     tracking_number: tn,
     tracking_url: tUrl,
+    // Every return ever filed against this order, newest first, `[]` when there
+    // are none. There is no GET /orders/{id}/returns — that path is POST-only —
+    // so without this the only way to find an order's returns was to list the
+    // customer's and filter by order_id. Closed returns are included: "you
+    // returned this once already" is worth knowing, and `returnable` is what
+    // says whether another one can be filed.
+    return_ids: allReturns()
+      .filter((ret) => ret.order_id === order.order_id)
+      .map((ret) => ret.return_id),
     ...orderActions(order),
   };
 }
