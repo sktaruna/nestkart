@@ -351,6 +351,53 @@ const PRODUCT_ID_PARAM = {
   example: "prod_001",
 };
 
+/** Optional exact-match status filter on the two customer collection endpoints. */
+const ORDER_STATUS_FILTER_PARAM = {
+  name: "status",
+  in: "query",
+  required: false,
+  description:
+    "Return only orders with this status. Omit for the full history. An unrecognised value is a 400, not an empty list.",
+  schema: {
+    type: "string",
+    enum: ["processing", "dispatched", "in_transit", "delivered", "cancelled"],
+  },
+  example: "in_transit",
+};
+
+const RETURN_STATUS_FILTER_PARAM = {
+  name: "status",
+  in: "query",
+  required: false,
+  description:
+    "Return only returns with this status. Omit for all of them. An unrecognised value is a 400, not an empty list.",
+  schema: {
+    type: "string",
+    enum: [
+      "return_requested",
+      "return_in_transit",
+      "return_received",
+      "under_review",
+      "completed",
+      "rejected",
+    ],
+  },
+  example: "under_review",
+};
+
+/** One boolean filter per action flag on the orders list — same booleans that
+ * appear on each order in the response, made independently queryable. */
+const ORDER_ACTION_FILTER_PARAMS = ["cancellable", "reschedulable", "returnable", "replaceable"].map(
+  (flag) => ({
+    name: flag,
+    in: "query",
+    required: false,
+    description: `Return only orders where \`${flag}\` is this value. Combine freely with \`status\` and the other action filters. An unrecognised value is a 400, not an empty list.`,
+    schema: { type: "string", enum: ["true", "false"] },
+    example: "true",
+  })
+);
+
 const RETURN_ID_PARAM = {
   name: "return_id",
   in: "path",
@@ -662,8 +709,8 @@ export const OPENAPI_SPEC = {
         tags: ["Customer"],
         summary: "List a customer's orders",
         description:
-          "Full order records, newest first. Start here when a customer asks about 'my order' without giving an ID.",
-        parameters: [CUSTOMER_ID_PARAM],
+          "Full order records, newest first. Start here when a customer asks about 'my order' without giving an ID. Pass `status` to narrow the list, or any of `cancellable`/`reschedulable`/`returnable`/`replaceable` to filter by what's still actionable — `total_orders`, `order_ids` and `return_ids` all describe the filtered set.",
+        parameters: [CUSTOMER_ID_PARAM, ORDER_STATUS_FILTER_PARAM, ...ORDER_ACTION_FILTER_PARAMS],
         responses: {
           ...ok200("Order history. `total_orders: 0` with an empty array if they have never ordered.", {
             type: "object",
@@ -682,6 +729,13 @@ export const OPENAPI_SPEC = {
               orders: { type: "array", items: ORDER_SCHEMA },
             },
           }),
+          ...errRes(400, "A filter value was invalid: an unrecognised `status`, or a `cancellable`/`reschedulable`/`returnable`/`replaceable` value other than 'true' or 'false'.", [
+            "invalid_status",
+            "invalid_cancellable",
+            "invalid_reschedulable",
+            "invalid_returnable",
+            "invalid_replaceable",
+          ]),
           ...errRes(404, "No such customer.", ["customer_not_found"]),
           ...NOT_ALLOWED,
         },
@@ -692,8 +746,8 @@ export const OPENAPI_SPEC = {
         tags: ["Customer"],
         summary: "List a customer's returns",
         description:
-          "Returns and refunds, newest first. Start here for 'where is my refund?' when the customer has not quoted a return ID.",
-        parameters: [CUSTOMER_ID_PARAM],
+          "Returns and refunds, newest first. Start here for 'where is my refund?' when the customer has not quoted a return ID. Pass `status` to narrow the list — `total_returns` and `return_ids` describe the filtered set.",
+        parameters: [CUSTOMER_ID_PARAM, RETURN_STATUS_FILTER_PARAM],
         responses: {
           ...ok200("Return history. `total_returns: 0` with an empty array if they have never returned anything.", {
             type: "object",
@@ -705,6 +759,7 @@ export const OPENAPI_SPEC = {
               returns: { type: "array", items: RETURN_SCHEMA },
             },
           }),
+          ...errRes(400, "The `status` filter is not a valid return status.", ["invalid_status"]),
           ...errRes(404, "No such customer.", ["customer_not_found"]),
           ...NOT_ALLOWED,
         },

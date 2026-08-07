@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, CUSTOMERS, allReturns } from "../../../../lib/state";
+import { RETURN_STATUSES } from "../../../../lib/data";
 import { err } from "../../../../lib/helpers";
+
+type ReturnStatus = (typeof RETURN_STATUSES)[number];
 
 /**
  * Lists a customer's returns, newest first.
@@ -21,8 +24,22 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // Rejected rather than ignored, for the same reason as the orders list: an
+  // ignored filter looks like an empty result set to the caller.
+  const status = req.query.status as string | undefined;
+  if (status !== undefined && !RETURN_STATUSES.includes(status as ReturnStatus)) {
+    err(
+      res,
+      "invalid_status",
+      `'${status}' is not a valid return status. Expected one of: ${RETURN_STATUSES.join(", ")}.`,
+      400
+    );
+    return;
+  }
+
   const returns = allReturns()
     .filter((ret) => ret.customer_id === customerId)
+    .filter((ret) => !status || ret.status === status)
     .map((ret) => {
       return {
         return_id: ret.return_id,
