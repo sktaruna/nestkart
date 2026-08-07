@@ -17,14 +17,14 @@ export interface Customer {
   address: Address;
   // The rest power GET /api/customers/{customer_id}/context — the
   // agent-facing snapshot of who this customer is, not shown on any
-  // customer- or admin-facing screen.
+  // customer- or admin-facing screen. customAttributes on that endpoint is
+  // assembled from the fields above plus PAYMENT_METHODS, not stored here.
   preferred_channel: string;
   language: string;
   timezone: string;
   tier: string;
   features: string[];
   limits: Record<string, number>;
-  customAttributes: Record<string, unknown>;
 }
 
 export interface PaymentMethod {
@@ -162,7 +162,6 @@ export function seedCustomers(): Record<string, Customer> {
     tier: "premium",
     features: ["priority_support"],
     limits: { monthly_requests: 5000 },
-    customAttributes: { department: "Finance", account_id: "acct_1001" },
   },
   cust_002: {
     customer_id: "cust_002",
@@ -183,7 +182,6 @@ export function seedCustomers(): Record<string, Customer> {
     tier: "standard",
     features: [],
     limits: { monthly_requests: 1000 },
-    customAttributes: { department: "Retail Operations", account_id: "acct_1002" },
   },
   cust_003: {
     customer_id: "cust_003",
@@ -204,7 +202,6 @@ export function seedCustomers(): Record<string, Customer> {
     tier: "premium",
     features: ["priority_support", "early_access"],
     limits: { monthly_requests: 5000 },
-    customAttributes: { department: "Engineering", account_id: "acct_1003" },
   },
   cust_004: {
     customer_id: "cust_004",
@@ -225,7 +222,6 @@ export function seedCustomers(): Record<string, Customer> {
     tier: "free",
     features: [],
     limits: { monthly_requests: 250 },
-    customAttributes: { department: "Facilities", account_id: "acct_1004" },
   },
   cust_005: {
     customer_id: "cust_005",
@@ -246,7 +242,6 @@ export function seedCustomers(): Record<string, Customer> {
     tier: "standard",
     features: [],
     limits: { monthly_requests: 1000 },
-    customAttributes: { department: "Marketing", account_id: "acct_1005" },
   },
   };
 }

@@ -255,7 +255,6 @@ function applyState(state: Partial<Snapshot>): void {
     cust.tier ??= fresh.tier;
     cust.features ??= fresh.features;
     cust.limits ??= fresh.limits;
-    cust.customAttributes ??= fresh.customAttributes;
   }
   orderCounter.value = state.order_counter ?? orderCounter.value;
   returnCounter.value = state.return_counter ?? returnCounter.value;

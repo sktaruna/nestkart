@@ -837,8 +837,16 @@ export const OPENAPI_SPEC = {
               },
               customAttributes: {
                 type: "object",
+                description:
+                  "Whatever the customer profile (GET /api/customers/{customer_id}) carries beyond identity/preferences/entitlements.",
                 additionalProperties: true,
-                example: { department: "Finance", account_id: "acct_1001" },
+                example: {
+                  phone: "919810012345",
+                  account_created: "2024-03-10",
+                  marketing_opt_in: true,
+                  account_status: "active",
+                  payment_method: { type: "Visa", last_four: "4242", expiry_month: "09", expiry_year: "2027", is_expired: false },
+                },
               },
             },
           }),

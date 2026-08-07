@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withState, CUSTOMERS } from "../../../../lib/state";
 import { err } from "../../../../lib/helpers";
+import { PAYMENT_METHODS } from "../../../../lib/data";
 
 /**
  * Agent-only: the ConversationContext snapshot (identity, preferences,
@@ -21,6 +22,11 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
+  // Whatever's on the customer profile (GET /api/customers/{customer_id})
+  // that identity/preferences/entitlements don't already carry — phone,
+  // membership facts, payment method — rather than invented placeholder keys.
+  const payment = PAYMENT_METHODS[customerId];
+
   res.status(200).json({
     ok: true,
     identity: {
@@ -38,6 +44,20 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       features: cust.features,
       limits: cust.limits,
     },
-    customAttributes: cust.customAttributes,
+    customAttributes: {
+      phone: cust.phone ?? null,
+      account_created: cust.account_created,
+      marketing_opt_in: cust.marketing_opt_in,
+      account_status: "active",
+      payment_method: payment
+        ? {
+            type: payment.type,
+            last_four: payment.last_four,
+            expiry_month: payment.expiry_month,
+            expiry_year: payment.expiry_year,
+            is_expired: payment.is_expired,
+          }
+        : null,
+    },
   });
 });
