@@ -799,6 +799,54 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    "/api/customers/{customer_id}/context": {
+      get: {
+        tags: ["Customer"],
+        summary: "Get the agent conversation context",
+        description:
+          "Agent-only. The identity, preferences, entitlements and custom attributes to seed a session with — not shown anywhere in the customer or admin UI.",
+        parameters: [CUSTOMER_ID_PARAM],
+        responses: {
+          ...ok200("Conversation context.", {
+            type: "object",
+            properties: {
+              ok: OK_TRUE,
+              identity: {
+                type: "object",
+                properties: {
+                  user_id: { type: "string", example: "cust_001" },
+                  user_name: { type: "string" },
+                  user_email: { type: "string" },
+                },
+              },
+              preferences: {
+                type: "object",
+                properties: {
+                  preferred_channel: { type: "string", example: "email" },
+                  language: { type: "string", example: "en" },
+                  timezone: { type: "string", example: "Asia/Kolkata" },
+                },
+              },
+              entitlements: {
+                type: "object",
+                properties: {
+                  tier: { type: "string", example: "premium" },
+                  features: { type: "array", items: { type: "string" } },
+                  limits: { type: "object", additionalProperties: { type: "integer" }, example: { monthly_requests: 5000 } },
+                },
+              },
+              customAttributes: {
+                type: "object",
+                additionalProperties: true,
+                example: { department: "Finance", account_id: "acct_1001" },
+              },
+            },
+          }),
+          ...errRes(404, "No such customer.", ["customer_not_found"]),
+          ...NOT_ALLOWED,
+        },
+      },
+    },
 
     // ── Cart ────────────────────────────────────────────────────────────────
     "/api/cart/{customer_id}": {
@@ -1756,6 +1804,7 @@ const OPERATION_IDS: Record<string, string> = {
   "GET /api/customers/{customer_id}/orders": "listCustomerOrders",
   "GET /api/customers/{customer_id}/returns": "listCustomerReturns",
   "GET /api/customers/{customer_id}/addresses": "listCustomerAddresses",
+  "GET /api/customers/{customer_id}/context": "getCustomerContext",
 
   "GET /api/cart/{customer_id}": "getCart",
   "POST /api/cart/{customer_id}/add": "addToCart",

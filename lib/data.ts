@@ -15,6 +15,16 @@ export interface Customer {
   account_created: string;
   marketing_opt_in: boolean;
   address: Address;
+  // The rest power GET /api/customers/{customer_id}/context — the
+  // agent-facing snapshot of who this customer is, not shown on any
+  // customer- or admin-facing screen.
+  preferred_channel: string;
+  language: string;
+  timezone: string;
+  tier: string;
+  features: string[];
+  limits: Record<string, number>;
+  customAttributes: Record<string, unknown>;
 }
 
 export interface PaymentMethod {
@@ -146,6 +156,13 @@ export function seedCustomers(): Record<string, Customer> {
       state: "Delhi",
       pincode: "110003",
     },
+    preferred_channel: "email",
+    language: "en",
+    timezone: "Asia/Kolkata",
+    tier: "premium",
+    features: ["priority_support"],
+    limits: { monthly_requests: 5000 },
+    customAttributes: { department: "Finance", account_id: "acct_1001" },
   },
   cust_002: {
     customer_id: "cust_002",
@@ -160,6 +177,13 @@ export function seedCustomers(): Record<string, Customer> {
       state: "Maharashtra",
       pincode: "400050",
     },
+    preferred_channel: "phone",
+    language: "en",
+    timezone: "Asia/Kolkata",
+    tier: "standard",
+    features: [],
+    limits: { monthly_requests: 1000 },
+    customAttributes: { department: "Retail Operations", account_id: "acct_1002" },
   },
   cust_003: {
     customer_id: "cust_003",
@@ -174,6 +198,13 @@ export function seedCustomers(): Record<string, Customer> {
       state: "Karnataka",
       pincode: "560038",
     },
+    preferred_channel: "slack",
+    language: "en",
+    timezone: "Asia/Kolkata",
+    tier: "premium",
+    features: ["priority_support", "early_access"],
+    limits: { monthly_requests: 5000 },
+    customAttributes: { department: "Engineering", account_id: "acct_1003" },
   },
   cust_004: {
     customer_id: "cust_004",
@@ -188,6 +219,13 @@ export function seedCustomers(): Record<string, Customer> {
       state: "Punjab",
       pincode: "160017",
     },
+    preferred_channel: "email",
+    language: "en",
+    timezone: "Asia/Kolkata",
+    tier: "free",
+    features: [],
+    limits: { monthly_requests: 250 },
+    customAttributes: { department: "Facilities", account_id: "acct_1004" },
   },
   cust_005: {
     customer_id: "cust_005",
@@ -202,6 +240,13 @@ export function seedCustomers(): Record<string, Customer> {
       state: "West Bengal",
       pincode: "700027",
     },
+    preferred_channel: "email",
+    language: "en",
+    timezone: "Asia/Kolkata",
+    tier: "standard",
+    features: [],
+    limits: { monthly_requests: 1000 },
+    customAttributes: { department: "Marketing", account_id: "acct_1005" },
   },
   };
 }

@@ -239,7 +239,24 @@ function applyState(state: Partial<Snapshot>): void {
   // Seed customers first so a customer added in code after this snapshot was
   // written still exists; the stored copy then overlays it so an edit made
   // through the update endpoint survives across requests and instances.
-  CUSTOMERS = { ...seedCustomers(), ...(state.customers as Record<string, Customer> | undefined) };
+  const freshCustomers = seedCustomers();
+  CUSTOMERS = { ...freshCustomers, ...(state.customers as Record<string, Customer> | undefined) };
+
+  // Snapshots written before the /context fields existed carry customer
+  // records without them, the same way old order snapshots carry no `status`
+  // above — backfill each from the fresh seed so /context isn't silently
+  // empty for every real customer until an admin/reset.
+  for (const [cid, cust] of Object.entries(CUSTOMERS)) {
+    const fresh = freshCustomers[cid];
+    if (!fresh) continue;
+    cust.preferred_channel ??= fresh.preferred_channel;
+    cust.language ??= fresh.language;
+    cust.timezone ??= fresh.timezone;
+    cust.tier ??= fresh.tier;
+    cust.features ??= fresh.features;
+    cust.limits ??= fresh.limits;
+    cust.customAttributes ??= fresh.customAttributes;
+  }
   orderCounter.value = state.order_counter ?? orderCounter.value;
   returnCounter.value = state.return_counter ?? returnCounter.value;
   const productStock = state.product_stock || {};
