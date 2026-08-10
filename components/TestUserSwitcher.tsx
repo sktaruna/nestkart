@@ -21,6 +21,55 @@ const CUSTOMERS = seedCustomers();
  */
 const HIDE_SWITCHER_ON = ['/admin'];
 
+interface NambikkWidget {
+  identify: (identity: Record<string, unknown>) => void;
+  reset: () => void;
+}
+
+declare global {
+  interface Window {
+    NambikkWidget?: NambikkWidget;
+  }
+}
+
+/**
+ * Runs `cb` once the chat widget has published its API.
+ *
+ * The loader in _app.tsx is `afterInteractive` and assigns
+ * window.NambikkWidget at the very end of its own mount, so it is reliably
+ * absent when this panel builds. It emits no ready event — only
+ * open/close/toggle/destroy/reset — so polling is the available option.
+ * Gives up after ~10s rather than looping forever if the script is blocked.
+ */
+function whenWidgetReady(cb: (widget: NambikkWidget) => void, triesLeft = 40): void {
+  if (window.NambikkWidget) {
+    cb(window.NambikkWidget);
+    return;
+  }
+  if (triesLeft <= 0) return;
+  window.setTimeout(() => whenWidgetReady(cb, triesLeft - 1), 250);
+}
+
+/**
+ * Hands the active test user to the widget as `identity.user_id` — the value
+ * context hydration is keyed on. Without it the conversation starts anonymous:
+ * hydration only protects a user_id it was already given, it never invents
+ * one, so the agent has no idea which customer the storefront is showing.
+ *
+ * `fresh` tears the current conversation down. Hydration runs once per
+ * conversation and existing ones reuse their stored context, so switching
+ * users mid-session would otherwise leave the agent talking to the previous
+ * one while the rest of the site has already moved on.
+ */
+function identifyToWidget(userId: string, fresh: boolean): void {
+  const c = CUSTOMERS[userId];
+  if (!c) return;
+  whenWidgetReady((widget) => {
+    widget.identify({ user_id: userId, user_name: c.name, user_email: c.email });
+    if (fresh) widget.reset();
+  });
+}
+
 function updateInfoPanel(userId: string) {
   const c = CUSTOMERS[userId];
   const el = document.getElementById('nk-user-info');
@@ -37,6 +86,8 @@ function buildSwitcher() {
 
   const activeId = getActiveCustomerId();
   syncUserIdGlobal(activeId);
+  // No conversation exists yet on first load, so nothing to tear down.
+  identifyToWidget(activeId, false);
 
   const panel = document.createElement('div');
   panel.id = 'nk-user-switcher';
@@ -88,6 +139,7 @@ function buildSwitcher() {
     const newId = (e.target as HTMLSelectElement).value;
     setActiveCustomerId(newId);
     updateInfoPanel(newId);
+    identifyToWidget(newId, true);
   });
 }
 
