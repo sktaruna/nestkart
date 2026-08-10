@@ -8,6 +8,11 @@ import { PAYMENT_METHODS } from "../../../../lib/data";
  * entitlements, customAttributes) an agent seeds a session with. Not linked
  * from any customer- or admin-facing screen — nothing here is meant for a
  * human to read in the UI.
+ *
+ * Lives at its own [user_id] segment rather than under the shared
+ * [customer_id] folder those other customer routes use — sharing it would
+ * rename their param too. user_id and customer_id are the same identifier
+ * here; only the label in the URL differs.
  */
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "GET") {
@@ -15,17 +20,17 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  const customerId = req.query.customer_id as string;
-  const cust = CUSTOMERS[customerId];
+  const userId = req.query.user_id as string;
+  const cust = CUSTOMERS[userId];
   if (!cust) {
-    err(res, "customer_not_found", `No customer found with ID '${customerId}'.`, 404);
+    err(res, "customer_not_found", `No customer found with ID '${userId}'.`, 404);
     return;
   }
 
   // Whatever's on the customer profile (GET /api/customers/{customer_id})
   // that identity/preferences/entitlements don't already carry — phone,
   // membership facts, payment method — rather than invented placeholder keys.
-  const payment = PAYMENT_METHODS[customerId];
+  const payment = PAYMENT_METHODS[userId];
 
   res.status(200).json({
     ok: true,

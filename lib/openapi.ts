@@ -343,6 +343,15 @@ const ORDER_ID_PARAM = {
   example: "ORD-10101",
 };
 
+const USER_ID_PARAM = {
+  name: "user_id",
+  in: "path",
+  required: true,
+  description: "Same identifier as customer_id elsewhere in this API — just labeled to match the agent-context field name.",
+  schema: { type: "string" },
+  example: "cust_001",
+};
+
 const PRODUCT_ID_PARAM = {
   name: "product_id",
   in: "path",
@@ -799,13 +808,13 @@ export const OPENAPI_SPEC = {
         },
       },
     },
-    "/api/customers/{customer_id}/context": {
+    "/api/customers/context/{user_id}": {
       get: {
         tags: ["Customer"],
         summary: "Get the agent conversation context",
         description:
           "Agent-only. The identity, preferences, entitlements and custom attributes to seed a session with — not shown anywhere in the customer or admin UI.",
-        parameters: [CUSTOMER_ID_PARAM],
+        parameters: [USER_ID_PARAM],
         responses: {
           ...ok200("Conversation context.", {
             type: "object",
@@ -1812,7 +1821,7 @@ const OPERATION_IDS: Record<string, string> = {
   "GET /api/customers/{customer_id}/orders": "listCustomerOrders",
   "GET /api/customers/{customer_id}/returns": "listCustomerReturns",
   "GET /api/customers/{customer_id}/addresses": "listCustomerAddresses",
-  "GET /api/customers/{customer_id}/context": "getCustomerContext",
+  "GET /api/customers/context/{user_id}": "getCustomerContext",
 
   "GET /api/cart/{customer_id}": "getCart",
   "POST /api/cart/{customer_id}/add": "addToCart",
