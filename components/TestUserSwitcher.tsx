@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { seedCustomers } from '@/lib/data';
-import { getActiveCustomerId, setActiveCustomerId } from '@/lib/useActiveCustomer';
+import { getActiveCustomerId, setActiveCustomerId, syncUserIdGlobal } from '@/lib/useActiveCustomer';
 
 /**
  * Renders the floating "test user" switcher panel used to change the active
@@ -24,13 +24,19 @@ const HIDE_SWITCHER_ON = ['/admin'];
 function updateInfoPanel(userId: string) {
   const c = CUSTOMERS[userId];
   const el = document.getElementById('nk-user-info');
-  if (el && c) el.innerHTML = `${c.email}<br>${c.address.city}, ${c.address.state}`;
+  // user_id is echoed here, not just the name in the dropdown, because it is
+  // the exact string the chat widget has to send as identity.user_id — seeing
+  // it makes a mismatch obvious instead of silently falling back to base context.
+  if (el && c) {
+    el.innerHTML = `user_id: <b>${userId}</b><br>${c.email}<br>${c.address.city}, ${c.address.state}`;
+  }
 }
 
 function buildSwitcher() {
   if (document.getElementById('nk-user-switcher')) return;
 
   const activeId = getActiveCustomerId();
+  syncUserIdGlobal(activeId);
 
   const panel = document.createElement('div');
   panel.id = 'nk-user-switcher';
