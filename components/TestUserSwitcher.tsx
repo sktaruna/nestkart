@@ -33,41 +33,28 @@ declare global {
 }
 
 /**
- * Runs `cb` once the chat widget has published its API.
+ * Rebuilds the chat widget around the newly selected test user.
  *
- * The loader in _app.tsx is `afterInteractive` and assigns
- * window.NambikkWidget at the very end of its own mount, so it is reliably
- * absent when this panel builds. It emits no ready event — only
- * open/close/toggle/destroy/reset — so polling is the available option.
- * Gives up after ~10s rather than looping forever if the script is blocked.
+ * Identity reaches the widget only through the loader's
+ * `data-launch-initial-context`, which _app.tsx bakes into the iframe URL at
+ * first load — a later identify() cannot retarget a conversation that already
+ * exists, and hydration runs once per conversation. So the reliable way to
+ * switch users is to reload: _app then re-initialises the loader with the new
+ * identity from the start.
+ *
+ * reset() first, to drop the cached embed token so the fresh load mints one
+ * rather than reusing the previous session's. Note this still cannot clear the
+ * conversation the widget stores under its own origin — that is the widget's
+ * to expose, not something the parent page can reach.
  */
-function whenWidgetReady(cb: (widget: NambikkWidget) => void, triesLeft = 40): void {
-  if (window.NambikkWidget) {
-    cb(window.NambikkWidget);
-    return;
+function rebuildWidgetFor(userId: string): void {
+  if (!CUSTOMERS[userId]) return;
+  try {
+    window.NambikkWidget?.reset();
+  } catch {
+    /* widget not loaded yet — the reload re-initialises it regardless */
   }
-  if (triesLeft <= 0) return;
-  window.setTimeout(() => whenWidgetReady(cb, triesLeft - 1), 250);
-}
-
-/**
- * Hands the active test user to the widget as `identity.user_id` — the value
- * context hydration is keyed on. Without it the conversation starts anonymous:
- * hydration only protects a user_id it was already given, it never invents
- * one, so the agent has no idea which customer the storefront is showing.
- *
- * `fresh` tears the current conversation down. Hydration runs once per
- * conversation and existing ones reuse their stored context, so switching
- * users mid-session would otherwise leave the agent talking to the previous
- * one while the rest of the site has already moved on.
- */
-function identifyToWidget(userId: string, fresh: boolean): void {
-  const c = CUSTOMERS[userId];
-  if (!c) return;
-  whenWidgetReady((widget) => {
-    widget.identify({ user_id: userId, user_name: c.name, user_email: c.email });
-    if (fresh) widget.reset();
-  });
+  window.location.reload();
 }
 
 function updateInfoPanel(userId: string) {
@@ -86,8 +73,6 @@ function buildSwitcher() {
 
   const activeId = getActiveCustomerId();
   syncUserIdGlobal(activeId);
-  // No conversation exists yet on first load, so nothing to tear down.
-  identifyToWidget(activeId, false);
 
   const panel = document.createElement('div');
   panel.id = 'nk-user-switcher';
@@ -139,7 +124,7 @@ function buildSwitcher() {
     const newId = (e.target as HTMLSelectElement).value;
     setActiveCustomerId(newId);
     updateInfoPanel(newId);
-    identifyToWidget(newId, true);
+    rebuildWidgetFor(newId);
   });
 }
 
