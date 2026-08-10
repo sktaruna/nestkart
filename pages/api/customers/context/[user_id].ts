@@ -13,6 +13,12 @@ import { PAYMENT_METHODS } from "../../../../lib/data";
  * [customer_id] folder those other customer routes use — sharing it would
  * rename their param too. user_id and customer_id are the same identifier
  * here; only the label in the URL differs.
+ *
+ * Shaped for context-hydration consumers (e.g. Nambikk's "READ" action):
+ * the 200 body IS the context, not wrapped in `ok`/`data` — success or
+ * failure is read off the HTTP status alone, per that contract. identity
+ * omits user_id since the caller already has it and treats it as
+ * protected/non-overwritable; sending it back is pure noise.
  */
 export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== "GET") {
@@ -33,9 +39,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const payment = PAYMENT_METHODS[userId];
 
   res.status(200).json({
-    ok: true,
     identity: {
-      user_id: cust.customer_id,
       user_name: cust.name,
       user_email: cust.email,
     },

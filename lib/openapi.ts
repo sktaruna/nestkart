@@ -813,17 +813,15 @@ export const OPENAPI_SPEC = {
         tags: ["Customer"],
         summary: "Get the agent conversation context",
         description:
-          "Agent-only. The identity, preferences, entitlements and custom attributes to seed a session with — not shown anywhere in the customer or admin UI.",
+          "Agent-only. The identity, preferences, entitlements and custom attributes to seed a session with — not shown anywhere in the customer or admin UI. Shaped for context-hydration integrations (e.g. Nambikk): the 200 body IS the context, with no `ok`/`data` wrapper, and `identity` omits `user_id` since the caller already has it and treats it as protected.",
         parameters: [USER_ID_PARAM],
         responses: {
           ...ok200("Conversation context.", {
             type: "object",
             properties: {
-              ok: OK_TRUE,
               identity: {
                 type: "object",
                 properties: {
-                  user_id: { type: "string", example: "cust_001" },
                   user_name: { type: "string" },
                   user_email: { type: "string" },
                 },
