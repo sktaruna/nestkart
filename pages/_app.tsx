@@ -11,13 +11,19 @@ const CUSTOMERS = seedCustomers();
 /**
  * The identity the chat widget starts its first conversation with.
  *
- * This has to ride in on the loader's own `data-launch-initial-context`
- * rather than a later NambikkWidget.identify() call. Identity reaches the
- * widget only as a `launchInitialContext` query param baked into the iframe
- * URL, and that URL is built once when the frame first loads — by the time
- * identify() runs, a conversation already exists against an anonymous
- * `widget_<uuid>` visitor, and context hydration runs only once per
- * conversation, so it never re-fires for the real customer.
+ * Note this is NOT what sets identity.user_id. The widget takes that from the
+ * `visitor_id` field of its POST /chat/widget/session, which it fills from a
+ * `visitorId` option — never from the launch context. With no visitorId the
+ * server mints an anonymous `widget_<uuid>`, and since identity.user_id is
+ * protected once set, the real ID sent here is then rejected as an overwrite.
+ * Context hydration therefore fires for a customer that does not exist.
+ *
+ * `data-visitor-id` below is the fix, but the current loader build has no such
+ * attribute and the widget frame reads no visitorId query param, so it is
+ * inert until Nambikk plumbs it through. Kept here so the embed is correct the
+ * day they do. Until then the only way to set the visitor is by hand, in the
+ * widget origin's localStorage under
+ * `nambikk.sdk.visitor:<widgetKey>:<pageOrigin>`.
  */
 function initialContext(customerId: string): string {
   const c = CUSTOMERS[customerId];
@@ -54,6 +60,7 @@ export default function App({ Component, pageProps }: AppProps) {
           data-label="Tweety"
           data-mode="bubble"
           data-position="bottom-right"
+          data-visitor-id={activeId}
           data-launch-initial-context={initialContext(activeId)}
           strategy="afterInteractive"
         />
