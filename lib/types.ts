@@ -113,6 +113,22 @@ export interface AdminReturn {
   is_seed: boolean;
 }
 
+/** Shape of GET /api/admin/replacements — the raw record plus the seed marker. */
+export interface AdminReplacement {
+  replacement_id: string;
+  order_id: string;
+  customer_id: string;
+  item_name: string;
+  reason: string;
+  status: string;
+  requested_at: string;
+  estimated_dispatch_date: string | null;
+  dispatched_date: string | null;
+  delivered_date: string | null;
+  tracking_number: string | null;
+  is_seed: boolean;
+}
+
 export interface AdminCustomerOrders {
   customer_id: string;
   name: string;

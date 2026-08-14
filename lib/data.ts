@@ -137,6 +137,34 @@ export const RETURN_STATUSES = [
 export const REFUND_STATUSES = ["pending", "processing", "issued", "rejected"] as const;
 
 /**
+ * A persisted replacement request. Mirrors ReturnRecord in shape/lifecycle so
+ * "where's my replacement?" has the same answer shape as "where's my refund?".
+ * Previously fire-and-forget (see the comment on Order.replacement_requested) —
+ * this is what that endpoint should have been writing to all along.
+ */
+export interface ReplacementRecord {
+  replacement_id: string;
+  order_id: string;
+  customer_id: string;
+  item_name: string;
+  reason: string;
+  status: string;
+  requested_at: string;
+  estimated_dispatch_date: string | null;
+  dispatched_date: string | null;
+  delivered_date: string | null;
+  tracking_number: string | null;
+}
+
+/** The replacement lifecycle the admin panel can move a replacement through. */
+export const REPLACEMENT_STATUSES = [
+  "replacement_requested",
+  "replacement_dispatched",
+  "replacement_delivered",
+  "completed",
+] as const;
+
+/**
  * A fresh copy every call, same as seedProducts() — customer records are now
  * mutable (see the profile-update endpoint) and persisted, so state.ts needs
  * an unmutated original to fall back to on admin/reset.
@@ -334,8 +362,10 @@ export function seedProducts(): Record<string, Product> {
       description: "Handwoven by artisans in Rajasthan — dense wool pile in warm, earthy tones that anchor any room.",
     },
     prod_012: {
+      // 19, not 20 — one unit is reserved by ORD-10103 (stock_decremented),
+      // so cancelling that order is the live "inventory restores to 20" demo.
       product_id: "prod_012", name: "Terracotta Planter Trio", category: "decor", price: 3600,
-      original_price: null, stock: 20, shipping_type: "standard",
+      original_price: null, stock: 19, shipping_type: "standard",
       image_url: "https://images.pexels.com/photos/9707245/pexels-photo-9707245.jpeg?auto=compress&cs=tinysrgb&w=700",
       badge: null,
       description: "Three hand-thrown terracotta planters in graduated sizes — classic, breathable, effortlessly pretty.",
@@ -355,8 +385,9 @@ export function seedProducts(): Record<string, Product> {
       description: "A slender brass table lamp with a linen drum shade — warm, timeless, and endlessly versatile.",
     },
     prod_015: {
+      // 7, not 8 — same reservation as prod_012 above, from ORD-10103.
       product_id: "prod_015", name: "Mango Wood Side Table", category: "living", price: 9800,
-      original_price: null, stock: 8, shipping_type: "standard",
+      original_price: null, stock: 7, shipping_type: "standard",
       image_url: "https://images.pexels.com/photos/11112739/pexels-photo-11112739.jpeg?auto=compress&cs=tinysrgb&w=700",
       badge: "New",
       description: "A compact round side table in solid mango wood with a natural finish — the perfect companion piece.",
@@ -480,6 +511,78 @@ export function seedReturns(now: Date): Record<string, ReturnRecord> {
       refund_issued_date: null, refund_method: "original_payment_method",
       return_shipping: "₹200 estimated",
     },
+    "RET-2203": {
+      return_id: "RET-2203", order_id: "ORD-10201", customer_id: "cust_002",
+      item_name: "Teak Slab Dining Table",
+      reason: "defective", status: "completed",
+      // A finished cycle: filed a week ago, received days later, refund issued.
+      return_initiated: addDaysDateOnly(now, -9),
+      return_received_date: addDaysDateOnly(now, -6),
+      refund_status: "issued", refund_amount: "₹1,24,000",
+      refund_includes_shipping: true,
+      refund_estimated_date: addDaysDateOnly(now, -3),
+      refund_issued_date: addDaysDateOnly(now, -3), refund_method: "original_payment_method",
+      return_shipping: "free",
+    },
+    "RET-2204": {
+      return_id: "RET-2204", order_id: "ORD-10204", customer_id: "cust_002",
+      item_name: "Rattan Lounge Chair",
+      reason: "wrong item received", status: "return_in_transit",
+      return_initiated: addDaysDateOnly(now, -1),
+      return_received_date: null,
+      refund_status: "pending", refund_amount: "₹21,500",
+      refund_includes_shipping: true,
+      refund_estimated_date: addDaysDateOnly(now, 6),
+      refund_issued_date: null, refund_method: "original_payment_method",
+      return_shipping: "free",
+    },
+    "RET-2205": {
+      return_id: "RET-2205", order_id: "ORD-10105", customer_id: "cust_001",
+      item_name: "Brass Table Lamp",
+      reason: "change of mind", status: "rejected",
+      // Rejected on inspection — arrived back assembled/used, outside the
+      // "unused/opened only" policy, so no refund follows.
+      return_initiated: addDaysDateOnly(now, -8),
+      return_received_date: addDaysDateOnly(now, -5),
+      refund_status: "rejected", refund_amount: null,
+      refund_includes_shipping: false,
+      refund_estimated_date: null,
+      refund_issued_date: null, refund_method: "original_payment_method",
+      return_shipping: "₹200 estimated",
+      condition: "assembled", has_original_packaging: false,
+    },
+  };
+}
+
+/**
+ * Seeded replacement requests, same relative-dating approach as seedReturns().
+ * See ReplacementRecord — persisted so "where's my replacement?" has an answer,
+ * unlike the fire-and-forget REP- id the live endpoint used to hand back.
+ */
+export function seedReplacements(now: Date): Record<string, ReplacementRecord> {
+  return {
+    "REP-3001": {
+      replacement_id: "REP-3001", order_id: "ORD-10301", customer_id: "cust_003",
+      item_name: "Walnut Platform Bed",
+      reason: "damaged on arrival",
+      status: "replacement_dispatched",
+      requested_at: addDaysDateOnly(now, -1),
+      estimated_dispatch_date: addDaysDateOnly(now, 0),
+      dispatched_date: addDaysDateOnly(now, 0),
+      delivered_date: null,
+      tracking_number: "NKREP3001TRACK",
+    },
+    "REP-3002": {
+      replacement_id: "REP-3002", order_id: "ORD-10404", customer_id: "cust_004",
+      item_name: "Sheesham Wood Bookshelf",
+      reason: "damaged on arrival",
+      status: "completed",
+      requested_at: addDaysDateOnly(now, -12),
+      estimated_dispatch_date: addDaysDateOnly(now, -7),
+      dispatched_date: addDaysDateOnly(now, -7),
+      delivered_date: addDaysDateOnly(now, -3),
+      tracking_number: "NKREP3002TRACK",
+    },
   };
 }
 
@@ -558,6 +661,20 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_001"),
       damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
     },
+    "ORD-10105": {
+      // Delivered further back than the other cust_001 seeds, purely to host
+      // RET-2205 (rejected return) without colliding with RET-2201/2202's
+      // one-open-return-per-order rule.
+      order_id: "ORD-10105", customer_id: "cust_001",
+      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
+      price_total: 12800,
+      placed_at: daysAgoIso(now, 12),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -7),
+      delivery_address: addr("cust_001"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10105TRACK",
+    },
     "ORD-10103": {
       order_id: "ORD-10103", customer_id: "cust_001",
       items: [
@@ -571,6 +688,10 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_001"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
+      // Stock for both items was decremented at "checkout" — see prod_012/
+      // prod_015 above — so cancelling this order is the live, visible
+      // inventory-restoration demo (19 → 20 and 7 → 8 in Admin → Inventory).
+      stock_decremented: true,
     },
     "ORD-10201": {
       order_id: "ORD-10201", customer_id: "cust_002",
@@ -605,7 +726,22 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_002"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
+    "ORD-10204": {
+      // Hosts RET-2204 (return_in_transit) — a second, independent delivered
+      // order for cust_002 so it doesn't collide with RET-2203 on ORD-10201.
+      order_id: "ORD-10204", customer_id: "cust_002",
+      items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
+      price_total: 21500,
+      placed_at: daysAgoIso(now, 6),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: addDaysDateOnly(now, -1),
+      delivery_address: addr("cust_002"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10204TRACK",
+    },
     "ORD-10301": {
+      // Damage reported on arrival (no return filed — see REP-3001): this is
+      // the "damaged item, replacement in progress" demo order.
       order_id: "ORD-10301", customer_id: "cust_003",
       items: [{ product_id: "prod_006", product_name: "Walnut Platform Bed", qty: 1, unit_price: 68000, line_total: 68000 }],
       price_total: 68000,
@@ -614,7 +750,22 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_003"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10301TRACK",
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10301TRACK",
+      replacement_requested: true,
+    },
+    "ORD-10303": {
+      // Damage reported, no replacement filed yet — the LIVE "request a
+      // replacement" demo order (ORD-10301 already has one dispatched, so a
+      // live request there would fail with replacement_already_requested).
+      order_id: "ORD-10303", customer_id: "cust_003",
+      items: [{ product_id: "prod_009", product_name: "Linen Dining Chair Set of 2", qty: 1, unit_price: 22000, line_total: 22000 }],
+      price_total: 22000,
+      placed_at: daysAgoIso(now, 6),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: addDaysDateOnly(now, -4),
+      delivery_address: addr("cust_003"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10303TRACK",
     },
     "ORD-10302": {
       order_id: "ORD-10302", customer_id: "cust_003",
@@ -651,6 +802,50 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_004"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
+    },
+    "ORD-10403": {
+      // Return/replacement window explicitly expired (delivered 35 days ago,
+      // no damage claim) — the negative demo for "can you return/replace
+      // this?" once the 30-day window has lapsed. date_pinned so admin/reset
+      // doesn't re-anchor it back inside the window.
+      order_id: "ORD-10403", customer_id: "cust_004",
+      items: [{ product_id: "prod_015", product_name: "Mango Wood Side Table", qty: 1, unit_price: 9800, line_total: 9800 }],
+      price_total: 9800,
+      placed_at: daysAgoIso(now, 40),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -35),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10403TRACK",
+      date_pinned: true,
+    },
+    "ORD-10405": {
+      // Damage claim active AND window expired — the negative demo showing a
+      // damage claim alone doesn't keep an order replaceable forever.
+      order_id: "ORD-10405", customer_id: "cust_004",
+      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
+      price_total: 12800,
+      placed_at: daysAgoIso(now, 40),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -35),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10405TRACK",
+      date_pinned: true,
+    },
+    "ORD-10404": {
+      // Damage claim already resolved via replacement (REP-3002) — the
+      // historical/closed damage-claim demo.
+      order_id: "ORD-10404", customer_id: "cust_004",
+      items: [{ product_id: "prod_013", product_name: "Sheesham Wood Bookshelf", qty: 1, unit_price: 34500, line_total: 34500 }],
+      price_total: 34500,
+      placed_at: daysAgoIso(now, 15),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: addDaysDateOnly(now, -10),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10404TRACK",
+      replacement_requested: true,
     },
     // cust_005 (Anika Rossi) has no orders — deliberately. Their customer record
     // and expired payment method remain, so the panel still has a customer whose

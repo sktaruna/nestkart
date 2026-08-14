@@ -64,7 +64,7 @@ function updateInfoPanel(userId: string) {
   // the exact string the chat widget has to send as identity.user_id — seeing
   // it makes a mismatch obvious instead of silently falling back to base context.
   if (el && c) {
-    el.innerHTML = `user_id: <b>${userId}</b><br>${c.email}<br>${c.address.city}, ${c.address.state}`;
+    el.innerHTML = `<b>${userId}</b><br>${c.email}<br>${c.address.city}, ${c.address.state}`;
   }
 }
 
@@ -77,7 +77,7 @@ function buildSwitcher() {
   const panel = document.createElement('div');
   panel.id = 'nk-user-switcher';
   panel.innerHTML = [
-    '<div id="nk-switcher-label">\u{1F9EA} Test user</div>',
+    '<div id="nk-switcher-label">Test user</div>',
     '<select id="nk-user-select">',
     Object.keys(CUSTOMERS)
       .map((id) => {
@@ -96,23 +96,35 @@ function buildSwitcher() {
     style.id = 'nk-user-switcher-style';
     style.textContent = [
       '#nk-user-switcher {',
-      '  position: fixed; bottom: 80px; left: 16px; z-index: 9999;',
-      '  background: #1a2433; color: #e8e0d5; border-radius: 10px;',
-      '  padding: 10px 14px; font-family: system-ui, sans-serif;',
-      '  font-size: 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.4);',
-      '  min-width: 210px;',
+      '  position: fixed; bottom: 88px; left: 20px; z-index: 9999;',
+      '  background: var(--white, #FFFFFF); color: var(--body, #3E2E22);',
+      '  border: 1px solid var(--border, #E2D8CF); border-radius: 4px;',
+      '  padding: 14px 16px; font-family: "DM Sans", system-ui, sans-serif;',
+      '  font-size: 12px; box-shadow: 0 8px 28px rgba(28,16,8,0.12);',
+      '  min-width: 220px;',
       '}',
       '#nk-switcher-label {',
-      '  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;',
-      '  color: #7a9e9f; margin-bottom: 6px;',
+      '  font-family: "Cormorant Garamond", Georgia, serif; font-style: italic;',
+      '  font-size: 13px; font-weight: 500; letter-spacing: 0.02em;',
+      '  color: var(--accent, #B08450); margin-bottom: 8px;',
+      '  padding-bottom: 8px; border-bottom: 1px solid var(--border, #E2D8CF);',
       '}',
       '#nk-user-select {',
-      '  width: 100%; background: #243040; color: #e8e0d5;',
-      '  border: 1px solid #3a5060; border-radius: 6px;',
-      '  padding: 5px 8px; font-size: 12px; cursor: pointer;',
+      '  width: 100%; background: var(--bg, #FAF8F5); color: var(--dark, #1C1008);',
+      '  border: 1px solid var(--border, #E2D8CF); border-radius: 3px;',
+      '  padding: 7px 8px; font-size: 12px; font-family: inherit; cursor: pointer;',
+      '  appearance: none; -webkit-appearance: none;',
+      '  background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\'%3E%3Cpath d=\'M0 0l5 6 5-6z\' fill=\'%238A7968\'/%3E%3C/svg%3E");',
+      '  background-repeat: no-repeat; background-position: right 10px center;',
+      '}',
+      '#nk-user-select:focus {',
+      '  outline: none; border-color: var(--accent, #B08450);',
       '}',
       '#nk-user-info {',
-      '  margin-top: 8px; font-size: 11px; color: #9ab8b9; line-height: 1.5;',
+      '  margin-top: 10px; font-size: 11px; color: var(--muted, #8A7968); line-height: 1.6;',
+      '}',
+      '#nk-user-info b {',
+      '  color: var(--body, #3E2E22); font-weight: 500;',
       '}',
     ].join('\n');
     document.head.appendChild(style);

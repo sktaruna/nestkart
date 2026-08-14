@@ -3,10 +3,12 @@ import {
   seedCustomers,
   seedProducts,
   seedReturns,
+  seedReplacements,
   buildSeedOrders,
   Order,
   Product,
   ReturnRecord,
+  ReplacementRecord,
   OrderItem,
   Customer,
 } from "./data";
@@ -29,17 +31,22 @@ export interface CartItem {
 export let ORDERS: Record<string, Order> = {};
 export let CARTS: Record<string, CartItem[]> = {};
 export let DYNAMIC_RETURNS: Record<string, ReturnRecord> = {};
+export let DYNAMIC_REPLACEMENTS: Record<string, ReplacementRecord> = {};
 export let PRODUCTS: Record<string, Product> = seedProducts();
 export let CUSTOMERS: Record<string, Customer> = seedCustomers();
 export const RETURNS: Record<string, ReturnRecord> = seedReturns(new Date());
+export const REPLACEMENTS: Record<string, ReplacementRecord> = seedReplacements(new Date());
 
 // runtime order IDs start at ORD-20000, well clear of seeded ORD-1xxxx IDs
 export const orderCounter = { value: 20000 };
 // runtime return IDs start at RET-2210
 export const returnCounter = { value: 2210 };
+// runtime replacement IDs start at REP-3010, clear of the seeded REP-30xx IDs
+export const replacementCounter = { value: 3010 };
 
 export let SEED_ORDER_IDS: Set<string> = new Set();
 export const SEED_RETURN_IDS: Set<string> = new Set(Object.keys(RETURNS));
+export const SEED_REPLACEMENT_IDS: Set<string> = new Set(Object.keys(REPLACEMENTS));
 
 /**
  * The live record for a return id. DYNAMIC_RETURNS wins over RETURNS: a seeded
@@ -86,6 +93,29 @@ export function mutableReturn(returnId: string): ReturnRecord | undefined {
   if (!seed) return undefined;
   DYNAMIC_RETURNS[returnId] = { ...seed };
   return DYNAMIC_RETURNS[returnId];
+}
+
+/** The live record for a replacement id. Mirrors findReturn(). */
+export function findReplacement(replacementId: string): ReplacementRecord | undefined {
+  return DYNAMIC_REPLACEMENTS[replacementId] || REPLACEMENTS[replacementId];
+}
+
+/** A writable record for `replacementId`. Mirrors mutableReturn(). */
+export function mutableReplacement(replacementId: string): ReplacementRecord | undefined {
+  const existing = DYNAMIC_REPLACEMENTS[replacementId];
+  if (existing) return existing;
+  const seed = REPLACEMENTS[replacementId];
+  if (!seed) return undefined;
+  DYNAMIC_REPLACEMENTS[replacementId] = { ...seed };
+  return DYNAMIC_REPLACEMENTS[replacementId];
+}
+
+/** Every replacement, newest-requested first, with seed overrides already applied. */
+export function allReplacements(): ReplacementRecord[] {
+  const merged: Record<string, ReplacementRecord> = { ...REPLACEMENTS, ...DYNAMIC_REPLACEMENTS };
+  return Object.values(merged).sort((a, b) =>
+    (b.requested_at || "").localeCompare(a.requested_at || "")
+  );
 }
 
 const _ORIGINAL_STOCK: Record<string, number> = Object.fromEntries(
@@ -147,14 +177,29 @@ function refreshSeedReturnDates(): void {
   }
 }
 
+/** Same re-anchoring as refreshSeedReturnDates(), for the seeded replacements. */
+function refreshSeedReplacementDates(): void {
+  const fresh = seedReplacements(new Date());
+  for (const [rid, seed] of Object.entries(fresh)) {
+    const rep = REPLACEMENTS[rid];
+    if (!rep) continue;
+    rep.requested_at = seed.requested_at;
+    rep.estimated_dispatch_date = seed.estimated_dispatch_date;
+    rep.dispatched_date = seed.dispatched_date;
+    rep.delivered_date = seed.delivered_date;
+  }
+}
+
 function resetAllState(): void {
   ORDERS = {};
   CARTS = {};
   DYNAMIC_RETURNS = {};
+  DYNAMIC_REPLACEMENTS = {};
   PRODUCTS = seedProducts();
   CUSTOMERS = seedCustomers();
   orderCounter.value = 20000;
   returnCounter.value = 2210;
+  replacementCounter.value = 3010;
   SEED_ORDER_IDS = new Set();
   seedOrders();
 }
@@ -170,9 +215,11 @@ export function adminReset(): void {
     }
   }
   DYNAMIC_RETURNS = {};
+  DYNAMIC_REPLACEMENTS = {};
   CARTS = {};
   orderCounter.value = 20000;
   returnCounter.value = 2210;
+  replacementCounter.value = 3010;
   for (const [pid, originalStock] of Object.entries(_ORIGINAL_STOCK)) {
     if (PRODUCTS[pid]) PRODUCTS[pid].stock = originalStock;
   }
@@ -180,10 +227,11 @@ export function adminReset(): void {
   // other piece of staged state this resets.
   CUSTOMERS = seedCustomers();
   seedOrders();
-  // seedOrders() re-dates the orders to today, so the returns have to move with
-  // them — otherwise a reset on a long-running process leaves RET-2201 dated
-  // before the delivery it was filed against.
+  // seedOrders() re-dates the orders to today, so the returns/replacements have
+  // to move with them — otherwise a reset on a long-running process leaves
+  // RET-2201/REP-3001 dated before the delivery that prompted them.
   refreshSeedReturnDates();
+  refreshSeedReplacementDates();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,8 +241,10 @@ interface Snapshot {
   orders: Record<string, Order>;
   carts: Record<string, CartItem[]>;
   dynamic_returns: Record<string, ReturnRecord>;
+  dynamic_replacements: Record<string, ReplacementRecord>;
   order_counter: number;
   return_counter: number;
+  replacement_counter: number;
   product_stock: Record<string, number>;
   customers: Record<string, Customer>;
 }
@@ -204,8 +254,10 @@ function snapshotState(): Snapshot {
     orders: ORDERS,
     carts: CARTS,
     dynamic_returns: DYNAMIC_RETURNS,
+    dynamic_replacements: DYNAMIC_REPLACEMENTS,
     order_counter: orderCounter.value,
     return_counter: returnCounter.value,
+    replacement_counter: replacementCounter.value,
     product_stock: Object.fromEntries(Object.entries(PRODUCTS).map(([pid, p]) => [pid, p.stock])),
     customers: CUSTOMERS,
   };
@@ -232,9 +284,11 @@ function applyState(state: Partial<Snapshot>): void {
   // ends up dated before the delivery it followed.
   refreshSeedOrderDates();
   refreshSeedReturnDates();
+  refreshSeedReplacementDates();
 
   CARTS = (state.carts as Record<string, CartItem[]>) || {};
   DYNAMIC_RETURNS = (state.dynamic_returns as Record<string, ReturnRecord>) || {};
+  DYNAMIC_REPLACEMENTS = (state.dynamic_replacements as Record<string, ReplacementRecord>) || {};
 
   // Seed customers first so a customer added in code after this snapshot was
   // written still exists; the stored copy then overlays it so an edit made
@@ -258,6 +312,7 @@ function applyState(state: Partial<Snapshot>): void {
   }
   orderCounter.value = state.order_counter ?? orderCounter.value;
   returnCounter.value = state.return_counter ?? returnCounter.value;
+  replacementCounter.value = state.replacement_counter ?? replacementCounter.value;
   const productStock = state.product_stock || {};
   for (const [pid, stock] of Object.entries(productStock)) {
     if (PRODUCTS[pid]) PRODUCTS[pid].stock = stock;
@@ -448,4 +503,4 @@ export function withState(handler: ApiHandler): ApiHandler {
   };
 }
 
-export type { Order, Product, ReturnRecord, OrderItem, Customer };
+export type { Order, Product, ReturnRecord, ReplacementRecord, OrderItem, Customer };

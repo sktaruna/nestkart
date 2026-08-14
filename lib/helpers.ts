@@ -229,11 +229,14 @@ export function orderActions(order: Order): Record<string, boolean> {
   const reschedulable =
     (status === "processing" || status === "dispatched") && !alreadyPromised;
 
-  // returns.ts and replacement.ts share these three gates exactly, so the two
-  // are always the same answer.
   const returnable = returnEligibilityCheck(order.order_id).eligible && !alreadyPromised;
 
-  return { cancellable, reschedulable, returnable, replaceable: returnable };
+  // replacement.ts: delivered, within window, AND an active damage claim —
+  // deliberately narrower than returnable. A return covers "change of mind"
+  // too; a replacement only makes sense when the item itself is the problem.
+  const replaceable = replacementEligibilityCheck(order.order_id).eligible && !alreadyPromised;
+
+  return { cancellable, reschedulable, returnable, replaceable };
 }
 
 /** buildOrderResponse plus the admin-only seed marker. */
@@ -325,6 +328,93 @@ export function returnEligibilityCheck(orderId: string): EligibilityResult {
   return {
     eligible: false,
     reason: "Return eligibility could not be determined.",
+    return_window_days: null,
+    return_window_expires_on: null,
+    days_remaining: null,
+    return_shipping_cost: null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLACEMENT ELIGIBILITY
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Narrower than returnEligibilityCheck(): a replacement is only offered when
+ * the item itself is the problem, so it requires an active damage claim on
+ * top of every gate a return needs (delivered, within the 30-day window).
+ * `already requested` is checked separately by orderActions()/the endpoint,
+ * same as it is for returns, so this only answers "could a replacement be
+ * requested on this order at all right now".
+ */
+export function replacementEligibilityCheck(orderId: string): EligibilityResult {
+  const order = ORDERS[orderId] || ({} as Order);
+  const status = getOrderStatus(order);
+
+  if (status === "processing" || status === "dispatched" || status === "in_transit") {
+    return {
+      eligible: false,
+      reason: "Order has not yet been delivered. A replacement can only be requested after confirmed delivery.",
+      return_window_days: 30,
+      return_window_expires_on: null,
+      days_remaining: null,
+      return_shipping_cost: null,
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      eligible: false,
+      reason: "Order was cancelled and is not eligible for a replacement.",
+      return_window_days: null,
+      return_window_expires_on: null,
+      days_remaining: null,
+      return_shipping_cost: null,
+    };
+  }
+
+  if (!order.damage_claim_active) {
+    return {
+      eligible: false,
+      reason: "No active damage claim on this order. A replacement is only offered when the item was reported damaged on arrival.",
+      return_window_days: null,
+      return_window_expires_on: null,
+      days_remaining: null,
+      return_shipping_cost: null,
+    };
+  }
+
+  // Delivered with an active damage claim — still bounded by the same 30-day
+  // window as a return, so a claim doesn't keep an order replaceable forever.
+  const estDelivery = order.estimated_delivery;
+  if (estDelivery) {
+    const deliveryDate = new Date(estDelivery + "T00:00:00");
+    const windowDays = 30;
+    const expiryDate = new Date(deliveryDate.getTime() + windowDays * 24 * 60 * 60 * 1000);
+    const daysRemaining = Math.round((expiryDate.getTime() - today().getTime()) / (24 * 60 * 60 * 1000));
+
+    if (daysRemaining <= 0) {
+      return {
+        eligible: false,
+        reason: `Return/replacement window expired on ${dateOnly(expiryDate)}. The 30-day window from estimated delivery has elapsed.`,
+        return_window_days: windowDays,
+        return_window_expires_on: dateOnly(expiryDate),
+        days_remaining: 0,
+        return_shipping_cost: null,
+      };
+    }
+    return {
+      eligible: true,
+      reason: `Item was reported damaged on arrival and is within the 30-day window (${daysRemaining} days remaining).`,
+      return_window_days: windowDays,
+      return_window_expires_on: dateOnly(expiryDate),
+      days_remaining: daysRemaining,
+      return_shipping_cost: "free",
+    };
+  }
+
+  return {
+    eligible: false,
+    reason: "Replacement eligibility could not be determined.",
     return_window_days: null,
     return_window_expires_on: null,
     days_remaining: null,

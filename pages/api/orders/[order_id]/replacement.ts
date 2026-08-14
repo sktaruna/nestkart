@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { withState, ORDERS, returnCounter, openReturnsForOrder } from "../../../../lib/state";
+import { withState, ORDERS, DYNAMIC_REPLACEMENTS, replacementCounter, openReturnsForOrder } from "../../../../lib/state";
 import {
   err,
   ownershipError,
   addBusinessDays,
   getBody,
-  returnEligibilityCheck,
+  replacementEligibilityCheck,
   dateOnly,
   today,
 } from "../../../../lib/helpers";
@@ -25,8 +25,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const body = getBody(req);
   const customerId = body.customer_id as string | undefined;
-  // reason / description accepted but unused, mirroring app.py which reads
-  // them but never validates or stores them for this endpoint.
+  const reason = (body.reason as string | undefined) || "damaged on arrival";
 
   if (!customerId) {
     err(res, "missing_field", "Required field 'customer_id' is missing.", 400);
@@ -34,12 +33,12 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   }
   if (ownershipError(res, customerId, order.customer_id)) return;
 
-  const eligibility = returnEligibilityCheck(orderId);
+  const eligibility = replacementEligibilityCheck(orderId);
   if (!eligibility.eligible) {
     res.status(400).json({
       ok: false,
       error: "replacement_not_eligible",
-      message: `Replacement is only available for orders eligible for return. ${eligibility.reason}`,
+      message: eligibility.reason,
     });
     return;
   }
@@ -66,15 +65,31 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
     return;
   }
 
-  const replacementId = `REP-${returnCounter.value}`;
-  returnCounter.value += 1;
+  const replacementId = `REP-${replacementCounter.value}`;
+  replacementCounter.value += 1;
   const dispatchDate = addBusinessDays(today(), 5);
+  const estimatedDispatchDate = dateOnly(dispatchDate);
   order.replacement_requested = true;
+
+  const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
+  DYNAMIC_REPLACEMENTS[replacementId] = {
+    replacement_id: replacementId,
+    order_id: orderId,
+    customer_id: customerId as string,
+    item_name: itemNames,
+    reason,
+    status: "replacement_requested",
+    requested_at: dateOnly(today()),
+    estimated_dispatch_date: estimatedDispatchDate,
+    dispatched_date: null,
+    delivered_date: null,
+    tracking_number: null,
+  };
 
   res.status(200).json({
     ok: true,
     replacement_id: replacementId,
     status: "replacement_requested",
-    estimated_dispatch_date: dateOnly(dispatchDate),
+    estimated_dispatch_date: estimatedDispatchDate,
   });
 });

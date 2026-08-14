@@ -2,7 +2,7 @@ import Head from 'next/head';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '@/styles/Admin.module.css';
 import { formatRs } from '@/lib/format';
-import type { AdminCustomerOrders, AdminReturn, Product, RequestLogEntry } from '@/lib/types';
+import type { AdminCustomerOrders, AdminReturn, AdminReplacement, Product, RequestLogEntry } from '@/lib/types';
 
 const VALID_STATUSES = ['processing', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
 const RETURN_STATUSES = [
@@ -14,6 +14,12 @@ const RETURN_STATUSES = [
   'rejected',
 ];
 const REFUND_STATUSES = ['pending', 'processing', 'issued', 'rejected'];
+const REPLACEMENT_STATUSES = [
+  'replacement_requested',
+  'replacement_dispatched',
+  'replacement_delivered',
+  'completed',
+];
 /** Rows shown before "Show all" — enough to cover one agent conversation. */
 const LOG_PREVIEW_COUNT = 25;
 /** Mirrors MAX_ENTRIES in lib/requestLog.ts; display only. */
@@ -32,11 +38,12 @@ const REFUND_PILL_CLASS: Record<string, string> = {
   rejected: 'pillBad',
 };
 
-type Tab = 'orders' | 'returns' | 'inventory' | 'log';
+type Tab = 'orders' | 'returns' | 'replacements' | 'inventory' | 'log';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'orders', label: 'Orders' },
   { id: 'returns', label: 'Returns' },
+  { id: 'replacements', label: 'Replacements' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'log', label: 'Request Log' },
 ];
@@ -85,12 +92,14 @@ export default function AdminPage() {
 
   const [customers, setCustomers] = useState<AdminCustomerOrders[]>([]);
   const [returns, setReturns] = useState<AdminReturn[]>([]);
+  const [replacements, setReplacements] = useState<AdminReplacement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [deliveryInputs, setDeliveryInputs] = useState<Record<string, string>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [returnsLoading, setReturnsLoading] = useState(true);
+  const [replacementsLoading, setReplacementsLoading] = useState(true);
   const [stockLoading, setStockLoading] = useState(true);
 
   const [log, setLog] = useState<RequestLogEntry[]>([]);
@@ -151,6 +160,18 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadReplacements = useCallback(async () => {
+    try {
+      const r = await panelGet('/api/admin/replacements');
+      const d = await r.json();
+      if (d.ok) setReplacements(d.replacements);
+    } catch {
+      /* ignore */
+    } finally {
+      setReplacementsLoading(false);
+    }
+  }, []);
+
   const loadStock = useCallback(async () => {
     try {
       const r = await panelGet('/api/products');
@@ -194,9 +215,10 @@ export default function AdminPage() {
   useEffect(() => {
     loadOrders();
     loadReturns();
+    loadReplacements();
     loadStock();
     loadLog();
-  }, [loadOrders, loadReturns, loadStock, loadLog]);
+  }, [loadOrders, loadReturns, loadReplacements, loadStock, loadLog]);
 
   /** POST a JSON body, reload on success, and report the outcome as a toast. */
   const post = useCallback(
@@ -292,7 +314,7 @@ export default function AdminPage() {
       const d = await r.json();
       if (d.ok) {
         showToast('Demo data reset');
-        await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
+        await Promise.all([loadOrders(), loadReturns(), loadReplacements(), loadStock(), loadLog()]);
       }
     } catch {
       showToast('Reset failed', true);
@@ -317,9 +339,10 @@ export default function AdminPage() {
   async function refreshAll() {
     setOrdersLoading(true);
     setReturnsLoading(true);
+    setReplacementsLoading(true);
     setStockLoading(true);
     setLogLoading(true);
-    await Promise.all([loadOrders(), loadReturns(), loadStock(), loadLog()]);
+    await Promise.all([loadOrders(), loadReturns(), loadReplacements(), loadStock(), loadLog()]);
   }
 
   // Every customer, including those with no orders. Filtering them out hid the
@@ -337,10 +360,15 @@ export default function AdminPage() {
     () => ({
       orders: ordersLoading ? null : orderCount,
       returns: returnsLoading ? null : returns.length,
+      replacements: replacementsLoading ? null : replacements.length,
       inventory: stockLoading ? null : products.length,
       log: logLoading ? null : log.length,
     }),
-    [ordersLoading, orderCount, returnsLoading, returns.length, stockLoading, products.length, logLoading, log.length]
+    [
+      ordersLoading, orderCount, returnsLoading, returns.length,
+      replacementsLoading, replacements.length,
+      stockLoading, products.length, logLoading, log.length,
+    ]
   );
 
   const visibleLog = logExpanded ? log : log.slice(0, LOG_PREVIEW_COUNT);
@@ -616,6 +644,73 @@ export default function AdminPage() {
                             {ret.is_seed ? '⤺' : '×'}
                           </button>
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── REPLACEMENTS ──────────────────────────────────────────────────── */}
+        {tab === 'replacements' && (
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <h1 className={styles.panelTitle}>Replacements</h1>
+              <p className={styles.panelNote}>
+                Drives what <code>GET /api/replacements/:id</code> reports. A replacement request also
+                sets <code>replacement_requested</code> on the order, blocking a second return/replacement
+                on the same order until it&apos;s handled separately.
+              </p>
+            </div>
+
+            {replacementsLoading ? (
+              <p className={styles.emptyState}>Loading replacements…</p>
+            ) : replacements.length === 0 ? (
+              <p className={styles.emptyState}>No replacements yet. Request one through the API to see it here.</p>
+            ) : (
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Replacement</th><th>Reason</th><th>Status</th><th>Tracking</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {replacements.map((rep) => (
+                      <tr key={rep.replacement_id}>
+                        <td className={styles.idCell}>
+                          <div className={styles.idStack}>
+                            <span>
+                              {rep.replacement_id}
+                              {rep.is_seed && <span className={styles.seedTag}>seed</span>}
+                            </span>
+                            <span className={styles.idSub}>
+                              {customerNames[rep.customer_id] || rep.customer_id}
+                            </span>
+                          </div>
+                        </td>
+                        <td className={styles.reasonCell}>{humanize(rep.reason)}</td>
+                        <td>
+                          <select
+                            className={styles.select}
+                            value={rep.status}
+                            onChange={(e) =>
+                              post(
+                                `/api/admin/replacements/${rep.replacement_id}/set-status`,
+                                { status: e.target.value },
+                                `${rep.replacement_id} → ${humanize(e.target.value)}`,
+                                loadReplacements
+                              )
+                            }
+                          >
+                            {REPLACEMENT_STATUSES.map((s) => (
+                              <option key={s} value={s}>{humanize(s)}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className={styles.monoMuted}>{rep.tracking_number || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
