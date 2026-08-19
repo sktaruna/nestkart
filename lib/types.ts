@@ -61,6 +61,11 @@ export interface Order {
   damage_claim_active: boolean;
   tracking_number: string | null;
   tracking_url: string | null;
+  /** From orderActions() in lib/helpers.ts — whether each action would be accepted right now. */
+  cancellable?: boolean;
+  reschedulable?: boolean;
+  returnable?: boolean;
+  replaceable?: boolean;
 }
 
 /** Shape of the orders in GET /api/admin/orders. */

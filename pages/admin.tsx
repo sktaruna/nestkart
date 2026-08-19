@@ -104,6 +104,8 @@ export default function AdminPage() {
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [deliveryInputs, setDeliveryInputs] = useState<Record<string, string>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showNewReturn, setShowNewReturn] = useState(false);
+  const [newReturnCustomerId, setNewReturnCustomerId] = useState('');
   const [newReturnOrderId, setNewReturnOrderId] = useState('');
   const [newReturnReason, setNewReturnReason] = useState(RETURN_REASONS[0]);
   const [creatingReturn, setCreatingReturn] = useState(false);
@@ -280,6 +282,13 @@ export default function AdminPage() {
     }
   }
 
+  function openNewReturn() {
+    setNewReturnCustomerId('');
+    setNewReturnOrderId('');
+    setNewReturnReason(RETURN_REASONS[0]);
+    setShowNewReturn(true);
+  }
+
   async function createReturn() {
     if (!newReturnOrderId) {
       showToast('Pick an order first', true);
@@ -296,7 +305,7 @@ export default function AdminPage() {
       const d = await r.json();
       if (d.ok) {
         showToast(`${d.return_id} created for ${newReturnOrderId}`);
-        setNewReturnOrderId('');
+        setShowNewReturn(false);
         await Promise.all([loadReturns(), loadOrders()]);
       } else {
         showToast(d.message || 'Create return failed', true);
@@ -393,14 +402,13 @@ export default function AdminPage() {
     customerNames[c.customer_id] = c.name;
   });
 
-  // Flattened for the "New Return" order picker — newest-looking id last isn't
-  // guaranteed, so sorted by id for a stable, scannable dropdown.
-  const allOrders = useMemo(
-    () =>
-      customers
-        .flatMap((c) => c.orders.map((o) => ({ ...o, customerName: c.name })))
-        .sort((a, b) => a.order_id.localeCompare(b.order_id)),
-    [customers]
+  // Orders belonging to the customer picked in the New Return modal, limited to
+  // ones a return could actually be filed on (returnable comes from
+  // orderActions() in lib/helpers.ts — delivered, within window, no open
+  // return/replacement already promised against it).
+  const returnableOrdersForSelectedCustomer = useMemo(
+    () => customers.find((c) => c.customer_id === newReturnCustomerId)?.orders.filter((o) => o.returnable) || [],
+    [customers, newReturnCustomerId]
   );
 
   const orderCount = customers.reduce((sum, c) => sum + (c.orders?.length || 0), 0);
@@ -593,39 +601,15 @@ export default function AdminPage() {
         {tab === 'returns' && (
           <section className={styles.panel}>
             <div className={styles.panelHead}>
-              <h1 className={styles.panelTitle}>Returns &amp; Refunds</h1>
+              <div className={styles.panelHeadRow}>
+                <h1 className={styles.panelTitle}>Returns &amp; Refunds</h1>
+                <button className={styles.refreshBtn} onClick={openNewReturn}>New Return</button>
+              </div>
               <p className={styles.panelNote}>
                 Drives what <code>GET /api/returns/:id</code> reports. <strong>Locked</strong> and{' '}
                 <strong>Escalate</strong> are the two cases an agent handles worst — a refund it must not
                 promise a date for, and a case it should hand to a human.
               </p>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <select
-                className={styles.select}
-                value={newReturnOrderId}
-                onChange={(e) => setNewReturnOrderId(e.target.value)}
-              >
-                <option value="">Select order…</option>
-                {allOrders.map((o) => (
-                  <option key={o.order_id} value={o.order_id}>
-                    {o.order_id} — {o.customerName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={styles.select}
-                value={newReturnReason}
-                onChange={(e) => setNewReturnReason(e.target.value)}
-              >
-                {RETURN_REASONS.map((r) => (
-                  <option key={r} value={r}>{humanize(r)}</option>
-                ))}
-              </select>
-              <button className={styles.saveBtn} onClick={createReturn} disabled={creatingReturn}>
-                {creatingReturn ? 'Creating…' : 'New Return'}
-              </button>
             </div>
 
             {returnsLoading ? (
@@ -936,6 +920,79 @@ export default function AdminPage() {
           </section>
         )}
       </main>
+
+      {showNewReturn && (
+        <div className={styles.modalOverlay} onClick={() => setShowNewReturn(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.panelTitle}>New Return</h2>
+
+            <label className={styles.modalLabel}>
+              Customer
+              <select
+                className={styles.select}
+                value={newReturnCustomerId}
+                onChange={(e) => {
+                  setNewReturnCustomerId(e.target.value);
+                  setNewReturnOrderId('');
+                }}
+              >
+                <option value="">Select customer…</option>
+                {customers.map((c) => (
+                  <option key={c.customer_id} value={c.customer_id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className={styles.modalLabel}>
+              Order
+              <select
+                className={styles.select}
+                value={newReturnOrderId}
+                onChange={(e) => setNewReturnOrderId(e.target.value)}
+                disabled={!newReturnCustomerId}
+              >
+                <option value="">
+                  {newReturnCustomerId
+                    ? returnableOrdersForSelectedCustomer.length
+                      ? 'Select order…'
+                      : 'No orders eligible for return'
+                    : 'Pick a customer first'}
+                </option>
+                {returnableOrdersForSelectedCustomer.map((o) => (
+                  <option key={o.order_id} value={o.order_id}>
+                    {o.order_id} — {(o.items || []).map((i) => i.product_name).join(', ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className={styles.modalLabel}>
+              Reason
+              <select
+                className={styles.select}
+                value={newReturnReason}
+                onChange={(e) => setNewReturnReason(e.target.value)}
+                disabled={!newReturnOrderId}
+              >
+                {RETURN_REASONS.map((r) => (
+                  <option key={r} value={r}>{humanize(r)}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className={styles.modalActions}>
+              <button className={styles.resetCancel} onClick={() => setShowNewReturn(false)}>Cancel</button>
+              <button
+                className={styles.resetOk}
+                onClick={createReturn}
+                disabled={!newReturnOrderId || creatingReturn}
+              >
+                {creatingReturn ? 'Creating…' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className={`${styles.toast} ${toast.err ? styles.toastErr : ''}`} role="status">
