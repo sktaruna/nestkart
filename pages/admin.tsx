@@ -13,6 +13,13 @@ const RETURN_STATUSES = [
   'completed',
   'rejected',
 ];
+const RETURN_REASONS = [
+  'change of mind',
+  'item not as described',
+  'damaged on arrival',
+  'defective',
+  'wrong item received',
+];
 const REFUND_STATUSES = ['pending', 'processing', 'issued', 'rejected'];
 const REPLACEMENT_STATUSES = [
   'replacement_requested',
@@ -97,6 +104,9 @@ export default function AdminPage() {
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [deliveryInputs, setDeliveryInputs] = useState<Record<string, string>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [newReturnOrderId, setNewReturnOrderId] = useState('');
+  const [newReturnReason, setNewReturnReason] = useState(RETURN_REASONS[0]);
+  const [creatingReturn, setCreatingReturn] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [returnsLoading, setReturnsLoading] = useState(true);
   const [replacementsLoading, setReplacementsLoading] = useState(true);
@@ -270,6 +280,34 @@ export default function AdminPage() {
     }
   }
 
+  async function createReturn() {
+    if (!newReturnOrderId) {
+      showToast('Pick an order first', true);
+      return;
+    }
+    setCreatingReturn(true);
+    try {
+      const r = await fetch('/api/admin/returns/create', {
+        method: 'POST',
+        headers: PANEL_JSON_HEADERS,
+        cache: 'no-store',
+        body: JSON.stringify({ order_id: newReturnOrderId, reason: newReturnReason }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        showToast(`${d.return_id} created for ${newReturnOrderId}`);
+        setNewReturnOrderId('');
+        await Promise.all([loadReturns(), loadOrders()]);
+      } else {
+        showToast(d.message || 'Create return failed', true);
+      }
+    } catch {
+      showToast('Create return failed', true);
+    } finally {
+      setCreatingReturn(false);
+    }
+  }
+
   async function deleteOrder(orderId: string) {
     if (!window.confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
     try {
@@ -354,6 +392,16 @@ export default function AdminPage() {
   customers.forEach((c) => {
     customerNames[c.customer_id] = c.name;
   });
+
+  // Flattened for the "New Return" order picker — newest-looking id last isn't
+  // guaranteed, so sorted by id for a stable, scannable dropdown.
+  const allOrders = useMemo(
+    () =>
+      customers
+        .flatMap((c) => c.orders.map((o) => ({ ...o, customerName: c.name })))
+        .sort((a, b) => a.order_id.localeCompare(b.order_id)),
+    [customers]
+  );
 
   const orderCount = customers.reduce((sum, c) => sum + (c.orders?.length || 0), 0);
   const counts: Record<Tab, number | null> = useMemo(
@@ -551,6 +599,33 @@ export default function AdminPage() {
                 <strong>Escalate</strong> are the two cases an agent handles worst — a refund it must not
                 promise a date for, and a case it should hand to a human.
               </p>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <select
+                className={styles.select}
+                value={newReturnOrderId}
+                onChange={(e) => setNewReturnOrderId(e.target.value)}
+              >
+                <option value="">Select order…</option>
+                {allOrders.map((o) => (
+                  <option key={o.order_id} value={o.order_id}>
+                    {o.order_id} — {o.customerName}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={styles.select}
+                value={newReturnReason}
+                onChange={(e) => setNewReturnReason(e.target.value)}
+              >
+                {RETURN_REASONS.map((r) => (
+                  <option key={r} value={r}>{humanize(r)}</option>
+                ))}
+              </select>
+              <button className={styles.saveBtn} onClick={createReturn} disabled={creatingReturn}>
+                {creatingReturn ? 'Creating…' : 'New Return'}
+              </button>
             </div>
 
             {returnsLoading ? (
