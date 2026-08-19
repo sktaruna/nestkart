@@ -603,7 +603,7 @@ export default function AdminPage() {
             <div className={styles.panelHead}>
               <div className={styles.panelHeadRow}>
                 <h1 className={styles.panelTitle}>Returns &amp; Refunds</h1>
-                <button className={styles.refreshBtn} onClick={openNewReturn}>New Return</button>
+                <button className={styles.panelBtn} onClick={openNewReturn}>New Return</button>
               </div>
               <p className={styles.panelNote}>
                 Drives what <code>GET /api/returns/:id</code> reports. <strong>Locked</strong> and{' '}

@@ -42,6 +42,19 @@
 .refreshBtn { background: none; color: #fff; border: 1px solid rgba(255,255,255,0.28); }
 .refreshBtn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.55); }
 
+/* Same shape as .refreshBtn, but for use on the light panel background rather
+   than the dark header bar — .refreshBtn's white-on-transparent styling is
+   invisible there. */
+.panelBtn {
+  padding: 9px 20px; font-family: inherit;
+  font-size: 0.7rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; border-radius: 3px;
+  transition: background 0.15s, border-color 0.15s;
+  background: var(--dark); color: #fff; border: 1px solid var(--dark);
+}
+.panelBtn:hover { background: #000; border-color: #000; }
+
 /* ── TABS ─────────────────────────────────────────────────────────────────── */
 .tabBar {
   background: var(--white);
