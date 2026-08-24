@@ -415,6 +415,58 @@ const RETURN_ID_PARAM = {
   example: "RET-2202",
 };
 
+const REPLACEMENT_ID_PARAM = {
+  name: "replacement_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+  example: "REP-3001",
+};
+
+/** Mirrors RETURN_SCHEMA. A replacement owes a new unit rather than a refund,
+ *  so it tracks dispatch dates instead of refund state. */
+const REPLACEMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    ok: OK_TRUE,
+    replacement_id: { type: "string", example: "REP-3001" },
+    order_id: { type: "string", example: "ORD-10302" },
+    customer_id: {
+      type: "string",
+      example: "cust_003",
+      description:
+        "Owner of the replacement. Sent by GET /api/replacements/{replacement_id}; omitted from the per-customer list, where the customer is already the path parameter.",
+    },
+    item_name: { type: "string", example: "Walnut Platform Bed" },
+    reason: { type: "string", example: "damaged on arrival" },
+    status: {
+      type: "string",
+      enum: [
+        "replacement_requested",
+        "replacement_dispatched",
+        "replacement_delivered",
+        "completed",
+      ],
+      description:
+        "Where the replacement unit is. There is no rejected state — unlike a return, a replacement only moves forward.",
+    },
+    requested_at: { type: "string", format: "date" },
+    estimated_dispatch_date: { type: "string", format: "date", nullable: true },
+    dispatched_date: {
+      type: "string",
+      format: "date",
+      nullable: true,
+      description: "Null until status reaches replacement_dispatched.",
+    },
+    delivered_date: { type: "string", format: "date", nullable: true },
+    tracking_number: {
+      type: "string",
+      nullable: true,
+      description: "Null before dispatch.",
+    },
+  },
+};
+
 /** 200 response with an inline schema. */
 const ok200 = (description: string, schema: unknown) => ({
   200: { description, content: { "application/json": { schema } } },
@@ -1207,7 +1259,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Check whether an order can be returned",
         description:
-          "Read-only, and narrower than it sounds: this answers whether the order is **within the return window** — delivered, not cancelled, inside 30 days. It does not consider a return that is already open or a replacement already requested, so `eligible: true` here does not guarantee POST /returns will succeed. For the complete answer use `actions.returnable` on the order. Requires no customer_id.",
+          "Read-only, and narrower than it sounds: this answers whether the order is **within the return window** — delivered, not cancelled, inside 30 days. It does not consider a return that is already open, one already completed and refunded, or a replacement already requested, so `eligible: true` here does not guarantee POST /returns will succeed. For the complete answer use `actions.returnable` on the order. Requires no customer_id.",
         parameters: [ORDER_ID_PARAM],
         responses: {
           ...ok200(
@@ -1247,8 +1299,8 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "File a return",
         description:
-          "Creates a return and issues a shipping label. An ineligible order, one with a return already open, or one with a replacement already requested, is refused with a **400** and an `error` code (`return_not_eligible`, `return_already_open`, or `replacement_already_requested`). Call /return-eligibility first. " +
-          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim on the order, which earns free return shipping.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A completed or rejected return does not block a new one.",
+          "Creates a return and issues a shipping label. An ineligible order, one with a return already open, one already returned and refunded, or one with a replacement already requested, is refused with a **400** and an `error` code (`return_not_eligible`, `return_already_open`, `return_already_completed`, or `replacement_already_requested`). Call /return-eligibility first — but note it does not know about any of those four, so a `true` from it is necessary and not sufficient; the `returnable` flag on the order does account for them. " +
+          "Filing with `return_reason: 'damaged on arrival'` opens a damage claim on the order, which earns free return shipping.\n\nFiling a return does **not** refund anything: the return comes back `refund_status: 'pending'` and stays there until an operator moves it to `processing` and then `issued`. There is no timer. Also note a return covers **every item in the order** — there is no way to return one item out of several, and for the same reason only **one** return can be open per order: filing again while one is in flight is refused with `return_already_open` and the existing return's ID. A **rejected** return does not block a new one — the item went back to the customer, so re-filing is valid. A **completed** one blocks permanently (`return_already_completed`): the item is back with us and the refund was issued, so a second return would refund the order twice.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1314,7 +1366,7 @@ export const OPENAPI_SPEC = {
           },
           400: {
             description:
-              "Rejected. `missing_field` / `invalid_reason` / `invalid_condition` mean the request was malformed. `return_not_eligible` means the order fails /return-eligibility; `return_already_open` means a return is already in flight for it; `replacement_already_requested` means a replacement was requested for this order and a return cannot also be filed on top of it.",
+              "Rejected. `missing_field` / `invalid_reason` / `invalid_condition` mean the request was malformed. `return_not_eligible` means the order fails /return-eligibility; `return_already_open` means a return is already in flight for it; `return_already_completed` means it was already returned and refunded, which never clears; `replacement_already_requested` means a replacement was requested for this order and a return cannot also be filed on top of it.",
             content: {
               "application/json": {
                 schema: {
@@ -1367,6 +1419,22 @@ export const OPENAPI_SPEC = {
                       },
                     },
                     {
+                      title: "Declined — the order was already returned and refunded",
+                      type: "object",
+                      properties: {
+                        ok: { type: "boolean", enum: [false] },
+                        error: { type: "string", enum: ["return_already_completed"] },
+                        message: {
+                          type: "string",
+                          description:
+                            "Customer-ready. This is permanent, not a 'not yet' — unlike return_already_open it never clears, so do not offer to retry later.",
+                        },
+                        existing_return_id: { type: "string", example: "RET-2210" },
+                        existing_return_status: { type: "string", enum: ["completed"] },
+                        existing_refund_status: { type: "string", example: "issued" },
+                      },
+                    },
+                    {
                       title: "Declined — a replacement was already requested",
                       type: "object",
                       properties: {
@@ -1395,7 +1463,7 @@ export const OPENAPI_SPEC = {
         tags: ["Orders"],
         summary: "Request a replacement instead of a refund",
         description:
-          "Requires the same eligibility as a return; an ineligible order gets a **400**, same as /returns. Also refused if a return is already open on the order (`return_in_progress`) or a replacement was already requested for it (`replacement_already_requested`) — a replacement gives a new unit on top of the order, so it cannot stack with a return, which refunds the order in full, or with a second replacement. Does not create a trackable record — the returned `replacement_id` cannot be looked up afterwards, and nothing but this one-request check remembers it happened.",
+          "Requires the same eligibility as a return; an ineligible order gets a **400**, same as /returns. Also refused if a return is already open on the order (`return_in_progress`) or a replacement was already requested for it (`replacement_already_requested`) — a replacement gives a new unit on top of the order, so it cannot stack with a return, which refunds the order in full, or with a second replacement. The returned `replacement_id` **is** trackable: look it up with GET /api/replacements/{replacement_id}, or list a customer's with GET /api/customers/{customer_id}/replacements. Note the block itself does not come from those records but from a one-way flag on the order, which never clears — so a **completed** replacement still refuses a new one, and refuses a return on that order too.",
         parameters: [ORDER_ID_PARAM],
         requestBody: jsonBody({
           type: "object",
@@ -1443,6 +1511,41 @@ export const OPENAPI_SPEC = {
         responses: {
           ...ok200("Return and refund detail.", RETURN_SCHEMA),
           ...errRes(404, "No such return.", ["return_not_found"]),
+          ...NOT_ALLOWED,
+        },
+      },
+    },
+    "/api/replacements/{replacement_id}": {
+      get: {
+        tags: ["Replacements"],
+        summary: "Get a replacement and its dispatch status",
+        description:
+          "The replacement equivalent of /api/returns/{return_id}. Use /api/customers/{customer_id}/replacements first if you do not have the ID. `status` is the dispatch signal — nothing has shipped until it reads `replacement_dispatched`, and `tracking_number` is null before then.\n\nFiling a replacement is still the only *capability* that touches replacements; this is a read for answering \"where is my replacement?\".",
+        parameters: [REPLACEMENT_ID_PARAM],
+        responses: {
+          ...ok200("Replacement and dispatch detail.", REPLACEMENT_SCHEMA),
+          ...errRes(404, "No such replacement.", ["replacement_not_found"]),
+          ...NOT_ALLOWED,
+        },
+      },
+    },
+    "/api/customers/{customer_id}/replacements": {
+      get: {
+        tags: ["Replacements"],
+        summary: "Every replacement for a customer",
+        description:
+          "Newest-requested first. Empty array when the customer has none — that is a valid answer, not an error. Mirrors /api/customers/{customer_id}/returns.",
+        parameters: [CUSTOMER_ID_PARAM],
+        responses: {
+          ...ok200("The customer's replacements, newest first.", {
+            type: "object",
+            properties: {
+              ok: OK_TRUE,
+              customer_id: { type: "string" },
+              replacements: { type: "array", items: REPLACEMENT_SCHEMA },
+            },
+          }),
+          ...errRes(404, "No such customer.", ["customer_not_found"]),
           ...NOT_ALLOWED,
         },
       },
