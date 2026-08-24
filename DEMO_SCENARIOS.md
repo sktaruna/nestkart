@@ -54,9 +54,9 @@ replacement was **already requested** for that order.
 | ID | Name | Story |
 |---|---|---|
 | `cust_001` Priya Sharma | Active shopper | 5 orders spanning delivered/processing/cancelled, one open return (RET-2202) |
-| `cust_002` Arjun Mehta | Returns & delivery changes | 4 orders (processing/dispatched/delivered ×2), one return in transit (RET-2204) |
+| `cust_002` Arjun Mehta | Returns & delivery changes | 5 orders (processing/dispatched/delivered ×3), one return in transit (RET-2204) and a clean returnable order |
 | `cust_003` Kavitha Nair | Damaged items | 4 orders — two delivered with active damage claims (one already replaced, one open for the live "request a replacement" demo), plus a dispatched and an in-transit order |
-| `cust_004` Rohit Verma | Edge cases | Processing orders (cancellable, one with live inventory restoration), a delivered order past the 30-day window, a delivered order with a damage claim past the window, and a delivered order with a completed historical replacement |
+| `cust_004` Rohit Verma | Edge cases | 4 orders. Every delivered one is a post-delivery edge case: past the 30-day window, a damage claim past the window, and a completed historical replacement — plus one processing order |
 | `cust_005` Anika Rossi | Empty history | Zero orders, expired payment method — "I can't find your order" |
 
 ## Orders
@@ -70,8 +70,9 @@ replacement was **already requested** for that order.
 | ORD-10105 | cust_001 | cancelled | **Only cancelled order** — `cancellable: false` (already cancelled), not returnable |
 | ORD-10201 | cust_002 | delivered | Has RET-2204 (return in transit) |
 | ORD-10202 | cust_002 | delivered | No return filed — returnable |
-| ORD-10203 | cust_002 | dispatched | **Not** cancellable/address-updatable; still reschedulable |
-| ORD-10204 | cust_002 | processing | Cancellable, address-updatable, reschedulable |
+| ORD-10203 | cust_002 | delivered | Clean, no damage claim, within window — `returnable: true`, `replaceable: false` (no damage claim) |
+| ORD-10204 | cust_002 | dispatched | **Not** cancellable/address-updatable; still reschedulable |
+| ORD-10205 | cust_002 | processing | Cancellable, address-updatable, reschedulable |
 | ORD-10301 | cust_003 | delivered | Damage claim active, **no replacement filed yet**, within window — `replaceable: true`, live demo order |
 | ORD-10302 | cust_003 | delivered | Damage claim active, REP-3001 already dispatched — `replaceable: false` (already requested) |
 | ORD-10303 | cust_003 | dispatched | Plain delivery-info lookup |
@@ -79,8 +80,7 @@ replacement was **already requested** for that order.
 | ORD-10401 | cust_004 | delivered | Window expired, no damage claim — `replaceable: false` / return also rejected |
 | ORD-10402 | cust_004 | delivered | Damage claim active **but window expired** — `replaceable: false` *and* `returnable: false` (window trumps the claim for both) |
 | ORD-10403 | cust_004 | delivered | Damage claim + REP-3002 **completed** — historical/closed replacement demo |
-| ORD-10404 | cust_004 | delivered | Clean, no damage claim, within window — `replaceable: false` (no damage claim) |
-| ORD-10405 | cust_004 | processing | Cancellable, address-updatable |
+| ORD-10404 | cust_004 | processing | Cancellable, address-updatable |
 
 ## Returns & Replacements
 
@@ -118,10 +118,10 @@ Every row below was executed against the running dev server this session
 | Return Status Lookup | `GET /api/returns/RET-2202` → return_requested | `GET /api/returns/RET-9999` → return_not_found | Yes |
 | Customer Profile Lookup | `GET /api/customers/cust_001` → Priya Sharma | `GET /api/customers/cust_999` → customer_not_found | Yes |
 | Cancel Order | ORD-10104 (processing) → cancelled, stock 19→20 & 7→8 | ORD-10102 (delivered) → order_not_cancellable | Yes |
-| Update Delivery Address | ORD-10405 (processing) → address updated | ORD-10404 (delivered) → address_update_not_allowed | Yes |
-| Reschedule Delivery | ORD-10204 → real slot list, rescheduled to it | ORD-10202 (delivered) → reschedule_not_allowed | Yes |
-| Initiate Return | ORD-10404 (delivered) → RET created | ORD-10405 (processing) → return_not_eligible | Yes |
-| Request Replacement | ORD-10301 (damaged, within window) → replacement created | ORD-10404 (no damage claim) → replacement_not_eligible | Yes |
+| Update Delivery Address | ORD-10404 (processing) → address updated | ORD-10203 (delivered) → address_update_not_allowed | Yes |
+| Reschedule Delivery | ORD-10205 → real slot list, rescheduled to it | ORD-10202 (delivered) → reschedule_not_allowed | Yes |
+| Initiate Return | ORD-10203 (delivered) → RET created | ORD-10404 (processing) → return_not_eligible | Yes |
+| Request Replacement | ORD-10301 (damaged, within window) → replacement created | ORD-10203 (no damage claim) → replacement_not_eligible | Yes |
 | Customer Profile Update | cust_001 phone → updated, confirmed via lookup | cust_002 invalid email → invalid_field | Yes |
 
 Additional Request Replacement negatives verified beyond the table above:
@@ -137,8 +137,8 @@ re-checked every mutated resource:
 | Resource | Dirtied value | After reset |
 |---|---|---|
 | cust_001 phone | 919999999999 | 919810012345 (seed) |
-| ORD-10204 estimated_delivery | rescheduled date | back to seed date |
-| ORD-10405 delivery_address.street | "New Address" | seed address restored |
+| ORD-10205 estimated_delivery | rescheduled date | back to seed date |
+| ORD-10404 delivery_address.street | "New Address" | seed address restored |
 | prod_012 stock | 19 (after live decrement/restore cycle) | 19 (seed baseline) |
 | cust_004 replacements | REP-3010 (agent-filed) | gone — only seeded REP-3002 remains |
 | cust_004 returns | 1 (agent-filed) | 0 (seed has none) |
@@ -184,14 +184,14 @@ Negative / edge (agent must refuse per real business rules, not guess):
    order" (ORD-10104). *Admin:* Orders tab → ORD-10104 flips to cancelled;
    Inventory tab → Terracotta Planter Trio 19→20, Mango Wood Side Table 7→8.
 4. **Update delivery address** — cust_004, "Can you change the delivery
-   address on my order?" (ORD-10405, processing). *Admin:* Orders tab shows
+   address on my order?" (ORD-10404, processing). *Admin:* Orders tab shows
    the new address on that row.
 5. **Reschedule delivery** — cust_002, "Can you deliver it a bit later?"
-   (ORD-10204). Agent should offer only real weekday slots. *Admin:* Delivery
+   (ORD-10205). Agent should offer only real weekday slots. *Admin:* Delivery
    date column updates.
 6. **Return / refund lookup** — cust_001, "Where's my refund?" → RET-2202,
    return_requested / refund pending.
-7. **Initiate return** — cust_004, "I want to return this" (ORD-10404,
+7. **Initiate return** — cust_004, "I want to return this" (ORD-10203,
    delivered, no damage). *Admin:* Returns tab shows the new return_requested
    row.
 8. **Damaged-item replacement** — cust_003, "This arrived damaged, can I get
@@ -202,7 +202,7 @@ Negative / edge (agent must refuse per real business rules, not guess):
    confirms the new number.
 10. **Negative business rules** — cust_001, "Can you cancel my delivered
     order?" (ORD-10102, denied) and cust_004, "Can you replace this?"
-    (ORD-10404, denied — no damage claim). Shows the agent refusing correctly
+    (ORD-10203, denied — no damage claim). Shows the agent refusing correctly
     instead of guessing.
 
 **End every demo by clicking Reset Demo** in `/admin` (or `POST

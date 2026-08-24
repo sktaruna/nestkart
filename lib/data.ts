@@ -702,7 +702,29 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       damage_claim_active: false, cancelled: false, tracking_number: "NK10202TRACK",
     },
     "ORD-10203": {
+      // Clean delivered order inside the window: no damage claim, no return,
+      // no replacement — so `returnable: true` and `replaceable: false`, the
+      // pair that shows a replacement needs an actual fault and not just an
+      // eligible order.
+      //
+      // Lives on cust_002 rather than cust_004. Every one of Rohit's other
+      // orders is a post-delivery edge case (window expired, claim past the
+      // window, completed replacement), which can only exist on a delivered
+      // order — so he had four delivered out of five and no other status.
+      // Dated three days ago to sit between ORD-10202 and ORD-10204 and keep
+      // cust_002's ids in date order.
       order_id: "ORD-10203", customer_id: "cust_002",
+      items: [{ product_id: "prod_002", product_name: "Velvet Accent Chair", qty: 1, unit_price: 32500, line_total: 32500 }],
+      price_total: 32500,
+      placed_at: daysAgoIso(now, 3),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: deliveredDaysAgo(),
+      delivery_address: addr("cust_002"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10203TRACK",
+    },
+    "ORD-10204": {
+      order_id: "ORD-10204", customer_id: "cust_002",
       items: [{ product_id: "prod_009", product_name: "Linen Dining Chair Set of 2", qty: 1, unit_price: 22000, line_total: 22000 }],
       price_total: 22000,
       placed_at: daysAgoIso(now, 1, 12),
@@ -712,8 +734,8 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_002"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
-    "ORD-10204": {
-      order_id: "ORD-10204", customer_id: "cust_002",
+    "ORD-10205": {
+      order_id: "ORD-10205", customer_id: "cust_002",
       items: [{ product_id: "prod_011", product_name: "Handwoven Wool Rug 6×9 ft", qty: 1, unit_price: 26500, line_total: 26500 }],
       price_total: 26500,
       placed_at: daysAgoIso(now, 0, 0, 5),
@@ -827,17 +849,6 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
     },
     "ORD-10404": {
       order_id: "ORD-10404", customer_id: "cust_004",
-      items: [{ product_id: "prod_002", product_name: "Velvet Accent Chair", qty: 1, unit_price: 32500, line_total: 32500 }],
-      price_total: 32500,
-      placed_at: daysAgoIso(now, 5),
-      status: "delivered",
-      shipping_method: "large_item",
-      estimated_delivery: deliveredDaysAgo(),
-      delivery_address: addr("cust_004"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10404TRACK",
-    },
-    "ORD-10405": {
-      order_id: "ORD-10405", customer_id: "cust_004",
       items: [
         { product_id: "prod_007", product_name: "Jute Woven Floor Lamp", qty: 1, unit_price: 18500, line_total: 18500 },
         { product_id: "prod_010", product_name: "Washi Paper Pendant", qty: 1, unit_price: 8800, line_total: 8800 },
