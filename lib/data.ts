@@ -655,6 +655,28 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       // inventory-restoration demo (19 → 20 and 7 → 8 in Admin → Inventory).
       stock_decremented: true,
     },
+    "ORD-10105": {
+      // The only cancelled order in the seed. `cancelled` is a flag rather than
+      // a status — getOrderStatus returns "cancelled" whenever it is set — so
+      // `status` keeps whatever the order had when it was cancelled, exactly
+      // like an order put through cancel.ts. Placed minutes ago and cancelled
+      // straight away, which is also what keeps it cust_001's newest and lets
+      // it take the next id without renumbering the rest.
+      //
+      // stock_decremented is false because cancelling restored the units
+      // already; leaving it true would hand them back a second time if this
+      // order were ever cancelled again.
+      order_id: "ORD-10105", customer_id: "cust_001",
+      items: [{ product_id: "prod_010", product_name: "Washi Paper Pendant", qty: 1, unit_price: 8800, line_total: 8800 }],
+      price_total: 8800,
+      placed_at: daysAgoIso(now, 0, 0, 2),
+      status: "processing",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, 5),
+      delivery_address: addr("cust_001"),
+      damage_claim_active: false, cancelled: true, tracking_number: null,
+      stock_decremented: false,
+    },
     "ORD-10201": {
       // Hosts RET-2204 (return_in_transit) — cust_002's one open return, kept
       // off ORD-10202 so that order stays a clean returnable one.
@@ -739,6 +761,25 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_003"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
+    },
+    "ORD-10304": {
+      // The only in_transit order in the seed — the "where is my order right
+      // now?" demo, and the one status between dispatched and delivered that
+      // had no order to land on. Carries a tracking number, since it is past
+      // dispatch; not returnable or reschedulable, because returns need
+      // confirmed delivery and there is no delivery slot left to move.
+      //
+      // Placed a day ago, which is newer than ORD-10303's day and a half and
+      // so keeps cust_003's ids in date order.
+      order_id: "ORD-10304", customer_id: "cust_003",
+      items: [{ product_id: "prod_007", product_name: "Jute Woven Floor Lamp", qty: 1, unit_price: 18500, line_total: 18500 }],
+      price_total: 18500,
+      placed_at: daysAgoIso(now, 1),
+      status: "in_transit",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, 2),
+      delivery_address: addr("cust_003"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10304TRACK",
     },
     "ORD-10401": {
       // Return/replacement window explicitly expired (delivered 35 days ago,

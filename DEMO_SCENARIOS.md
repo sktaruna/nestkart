@@ -53,9 +53,9 @@ replacement was **already requested** for that order.
 
 | ID | Name | Story |
 |---|---|---|
-| `cust_001` Priya Sharma | Active shopper | 4 orders spanning processing/delivered/cancelled, 3 returns in different stages |
-| `cust_002` Arjun Mehta | Returns & delivery changes | 4 orders (processing/dispatched/delivered ×2), a completed refund and an in-transit return |
-| `cust_003` Kavitha Nair | Damaged items | 2 delivered orders with active damage claims — one already replaced, one open for the live "request a replacement" demo |
+| `cust_001` Priya Sharma | Active shopper | 5 orders spanning delivered/processing/cancelled, one open return (RET-2202) |
+| `cust_002` Arjun Mehta | Returns & delivery changes | 4 orders (processing/dispatched/delivered ×2), one return in transit (RET-2204) |
+| `cust_003` Kavitha Nair | Damaged items | 4 orders — two delivered with active damage claims (one already replaced, one open for the live "request a replacement" demo), plus a dispatched and an in-transit order |
 | `cust_004` Rohit Verma | Edge cases | Processing orders (cancellable, one with live inventory restoration), a delivered order past the 30-day window, a delivered order with a damage claim past the window, and a delivered order with a completed historical replacement |
 | `cust_005` Anika Rossi | Empty history | Zero orders, expired payment method — "I can't find your order" |
 
@@ -67,6 +67,7 @@ replacement was **already requested** for that order.
 | ORD-10102 | cust_001 | delivered | No return filed — returnable |
 | ORD-10103 | cust_001 | delivered | Has RET-2202 (just requested) |
 | ORD-10104 | cust_001 | processing | **Cancellable + live inventory restoration** (prod_012 19→20, prod_015 7→8 on cancel) |
+| ORD-10105 | cust_001 | cancelled | **Only cancelled order** — `cancellable: false` (already cancelled), not returnable |
 | ORD-10201 | cust_002 | delivered | Has RET-2204 (return in transit) |
 | ORD-10202 | cust_002 | delivered | No return filed — returnable |
 | ORD-10203 | cust_002 | dispatched | **Not** cancellable/address-updatable; still reschedulable |
@@ -74,6 +75,7 @@ replacement was **already requested** for that order.
 | ORD-10301 | cust_003 | delivered | Damage claim active, **no replacement filed yet**, within window — `replaceable: true`, live demo order |
 | ORD-10302 | cust_003 | delivered | Damage claim active, REP-3001 already dispatched — `replaceable: false` (already requested) |
 | ORD-10303 | cust_003 | dispatched | Plain delivery-info lookup |
+| ORD-10304 | cust_003 | in_transit | **Only in_transit order** — "where is my order?"; not reschedulable, not returnable |
 | ORD-10401 | cust_004 | delivered | Window expired, no damage claim — `replaceable: false` / return also rejected |
 | ORD-10402 | cust_004 | delivered | Damage claim active **but window expired** — `replaceable: false` *and* `returnable: false` (window trumps the claim for both) |
 | ORD-10403 | cust_004 | delivered | Damage claim + REP-3002 **completed** — historical/closed replacement demo |
@@ -112,7 +114,7 @@ Every row below was executed against the running dev server this session
 | Capability | Positive scenario | Negative scenario | Verified |
 |---|---|---|---|
 | Order Lookup | `GET /api/orders/ORD-10104` → processing | `GET /api/orders/ORD-99999` → order_not_found | Yes |
-| Order History | `GET /api/customers/cust_001/orders` → 4 orders | `GET /api/customers/cust_005/orders` → 0 orders | Yes |
+| Order History | `GET /api/customers/cust_001/orders` → 5 orders | `GET /api/customers/cust_005/orders` → 0 orders | Yes |
 | Return Status Lookup | `GET /api/returns/RET-2202` → return_requested | `GET /api/returns/RET-9999` → return_not_found | Yes |
 | Customer Profile Lookup | `GET /api/customers/cust_001` → Priya Sharma | `GET /api/customers/cust_999` → customer_not_found | Yes |
 | Cancel Order | ORD-10104 (processing) → cancelled, stock 19→20 & 7→8 | ORD-10102 (delivered) → order_not_cancellable | Yes |
