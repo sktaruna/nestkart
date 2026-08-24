@@ -11,7 +11,14 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const customersOut = Object.entries(CUSTOMERS).map(([custId, cust]) => {
     const orders = Object.values(ORDERS)
       .filter((o) => o.customer_id === custId)
-      .sort((a, b) => new Date(b.placed_at).getTime() - new Date(a.placed_at).getTime());
+      // Newest first, then by id descending — the same tie-break the customer
+      // endpoint uses. Without it, orders sharing a timestamp came back in
+      // Object.values order, so the admin panel and /customers/{id}/orders
+      // listed the same two orders in opposite orders.
+      .sort((a, b) => {
+        const byDate = new Date(b.placed_at).getTime() - new Date(a.placed_at).getTime();
+        return byDate !== 0 ? byDate : b.order_id.localeCompare(a.order_id);
+      });
     return {
       customer_id: custId,
       name: cust.name,
