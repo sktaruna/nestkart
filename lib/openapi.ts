@@ -516,6 +516,11 @@ export const OPENAPI_SPEC = {
     { name: "Orders", description: "Order lookup and customer-initiated changes." },
     { name: "Returns", description: "Return and refund status." },
     {
+      name: "Replacements",
+      description:
+        "Replacement status. Filing one is an Orders operation (POST /api/orders/{order_id}/replacement); these are the reads that answer \"where is my replacement?\", mirroring Returns.",
+    },
+    {
       name: "Admin",
       description: "Demo scenario staging. Do NOT expose these to a support agent.",
     },
