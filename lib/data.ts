@@ -479,26 +479,17 @@ export const PRODUCT_REVIEWS: Record<string, Review[]> = {
  * The seeded returns, dated relative to `now` like the orders they belong to.
  *
  * These carried fixed 2025 dates while buildSeedOrders() computed everything
- * from `now`, so the gap widened by a day every day: RET-2201 ended up reading
+ * from `now`, so the gap widened by a day every day: a return ended up reading
  * as initiated more than a year *before* the order it was filed against was
  * placed. Both returns hang off orders delivered two days ago, so both are
  * initiated on or after that.
+ *
+ * One return per customer, and both are open — cust_001 has RET-2202 on
+ * ORD-10102, cust_002 has RET-2204 on ORD-10204. So `returnable` is false on
+ * exactly those two orders and true on every other delivered, in-window one.
  */
 export function seedReturns(now: Date): Record<string, ReturnRecord> {
   return {
-    "RET-2201": {
-      return_id: "RET-2201", order_id: "ORD-10101", customer_id: "cust_001",
-      item_name: "Linen Cloud Sofa",
-      reason: "item not as described", status: "return_received",
-      // Raised on the delivery day, back with us the next day.
-      return_initiated: addDaysDateOnly(now, -2),
-      return_received_date: addDaysDateOnly(now, -1),
-      refund_status: "processing", refund_amount: "₹89,999",
-      refund_includes_shipping: true,
-      refund_estimated_date: addDaysDateOnly(now, 5),
-      refund_issued_date: null, refund_method: "original_payment_method",
-      return_shipping: "free",
-    },
     "RET-2202": {
       return_id: "RET-2202", order_id: "ORD-10102", customer_id: "cust_001",
       item_name: "Ceramic Vessel Set",
@@ -511,19 +502,6 @@ export function seedReturns(now: Date): Record<string, ReturnRecord> {
       refund_issued_date: null, refund_method: "original_payment_method",
       return_shipping: "₹200 estimated",
     },
-    "RET-2203": {
-      return_id: "RET-2203", order_id: "ORD-10201", customer_id: "cust_002",
-      item_name: "Teak Slab Dining Table",
-      reason: "defective", status: "completed",
-      // A finished cycle: filed a week ago, received days later, refund issued.
-      return_initiated: addDaysDateOnly(now, -9),
-      return_received_date: addDaysDateOnly(now, -6),
-      refund_status: "issued", refund_amount: "₹1,24,000",
-      refund_includes_shipping: true,
-      refund_estimated_date: addDaysDateOnly(now, -3),
-      refund_issued_date: addDaysDateOnly(now, -3), refund_method: "original_payment_method",
-      return_shipping: "free",
-    },
     "RET-2204": {
       return_id: "RET-2204", order_id: "ORD-10204", customer_id: "cust_002",
       item_name: "Rattan Lounge Chair",
@@ -535,21 +513,6 @@ export function seedReturns(now: Date): Record<string, ReturnRecord> {
       refund_estimated_date: addDaysDateOnly(now, 6),
       refund_issued_date: null, refund_method: "original_payment_method",
       return_shipping: "free",
-    },
-    "RET-2205": {
-      return_id: "RET-2205", order_id: "ORD-10105", customer_id: "cust_001",
-      item_name: "Brass Table Lamp",
-      reason: "change of mind", status: "rejected",
-      // Rejected on inspection — arrived back assembled/used, outside the
-      // "unused/opened only" policy, so no refund follows.
-      return_initiated: addDaysDateOnly(now, -8),
-      return_received_date: addDaysDateOnly(now, -5),
-      refund_status: "rejected", refund_amount: null,
-      refund_includes_shipping: false,
-      refund_estimated_date: null,
-      refund_issued_date: null, refund_method: "original_payment_method",
-      return_shipping: "₹200 estimated",
-      condition: "assembled", has_original_packaging: false,
     },
   };
 }
@@ -662,9 +625,8 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
     },
     "ORD-10105": {
-      // Delivered further back than the other cust_001 seeds, purely to host
-      // RET-2205 (rejected return) without colliding with RET-2201/2202's
-      // one-open-return-per-order rule.
+      // Delivered further back than the other cust_001 seeds. Carries no
+      // return of its own, so it is a plain in-window delivered order.
       order_id: "ORD-10105", customer_id: "cust_001",
       items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
       price_total: 12800,
@@ -727,8 +689,8 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
     "ORD-10204": {
-      // Hosts RET-2204 (return_in_transit) — a second, independent delivered
-      // order for cust_002 so it doesn't collide with RET-2203 on ORD-10201.
+      // Hosts RET-2204 (return_in_transit) — cust_002's one open return, kept
+      // off ORD-10201 so that order stays a clean returnable one.
       order_id: "ORD-10204", customer_id: "cust_002",
       items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
       price_total: 21500,

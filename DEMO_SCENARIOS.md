@@ -63,11 +63,11 @@ replacement was **already requested** for that order.
 
 | Order | Customer | Status | Purpose |
 |---|---|---|---|
-| ORD-10101 | cust_001 | delivered | Has RET-2201 (refund processing) |
+| ORD-10101 | cust_001 | delivered | No return filed — returnable |
 | ORD-10102 | cust_001 | delivered | Has RET-2202 (just requested) |
 | ORD-10103 | cust_001 | processing | **Cancellable + live inventory restoration** (prod_012 19→20, prod_015 7→8 on cancel) |
-| ORD-10105 | cust_001 | delivered | Has RET-2205 (rejected return) |
-| ORD-10201 | cust_002 | delivered | Has RET-2203 (completed, refund issued) |
+| ORD-10105 | cust_001 | delivered | No return filed — returnable |
+| ORD-10201 | cust_002 | delivered | No return filed — returnable |
 | ORD-10202 | cust_002 | dispatched | **Not** cancellable/address-updatable; still reschedulable |
 | ORD-10203 | cust_002 | processing | Cancellable, address-updatable, reschedulable |
 | ORD-10204 | cust_002 | delivered | Has RET-2204 (return in transit) |
@@ -84,11 +84,8 @@ replacement was **already requested** for that order.
 
 | ID | Order | Status | Refund/Replacement status |
 |---|---|---|---|
-| RET-2201 | ORD-10101 | return_received | refund processing |
 | RET-2202 | ORD-10102 | return_requested | refund pending |
-| RET-2203 | ORD-10201 | completed | refund issued |
 | RET-2204 | ORD-10204 | return_in_transit | refund pending |
-| RET-2205 | ORD-10105 | rejected | refund rejected |
 | REP-3001 | ORD-10301 | replacement_dispatched | tracking active |
 | REP-3002 | ORD-10404 | completed | delivered |
 
@@ -116,7 +113,7 @@ Every row below was executed against the running dev server this session
 |---|---|---|---|
 | Order Lookup | `GET /api/orders/ORD-10103` → processing | `GET /api/orders/ORD-99999` → order_not_found | Yes |
 | Order History | `GET /api/customers/cust_001/orders` → 4 orders | `GET /api/customers/cust_005/orders` → 0 orders | Yes |
-| Return Status Lookup | `GET /api/returns/RET-2201` → return_received | `GET /api/returns/RET-9999` → return_not_found | Yes |
+| Return Status Lookup | `GET /api/returns/RET-2202` → return_requested | `GET /api/returns/RET-9999` → return_not_found | Yes |
 | Customer Profile Lookup | `GET /api/customers/cust_001` → Priya Sharma | `GET /api/customers/cust_999` → customer_not_found | Yes |
 | Cancel Order | ORD-10103 (processing) → cancelled, stock 19→20 & 7→8 | ORD-10101 (delivered) → order_not_cancellable | Yes |
 | Update Delivery Address | ORD-10402 (processing) → address updated | ORD-10401 (delivered) → address_update_not_allowed | Yes |
@@ -190,8 +187,8 @@ Negative / edge (agent must refuse per real business rules, not guess):
 5. **Reschedule delivery** — cust_002, "Can you deliver it a bit later?"
    (ORD-10203). Agent should offer only real weekday slots. *Admin:* Delivery
    date column updates.
-6. **Return / refund lookup** — cust_001, "Where's my refund?" → RET-2201,
-   return_received / refund processing.
+6. **Return / refund lookup** — cust_001, "Where's my refund?" → RET-2202,
+   return_requested / refund pending.
 7. **Initiate return** — cust_004, "I want to return this" (ORD-10401,
    delivered, no damage). *Admin:* Returns tab shows the new return_requested
    row.

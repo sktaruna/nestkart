@@ -158,8 +158,8 @@ const ORDER_SCHEMA = {
     return_id: {
       type: "string",
       description:
-        "Every return filed against this order, newest first, comma-separated in one string — `\"\"` if none, and more than one when a rejected return was re-filed (`\"RET-2210, RET-2201\"`). Includes closed ones. There is no GET on /orders/{order_id}/returns, so this is how you get from an order to its returns; split on `\", \"` and pass an id to GET /api/returns/{return_id} for the detail.",
-      example: "RET-2201",
+        "Every return filed against this order, newest first, comma-separated in one string — `\"\"` if none, and more than one when a rejected return was re-filed (`\"RET-2210, RET-2202\"`). Includes closed ones. There is no GET on /orders/{order_id}/returns, so this is how you get from an order to its returns; split on `\", \"` and pass an id to GET /api/returns/{return_id} for the detail.",
+      example: "RET-2202",
     },
     cancellable: {
       type: "boolean",
@@ -276,7 +276,7 @@ const RETURN_SCHEMA = {
   type: "object",
   properties: {
     ok: OK_TRUE,
-    return_id: { type: "string", example: "RET-2201" },
+    return_id: { type: "string", example: "RET-2202" },
     order_id: { type: "string", example: "ORD-10101" },
     customer_id: {
       type: "string",
@@ -412,7 +412,7 @@ const RETURN_ID_PARAM = {
   in: "path",
   required: true,
   schema: { type: "string" },
-  example: "RET-2201",
+  example: "RET-2202",
 };
 
 /** 200 response with an inline schema. */
@@ -733,7 +733,7 @@ export const OPENAPI_SPEC = {
                 items: { type: "string" },
                 description:
                   "Every return filed across all of these orders, in the same order the orders are listed — `[]` if there are none. Each order's own returns are on it as `return_id`. Pass an id to GET /api/returns/{return_id} for the detail.",
-                example: ["RET-2201", "RET-2202"],
+                example: ["RET-2210", "RET-2202"],
               },
               orders: { type: "array", items: ORDER_SCHEMA },
             },

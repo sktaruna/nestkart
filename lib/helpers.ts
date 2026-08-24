@@ -1,6 +1,6 @@
 import type { NextApiResponse } from "next";
 import { Order } from "./data";
-import { ORDERS, PRODUCTS, SEED_ORDER_IDS, openReturnsForOrder, allReturns } from "./state";
+import { ORDERS, PRODUCTS, SEED_ORDER_IDS, openReturnsForOrder, completedReturnsForOrder, allReturns } from "./state";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERIC RESPONSE HELPERS
@@ -229,7 +229,13 @@ export function orderActions(order: Order): Record<string, boolean> {
   const reschedulable =
     (status === "processing" || status === "dispatched") && !alreadyPromised;
 
-  const returnable = returnEligibilityCheck(order.order_id).eligible && !alreadyPromised;
+  // returns.ts also refuses an order that has already been returned and
+  // refunded. That is not "promised" — it is spent — so it blocks returning
+  // only, and never clears the way an open return does.
+  const alreadyReturned = completedReturnsForOrder(order.order_id).length > 0;
+
+  const returnable =
+    returnEligibilityCheck(order.order_id).eligible && !alreadyPromised && !alreadyReturned;
 
   // replacement.ts: delivered, within window, AND an active damage claim —
   // deliberately narrower than returnable. A return covers "change of mind"

@@ -6,6 +6,7 @@ import {
   PRODUCTS,
   returnCounter,
   openReturnsForOrder,
+  completedReturnsForOrder,
 } from "../../../../lib/state";
 import {
   err,
@@ -70,8 +71,9 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   // One open return per order. A return covers every item in the order and is
   // refunded at the full order total, so a second one promises the customer the
   // order's value twice — and an agent that files again after a slow first
-  // response is the likeliest way to get there. Closed returns (completed,
-  // rejected) do not block: a rejected return should be re-fileable.
+  // response is the likeliest way to get there. A rejected return does not
+  // block, since the item went back to the customer and re-filing is valid; a
+  // completed one blocks permanently, just below.
   const openReturns = openReturnsForOrder(orderId);
   if (openReturns.length > 0) {
     const existing = openReturns[0];
@@ -86,6 +88,25 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
       existing_return_id: existing.return_id,
       existing_return_status: existing.status,
       existing_refund_status: existing.refund_status,
+    });
+    return;
+  }
+
+  // Already returned and refunded in full. Unlike an open return this never
+  // clears, so it is a permanent no rather than a "not yet".
+  const completedReturns = completedReturnsForOrder(orderId);
+  if (completedReturns.length > 0) {
+    const settled = completedReturns[0];
+    res.status(400).json({
+      ok: false,
+      error: "return_already_completed",
+      message:
+        `Order ${orderId} has already been returned and refunded (${settled.return_id}). ` +
+        "The item is back with us and the refund was issued, so no further return can be " +
+        "filed against this order.",
+      existing_return_id: settled.return_id,
+      existing_return_status: settled.status,
+      existing_refund_status: settled.refund_status,
     });
     return;
   }
@@ -137,8 +158,8 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
 
   const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
   const refundEtaIso = dateOnly(refundEta);
-  // The order total, formatted like the seeded returns (RET-2201 carries the
-  // ₹89,999 of ORD-10101). Left null before, so every agent-filed return had no
+  // The order total, formatted like the seeded returns (RET-2204 carries the
+  // ₹21,500 of ORD-10204). Left null before, so every agent-filed return had no
   // answer to "how much do I get back?" while the amount was sitting on the
   // order. Shipping is not added on top: the seeds don't, and orders don't store
   // what shipping was charged, so any figure here would be invented.

@@ -70,6 +70,26 @@ export function openReturnsForOrder(orderId: string): ReturnRecord[] {
   );
 }
 
+/**
+ * Completed returns against `orderId`, newest first.
+ *
+ * Both closed statuses stop blocking as "in flight", but they close for
+ * opposite reasons and only one of them should stay re-fileable. `rejected`
+ * means we refused the return and the item went back to the customer, so they
+ * still hold it and may legitimately file again. `completed` means the item
+ * came back and the refund was issued — the customer has neither the item nor
+ * a claim, so a second return would refund the order total twice, which is the
+ * same double-payout openReturnsForOrder exists to prevent.
+ *
+ * Kept separate from openReturnsForOrder so cancel/reschedule/replacement keep
+ * their "in flight" meaning; this blocks new returns only.
+ */
+export function completedReturnsForOrder(orderId: string): ReturnRecord[] {
+  return allReturns().filter(
+    (ret) => ret.order_id === orderId && ret.status === "completed"
+  );
+}
+
 /** Every return, newest-initiated first, with seed overrides already applied. */
 export function allReturns(): ReturnRecord[] {
   const merged: Record<string, ReturnRecord> = { ...RETURNS, ...DYNAMIC_RETURNS };
@@ -229,7 +249,7 @@ export function adminReset(): void {
   seedOrders();
   // seedOrders() re-dates the orders to today, so the returns/replacements have
   // to move with them — otherwise a reset on a long-running process leaves
-  // RET-2201/REP-3001 dated before the delivery that prompted them.
+  // RET-2202/REP-3001 dated before the delivery that prompted them.
   refreshSeedReturnDates();
   refreshSeedReplacementDates();
 }
