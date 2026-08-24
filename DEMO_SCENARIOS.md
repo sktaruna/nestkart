@@ -75,7 +75,7 @@ replacement was **already requested** for that order.
 | ORD-10302 | cust_003 | delivered | Damage claim active, REP-3001 already dispatched — `replaceable: false` (already requested) |
 | ORD-10303 | cust_003 | dispatched | Plain delivery-info lookup |
 | ORD-10401 | cust_004 | delivered | Window expired, no damage claim — `replaceable: false` / return also rejected |
-| ORD-10402 | cust_004 | delivered | Damage claim active **but window expired** — `replaceable: false` (window trumps the claim) |
+| ORD-10402 | cust_004 | delivered | Damage claim active **but window expired** — `replaceable: false` *and* `returnable: false` (window trumps the claim for both) |
 | ORD-10403 | cust_004 | delivered | Damage claim + REP-3002 **completed** — historical/closed replacement demo |
 | ORD-10404 | cust_004 | delivered | Clean, no damage claim, within window — `replaceable: false` (no damage claim) |
 | ORD-10405 | cust_004 | processing | Cancellable, address-updatable |

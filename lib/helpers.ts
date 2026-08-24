@@ -292,18 +292,13 @@ export function returnEligibilityCheck(orderId: string): EligibilityResult {
     };
   }
 
-  if (order.damage_claim_active) {
-    return {
-      eligible: true,
-      reason: "Item was reported damaged on arrival. Active damage claim under review.",
-      return_window_days: 30,
-      return_window_expires_on: null,
-      days_remaining: null,
-      return_shipping_cost: "free",
-    };
-  }
-
-  // Delivered — check 30-day window from estimated_delivery
+  // Delivered — check 30-day window from estimated_delivery. The window gates
+  // a damage claim too: the claim earns free return shipping and its own
+  // wording, but it does not extend the deadline. It used to be checked first
+  // and short-circuit with eligible:true, so a claim kept an order returnable
+  // forever — while replacementEligibilityCheck applied the window after the
+  // claim and refused. The same order came back replaceable:false but
+  // returnable:true, which is the disagreement this removes.
   const estDelivery = order.estimated_delivery;
   if (estDelivery) {
     const deliveryDate = new Date(estDelivery + "T00:00:00");
@@ -321,6 +316,19 @@ export function returnEligibilityCheck(orderId: string): EligibilityResult {
         return_shipping_cost: "₹200–₹500 estimated",
       };
     }
+    if (order.damage_claim_active) {
+      return {
+        eligible: true,
+        reason:
+          "Item was reported damaged on arrival. Active damage claim under review " +
+          `(${daysRemaining} days remaining in the 30-day window).`,
+        return_window_days: windowDays,
+        return_window_expires_on: dateOnly(expiryDate),
+        days_remaining: daysRemaining,
+        return_shipping_cost: "free",
+      };
+    }
+
     return {
       eligible: true,
       reason: `Item is within the 30-day return window (${daysRemaining} days remaining).`,
