@@ -159,7 +159,7 @@ export default withState(async (req: NextApiRequest, res: NextApiResponse) => {
   const itemNames = (order.items || []).map((i) => i.product_name).join(", ");
   const refundEtaIso = dateOnly(refundEta);
   // The order total, formatted like the seeded returns (RET-2204 carries the
-  // ₹21,500 of ORD-10204). Left null before, so every agent-filed return had no
+  // ₹21,500 of ORD-10201). Left null before, so every agent-filed return had no
   // answer to "how much do I get back?" while the amount was sitting on the
   // order. Shipping is not added on top: the seeds don't, and orders don't store
   // what shipping was charged, so any figure here would be invented.

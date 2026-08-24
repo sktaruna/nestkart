@@ -362,7 +362,7 @@ export function seedProducts(): Record<string, Product> {
       description: "Handwoven by artisans in Rajasthan — dense wool pile in warm, earthy tones that anchor any room.",
     },
     prod_012: {
-      // 19, not 20 — one unit is reserved by ORD-10103 (stock_decremented),
+      // 19, not 20 — one unit is reserved by ORD-10104 (stock_decremented),
       // so cancelling that order is the live "inventory restores to 20" demo.
       product_id: "prod_012", name: "Terracotta Planter Trio", category: "decor", price: 3600,
       original_price: null, stock: 19, shipping_type: "standard",
@@ -385,7 +385,7 @@ export function seedProducts(): Record<string, Product> {
       description: "A slender brass table lamp with a linen drum shade — warm, timeless, and endlessly versatile.",
     },
     prod_015: {
-      // 7, not 8 — same reservation as prod_012 above, from ORD-10103.
+      // 7, not 8 — same reservation as prod_012 above, from ORD-10104.
       product_id: "prod_015", name: "Mango Wood Side Table", category: "living", price: 9800,
       original_price: null, stock: 7, shipping_type: "standard",
       image_url: "https://images.pexels.com/photos/11112739/pexels-photo-11112739.jpeg?auto=compress&cs=tinysrgb&w=700",
@@ -485,13 +485,13 @@ export const PRODUCT_REVIEWS: Record<string, Review[]> = {
  * initiated on or after that.
  *
  * One return per customer, and both are open — cust_001 has RET-2202 on
- * ORD-10102, cust_002 has RET-2204 on ORD-10204. So `returnable` is false on
+ * ORD-10103, cust_002 has RET-2204 on ORD-10201. So `returnable` is false on
  * exactly those two orders and true on every other delivered, in-window one.
  */
 export function seedReturns(now: Date): Record<string, ReturnRecord> {
   return {
     "RET-2202": {
-      return_id: "RET-2202", order_id: "ORD-10102", customer_id: "cust_001",
+      return_id: "RET-2202", order_id: "ORD-10103", customer_id: "cust_001",
       item_name: "Ceramic Vessel Set",
       reason: "change of mind", status: "return_requested",
       // Still only requested, so no received date and no refund date to quote.
@@ -503,7 +503,7 @@ export function seedReturns(now: Date): Record<string, ReturnRecord> {
       return_shipping: "₹200 estimated",
     },
     "RET-2204": {
-      return_id: "RET-2204", order_id: "ORD-10204", customer_id: "cust_002",
+      return_id: "RET-2204", order_id: "ORD-10201", customer_id: "cust_002",
       item_name: "Rattan Lounge Chair",
       reason: "wrong item received", status: "return_in_transit",
       return_initiated: addDaysDateOnly(now, -1),
@@ -525,7 +525,7 @@ export function seedReturns(now: Date): Record<string, ReturnRecord> {
 export function seedReplacements(now: Date): Record<string, ReplacementRecord> {
   return {
     "REP-3001": {
-      replacement_id: "REP-3001", order_id: "ORD-10301", customer_id: "cust_003",
+      replacement_id: "REP-3001", order_id: "ORD-10302", customer_id: "cust_003",
       item_name: "Walnut Platform Bed",
       reason: "damaged on arrival",
       status: "replacement_dispatched",
@@ -536,7 +536,7 @@ export function seedReplacements(now: Date): Record<string, ReplacementRecord> {
       tracking_number: "NKREP3001TRACK",
     },
     "REP-3002": {
-      replacement_id: "REP-3002", order_id: "ORD-10404", customer_id: "cust_004",
+      replacement_id: "REP-3002", order_id: "ORD-10403", customer_id: "cust_004",
       item_name: "Sheesham Wood Bookshelf",
       reason: "damaged on arrival",
       status: "completed",
@@ -595,7 +595,20 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
 
   const seeded: Record<string, Order> = {
     "ORD-10101": {
+      // Delivered further back than the other cust_001 seeds. Carries no
+      // return of its own, so it is a plain in-window delivered order.
       order_id: "ORD-10101", customer_id: "cust_001",
+      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
+      price_total: 12800,
+      placed_at: daysAgoIso(now, 12),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -7),
+      delivery_address: addr("cust_001"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10101TRACK",
+    },
+    "ORD-10102": {
+      order_id: "ORD-10102", customer_id: "cust_001",
       items: [{ product_id: "prod_001", product_name: "Linen Cloud Sofa", qty: 1, unit_price: 89999, line_total: 89999 }],
       price_total: 89999,
       placed_at: daysAgoIso(now, 5),
@@ -603,14 +616,14 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_001"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10101TRACK",
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
     },
-    "ORD-10102": {
-      order_id: "ORD-10102", customer_id: "cust_001",
+    "ORD-10103": {
+      order_id: "ORD-10103", customer_id: "cust_001",
       items: [{ product_id: "prod_008", product_name: "Ceramic Vessel Set", qty: 2, unit_price: 4200, line_total: 8400 }],
       price_total: 8400,
       // Four days rather than five, so this does not land on the same instant as
-      // ORD-10101 — identical timestamps left the newest-first sort with nothing
+      // ORD-10102 — identical timestamps left the newest-first sort with nothing
       // to order them by, and the customer's list came back 10103, 10101, 10102.
       //
       // Delivered, because RET-2202 hangs off this order and a return is only
@@ -622,23 +635,10 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "standard",
       estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_001"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10102TRACK",
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10103TRACK",
     },
-    "ORD-10105": {
-      // Delivered further back than the other cust_001 seeds. Carries no
-      // return of its own, so it is a plain in-window delivered order.
-      order_id: "ORD-10105", customer_id: "cust_001",
-      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
-      price_total: 12800,
-      placed_at: daysAgoIso(now, 12),
-      status: "delivered",
-      shipping_method: "standard",
-      estimated_delivery: addDaysDateOnly(now, -7),
-      delivery_address: addr("cust_001"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10105TRACK",
-    },
-    "ORD-10103": {
-      order_id: "ORD-10103", customer_id: "cust_001",
+    "ORD-10104": {
+      order_id: "ORD-10104", customer_id: "cust_001",
       items: [
         { product_id: "prod_012", product_name: "Terracotta Planter Trio", qty: 1, unit_price: 3600, line_total: 3600 },
         { product_id: "prod_015", product_name: "Mango Wood Side Table", qty: 1, unit_price: 9800, line_total: 9800 },
@@ -656,7 +656,20 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       stock_decremented: true,
     },
     "ORD-10201": {
+      // Hosts RET-2204 (return_in_transit) — cust_002's one open return, kept
+      // off ORD-10202 so that order stays a clean returnable one.
       order_id: "ORD-10201", customer_id: "cust_002",
+      items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
+      price_total: 21500,
+      placed_at: daysAgoIso(now, 6),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: addDaysDateOnly(now, -1),
+      delivery_address: addr("cust_002"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10201TRACK",
+    },
+    "ORD-10202": {
+      order_id: "ORD-10202", customer_id: "cust_002",
       items: [{ product_id: "prod_003", product_name: "Teak Slab Dining Table", qty: 1, unit_price: 124000, line_total: 124000 }],
       price_total: 124000,
       placed_at: daysAgoIso(now, 5),
@@ -664,10 +677,10 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_002"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10201TRACK",
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10202TRACK",
     },
-    "ORD-10202": {
-      order_id: "ORD-10202", customer_id: "cust_002",
+    "ORD-10203": {
+      order_id: "ORD-10203", customer_id: "cust_002",
       items: [{ product_id: "prod_009", product_name: "Linen Dining Chair Set of 2", qty: 1, unit_price: 22000, line_total: 22000 }],
       price_total: 22000,
       placed_at: daysAgoIso(now, 1, 12),
@@ -677,8 +690,8 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_002"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
-    "ORD-10203": {
-      order_id: "ORD-10203", customer_id: "cust_002",
+    "ORD-10204": {
+      order_id: "ORD-10204", customer_id: "cust_002",
       items: [{ product_id: "prod_011", product_name: "Handwoven Wool Rug 6×9 ft", qty: 1, unit_price: 26500, line_total: 26500 }],
       price_total: 26500,
       placed_at: daysAgoIso(now, 0, 0, 5),
@@ -688,38 +701,11 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       delivery_address: addr("cust_002"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
-    "ORD-10204": {
-      // Hosts RET-2204 (return_in_transit) — cust_002's one open return, kept
-      // off ORD-10201 so that order stays a clean returnable one.
-      order_id: "ORD-10204", customer_id: "cust_002",
-      items: [{ product_id: "prod_005", product_name: "Rattan Lounge Chair", qty: 1, unit_price: 21500, line_total: 21500 }],
-      price_total: 21500,
-      placed_at: daysAgoIso(now, 6),
-      status: "delivered",
-      shipping_method: "large_item",
-      estimated_delivery: addDaysDateOnly(now, -1),
-      delivery_address: addr("cust_002"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10204TRACK",
-    },
     "ORD-10301": {
-      // Damage reported on arrival (no return filed — see REP-3001): this is
-      // the "damaged item, replacement in progress" demo order.
-      order_id: "ORD-10301", customer_id: "cust_003",
-      items: [{ product_id: "prod_006", product_name: "Walnut Platform Bed", qty: 1, unit_price: 68000, line_total: 68000 }],
-      price_total: 68000,
-      placed_at: daysAgoIso(now, 5),
-      status: "delivered",
-      shipping_method: "large_item",
-      estimated_delivery: deliveredDaysAgo(),
-      delivery_address: addr("cust_003"),
-      damage_claim_active: true, cancelled: false, tracking_number: "NK10301TRACK",
-      replacement_requested: true,
-    },
-    "ORD-10303": {
       // Damage reported, no replacement filed yet — the LIVE "request a
-      // replacement" demo order (ORD-10301 already has one dispatched, so a
+      // replacement" demo order (ORD-10302 already has one dispatched, so a
       // live request there would fail with replacement_already_requested).
-      order_id: "ORD-10303", customer_id: "cust_003",
+      order_id: "ORD-10301", customer_id: "cust_003",
       items: [{ product_id: "prod_009", product_name: "Linen Dining Chair Set of 2", qty: 1, unit_price: 22000, line_total: 22000 }],
       price_total: 22000,
       placed_at: daysAgoIso(now, 6),
@@ -727,10 +713,24 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: addDaysDateOnly(now, -4),
       delivery_address: addr("cust_003"),
-      damage_claim_active: true, cancelled: false, tracking_number: "NK10303TRACK",
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10301TRACK",
     },
     "ORD-10302": {
+      // Damage reported on arrival (no return filed — see REP-3001): this is
+      // the "damaged item, replacement in progress" demo order.
       order_id: "ORD-10302", customer_id: "cust_003",
+      items: [{ product_id: "prod_006", product_name: "Walnut Platform Bed", qty: 1, unit_price: 68000, line_total: 68000 }],
+      price_total: 68000,
+      placed_at: daysAgoIso(now, 5),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: deliveredDaysAgo(),
+      delivery_address: addr("cust_003"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10302TRACK",
+      replacement_requested: true,
+    },
+    "ORD-10303": {
+      order_id: "ORD-10303", customer_id: "cust_003",
       items: [{ product_id: "prod_004", product_name: "Cloud Linen Bed Set", qty: 2, unit_price: 14500, line_total: 29000 }],
       price_total: 29000,
       placed_at: daysAgoIso(now, 1, 12),
@@ -741,7 +741,51 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       damage_claim_active: false, cancelled: false, tracking_number: null,
     },
     "ORD-10401": {
+      // Return/replacement window explicitly expired (delivered 35 days ago,
+      // no damage claim) — the negative demo for "can you return/replace
+      // this?" once the 30-day window has lapsed. date_pinned so admin/reset
+      // doesn't re-anchor it back inside the window.
       order_id: "ORD-10401", customer_id: "cust_004",
+      items: [{ product_id: "prod_015", product_name: "Mango Wood Side Table", qty: 1, unit_price: 9800, line_total: 9800 }],
+      price_total: 9800,
+      placed_at: daysAgoIso(now, 40),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -35),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10401TRACK",
+      date_pinned: true,
+    },
+    "ORD-10402": {
+      // Damage claim active AND window expired — the negative demo showing a
+      // damage claim alone doesn't keep an order replaceable forever.
+      order_id: "ORD-10402", customer_id: "cust_004",
+      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
+      price_total: 12800,
+      placed_at: daysAgoIso(now, 40),
+      status: "delivered",
+      shipping_method: "standard",
+      estimated_delivery: addDaysDateOnly(now, -35),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10402TRACK",
+      date_pinned: true,
+    },
+    "ORD-10403": {
+      // Damage claim already resolved via replacement (REP-3002) — the
+      // historical/closed damage-claim demo.
+      order_id: "ORD-10403", customer_id: "cust_004",
+      items: [{ product_id: "prod_013", product_name: "Sheesham Wood Bookshelf", qty: 1, unit_price: 34500, line_total: 34500 }],
+      price_total: 34500,
+      placed_at: daysAgoIso(now, 15),
+      status: "delivered",
+      shipping_method: "large_item",
+      estimated_delivery: addDaysDateOnly(now, -10),
+      delivery_address: addr("cust_004"),
+      damage_claim_active: true, cancelled: false, tracking_number: "NK10403TRACK",
+      replacement_requested: true,
+    },
+    "ORD-10404": {
+      order_id: "ORD-10404", customer_id: "cust_004",
       items: [{ product_id: "prod_002", product_name: "Velvet Accent Chair", qty: 1, unit_price: 32500, line_total: 32500 }],
       price_total: 32500,
       placed_at: daysAgoIso(now, 5),
@@ -749,10 +793,10 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       shipping_method: "large_item",
       estimated_delivery: deliveredDaysAgo(),
       delivery_address: addr("cust_004"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10401TRACK",
+      damage_claim_active: false, cancelled: false, tracking_number: "NK10404TRACK",
     },
-    "ORD-10402": {
-      order_id: "ORD-10402", customer_id: "cust_004",
+    "ORD-10405": {
+      order_id: "ORD-10405", customer_id: "cust_004",
       items: [
         { product_id: "prod_007", product_name: "Jute Woven Floor Lamp", qty: 1, unit_price: 18500, line_total: 18500 },
         { product_id: "prod_010", product_name: "Washi Paper Pendant", qty: 1, unit_price: 8800, line_total: 8800 },
@@ -764,50 +808,6 @@ export function buildSeedOrders(now: Date): Record<string, Order> {
       estimated_delivery: addDaysDateOnly(now, 5),
       delivery_address: addr("cust_004"),
       damage_claim_active: false, cancelled: false, tracking_number: null,
-    },
-    "ORD-10403": {
-      // Return/replacement window explicitly expired (delivered 35 days ago,
-      // no damage claim) — the negative demo for "can you return/replace
-      // this?" once the 30-day window has lapsed. date_pinned so admin/reset
-      // doesn't re-anchor it back inside the window.
-      order_id: "ORD-10403", customer_id: "cust_004",
-      items: [{ product_id: "prod_015", product_name: "Mango Wood Side Table", qty: 1, unit_price: 9800, line_total: 9800 }],
-      price_total: 9800,
-      placed_at: daysAgoIso(now, 40),
-      status: "delivered",
-      shipping_method: "standard",
-      estimated_delivery: addDaysDateOnly(now, -35),
-      delivery_address: addr("cust_004"),
-      damage_claim_active: false, cancelled: false, tracking_number: "NK10403TRACK",
-      date_pinned: true,
-    },
-    "ORD-10405": {
-      // Damage claim active AND window expired — the negative demo showing a
-      // damage claim alone doesn't keep an order replaceable forever.
-      order_id: "ORD-10405", customer_id: "cust_004",
-      items: [{ product_id: "prod_014", product_name: "Brass Table Lamp", qty: 1, unit_price: 12800, line_total: 12800 }],
-      price_total: 12800,
-      placed_at: daysAgoIso(now, 40),
-      status: "delivered",
-      shipping_method: "standard",
-      estimated_delivery: addDaysDateOnly(now, -35),
-      delivery_address: addr("cust_004"),
-      damage_claim_active: true, cancelled: false, tracking_number: "NK10405TRACK",
-      date_pinned: true,
-    },
-    "ORD-10404": {
-      // Damage claim already resolved via replacement (REP-3002) — the
-      // historical/closed damage-claim demo.
-      order_id: "ORD-10404", customer_id: "cust_004",
-      items: [{ product_id: "prod_013", product_name: "Sheesham Wood Bookshelf", qty: 1, unit_price: 34500, line_total: 34500 }],
-      price_total: 34500,
-      placed_at: daysAgoIso(now, 15),
-      status: "delivered",
-      shipping_method: "large_item",
-      estimated_delivery: addDaysDateOnly(now, -10),
-      delivery_address: addr("cust_004"),
-      damage_claim_active: true, cancelled: false, tracking_number: "NK10404TRACK",
-      replacement_requested: true,
     },
     // cust_005 (Anika Rossi) has no orders — deliberately. Their customer record
     // and expired payment method remain, so the panel still has a customer whose

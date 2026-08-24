@@ -123,7 +123,7 @@ const ORDER_ITEM_SCHEMA = {
 const ORDER_SCHEMA = {
   type: "object",
   properties: {
-    order_id: { type: "string", example: "ORD-10101" },
+    order_id: { type: "string", example: "ORD-10102" },
     items: { type: "array", items: ORDER_ITEM_SCHEMA },
     item_summary: {
       type: "string",
@@ -152,9 +152,9 @@ const ORDER_SCHEMA = {
     tracking_number: {
       type: "string", nullable: true,
       description: "Null until the order is dispatched.",
-      example: "NK10101TRACK",
+      example: "NK10102TRACK",
     },
-    tracking_url: { type: "string", nullable: true, example: "https://track.nestkart.com/NK10101TRACK" },
+    tracking_url: { type: "string", nullable: true, example: "https://track.nestkart.com/NK10102TRACK" },
     return_id: {
       type: "string",
       description:
@@ -277,7 +277,7 @@ const RETURN_SCHEMA = {
   properties: {
     ok: OK_TRUE,
     return_id: { type: "string", example: "RET-2202" },
-    order_id: { type: "string", example: "ORD-10101" },
+    order_id: { type: "string", example: "ORD-10102" },
     customer_id: {
       type: "string",
       example: "cust_001",
@@ -340,7 +340,7 @@ const ORDER_ID_PARAM = {
   in: "path",
   required: true,
   schema: { type: "string" },
-  example: "ORD-10101",
+  example: "ORD-10102",
 };
 
 const USER_ID_PARAM = {
