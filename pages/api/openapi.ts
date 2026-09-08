@@ -6,7 +6,7 @@ import { buildSpec } from "../../lib/openapi";
  * definitions, instead of having each endpoint transcribed by hand.
  *
  * Deliberately not wrapped in withState: it touches no demo state, so it needs
- * neither a Redis round-trip nor the write lock.
+ * neither a state load nor the write queue.
  */
 export default function handler(req: NextApiRequest, res: NextApiResponse): void {
   if (req.method !== "GET") {

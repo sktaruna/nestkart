@@ -31,10 +31,6 @@ not eligible for return), carries a machine-readable \`error\` code and either a
 \`message\` or \`reason\` field with prose suitable for relaying to the customer.
 Treat any \`ok: false\` as a failure.
 
-Any write can return **503 \`state_unavailable\`** if the backing store could not
-be read. Nothing was changed — the call is safe to retry, and must be retried
-rather than assumed to have applied.
-
 ## Authentication
 
 None. No API key, token, or session is required on any endpoint.
@@ -531,9 +527,9 @@ export const OPENAPI_SPEC = {
     "/api/health": {
       get: {
         tags: ["Meta"],
-        summary: "Health check with persistence diagnostics",
+        summary: "Health check",
         description:
-          "Reports whether shared-state persistence is configured. `shared_state_persistence_enabled: false` means state is per-instance and will appear to reset between requests in a deployed environment.",
+          "Confirms the service is up. State is held in process memory, so it is per-instance and resets when the process restarts.",
         responses: {
           ...ok200("Service is up.", {
             type: "object",
@@ -542,12 +538,7 @@ export const OPENAPI_SPEC = {
               status: { type: "string", example: "healthy" },
               service: { type: "string" },
               version: { type: "string" },
-              shared_state_persistence_enabled: { type: "boolean" },
-              detected_env_vars: {
-                type: "object",
-                description: "Which credential variables are visible. Names only, never values.",
-                additionalProperties: { type: "boolean" },
-              },
+              request_log_enabled: { type: "boolean" },
             },
           }),
         },
@@ -1861,7 +1852,7 @@ export const OPENAPI_SPEC = {
                       type: "object",
                       description: "Request body, for mutations only. Truncated to a string past 500 characters.",
                     },
-                    ms: { type: "integer", description: "Handler duration including store round trips." },
+                    ms: { type: "integer", description: "Handler duration in milliseconds." },
                   },
                 },
               },

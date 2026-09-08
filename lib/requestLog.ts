@@ -5,23 +5,15 @@
  * call the wrong endpoint, pass a bad customer_id, or read a correct response
  * incorrectly? Without a log the three are indistinguishable.
  *
- * Deliberately NOT part of the state snapshot. That blob is ~8 KB and is loaded
- * on every request and rewritten on every write; 500 log entries (~200 B each,
- * so ~96 KB) would make it roughly 12x bigger and put that cost on the hot path.
- * A separate Redis list keeps the log out of the way — it's read only when the
- * admin panel asks for it.
+ * Held in process memory alongside the rest of the state, so it is per-instance
+ * and lost on restart — which is fine, it only has to outlive the request being
+ * debugged.
  *
- * Off by default. Set REQUEST_LOG=1 to enable. Enabling costs one extra Redis
- * round trip on reads (writes pipeline the append into the state save, so they
- * pay nothing), and roughly triples Redis command count — worth paying while
- * debugging an agent, not worth paying always.
+ * Off by default. Set REQUEST_LOG=1 to enable. Enabling costs nothing but the
+ * memory for MAX_ENTRIES rows.
  */
 
-import * as store from "./store";
-
 export const ENABLED = process.env.REQUEST_LOG === "1" || process.env.REQUEST_LOG === "true";
-
-export const LOG_KEY = "nestkart_request_log";
 
 /**
  * Requests carrying this header are not logged.
@@ -36,8 +28,8 @@ export const SKIP_HEADER = "x-admin-panel";
 
 /**
  * ~96 KB at the observed average entry size, and 50-150 agent conversations at
- * 3-10 tool calls each — more than one debugging session, still a single fast
- * LRANGE for the admin panel.
+ * 3-10 tool calls each — more than one debugging session, and small enough to
+ * keep in memory and hand to the admin panel whole.
  */
 export const MAX_ENTRIES = 500;
 
@@ -70,10 +62,7 @@ export interface LogEntry {
   ms: number;
 }
 
-/**
- * Fallback when Redis isn't configured (local dev). Per-process and lost on
- * restart, which is fine — it only has to outlive the request being debugged.
- */
+/** Newest first. Per-process; trimmed to MAX_ENTRIES on every append. */
 const memoryLog: LogEntry[] = [];
 
 function truncateBody(body: unknown): unknown {
@@ -130,73 +119,18 @@ export function buildEntry(args: {
   return entry;
 }
 
-/**
- * The Redis commands that append `entry` and trim the list back to MAX_ENTRIES.
- *
- * Returned rather than executed so a mutating request can pipeline them into the
- * same round trip as its state save. LPUSH puts newest first, so reading the log
- * needs no sort and LTRIM drops the oldest.
- */
-export function appendCommands(entry: LogEntry): unknown[][] {
-  return [
-    ["LPUSH", LOG_KEY, JSON.stringify(entry)],
-    ["LTRIM", LOG_KEY, 0, MAX_ENTRIES - 1],
-  ];
-}
-
-/** Records `entry` under its own round trip. Used by reads, which have no save to ride along with. */
-export async function append(entry: LogEntry): Promise<void> {
+/** Records `entry`, dropping the oldest once MAX_ENTRIES is reached. */
+export function append(entry: LogEntry): void {
   if (!ENABLED) return;
-
-  if (!store.ENABLED) {
-    memoryLog.unshift(entry);
-    if (memoryLog.length > MAX_ENTRIES) memoryLog.length = MAX_ENTRIES;
-    return;
-  }
-
-  // Never let a logging failure affect the request being logged.
-  try {
-    await store.pipeline(appendCommands(entry));
-  } catch (e) {
-    console.error(`[requestLog] append failed: ${String(e)}`);
-  }
-}
-
-/** Mirrors `append` into the in-memory fallback; no-op once Redis is configured. */
-export function appendToMemory(entry: LogEntry): void {
-  if (!ENABLED || store.ENABLED) return;
   memoryLog.unshift(entry);
   if (memoryLog.length > MAX_ENTRIES) memoryLog.length = MAX_ENTRIES;
 }
 
 /** Newest first. `limit` caps how many are returned, not how many are kept. */
-export async function read(limit = MAX_ENTRIES): Promise<LogEntry[]> {
-  if (!store.ENABLED) return memoryLog.slice(0, limit);
-
-  try {
-    const raw = (await store.command("LRANGE", LOG_KEY, 0, limit - 1)) as string[] | null;
-    if (!raw) return [];
-    return raw
-      .map((item) => {
-        try {
-          return JSON.parse(item) as LogEntry;
-        } catch {
-          return null;
-        }
-      })
-      .filter((e): e is LogEntry => e !== null);
-  } catch (e) {
-    console.error(`[requestLog] read failed: ${String(e)}`);
-    return [];
-  }
+export function read(limit = MAX_ENTRIES): LogEntry[] {
+  return memoryLog.slice(0, limit);
 }
 
-export async function clear(): Promise<void> {
+export function clear(): void {
   memoryLog.length = 0;
-  if (!store.ENABLED) return;
-  try {
-    await store.command("DEL", LOG_KEY);
-  } catch (e) {
-    console.error(`[requestLog] clear failed: ${String(e)}`);
-  }
 }
